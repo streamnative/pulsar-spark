@@ -1,0 +1,37 @@
+allprojects {
+    apply plugin: 'com.github.hierynomus.license'
+    license {
+        includes(["**/*"])
+        excludes([
+            "**/Vagrantfile",
+            "**/terraform.tfstate.d/*",
+            "**/*.json",
+            "**/*.md",
+            "**/.terraform",
+            "**/.vagrant/*",
+            "**.gradle/*",
+            "**/myid.j2",
+            "LICENSE",
+            "deploy/*",
+            "gradle*",
+            "logs/*",
+            "requirements.txt",
+            "retry_files/*",
+        ])
+        header rootProject.file('gradle/license.template')
+        strictCheck true
+        skipExistingHeaders false
+        ext {
+          year = Calendar.getInstance().get(Calendar.YEAR)
+          name = "Apache Pulsar"
+        }
+        mapping('cfg', 'SCRIPT_STYLE')
+        mapping('conf', 'SCRIPT_STYLE')
+        mapping('ini', 'SCRIPT_STYLE')
+        mapping('javascript', 'JAVADOC_STYLE')
+        mapping('j2', 'SCRIPT_STYLE')
+        mapping('sh', 'SCRIPT_STYLE')
+        mapping('tf', 'SCRIPT_STYLE')
+        mapping('tfvars', 'SCRIPT_STYLE')
+    }
+}
