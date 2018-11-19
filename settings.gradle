@@ -13,6 +13,6 @@
  */
 rootProject.name = 'SegmentX'
 
-include 'connectors:flink',
-        'segment',
-        'test:common'
+include ':test:common',
+        ':segment',
+        ':connectors:flink'

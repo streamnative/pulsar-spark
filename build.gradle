@@ -15,48 +15,75 @@ plugins {
     id "com.github.hierynomus.license" version "0.14.0"
 }
 
-repositories {
-    jcenter()
-    mavenCentral()
-    mavenLocal()
-}
+apply plugin: 'idea'
 
 allprojects {
-    apply plugin: 'idea'
-    if (file("src/main/java").isDirectory()) {
-        apply plugin: 'java'
-    }
-
-    // Plugin Configurations
-    apply from: "$rootDir/gradle/checkstyle.gradle"
-    apply from: "$rootDir/gradle/findbugs.gradle"
-    apply from: "$rootDir/gradle/idea.gradle"
-    apply from: "$rootDir/gradle/java.gradle"
     apply from: "$rootDir/gradle/license.gradle"
-    
-    gradle.projectsEvaluated {
-        tasks.withType(JavaCompile) {
-            options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
-        }
-    }
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'maven'
+
+    sourceCompatibility = 1.8
+    targetCompatibility = 1.8
 
     version = segmentxVersion
     group = "org.apache.bookkeeper.segmentx"
 
-    configurations.all {
-        resolutionStrategy {
-            force "org.slf4j:slf4j-api:" + slf4jVersion
+    repositories {
+        jcenter()
+        mavenCentral()
+        mavenLocal()
+    }
+
+    dependencies {
+        compile group: 'org.slf4j', name: 'slf4j-api', version: slf4jVersion
+    }
+
+    task javadocJar(type: Jar) {
+        classifier = 'javadoc'
+        from javadoc
+    }
+
+    task sourcesJar(type: Jar) {
+        classifier = 'sources'
+        from sourceSets.main.allSource
+    }
+
+    artifacts {
+        archives jar
+        archives sourcesJar
+        archives javadocJar
+    }
+
+    test {
+        testLogging.showStandardStreams = true
+        maxParallelForks = 1
+        forkEvery 1
+        reports {
+            html.enabled = true
         }
     }
 }
 
-project('test:common') {
+idea {
+    project {
+        languageLevel = '1.8'
+    }
+    module {
+        downloadJavadoc = true
+        downloadSources = true
+    }
+}
+
+project(':test:common') {
     dependencies {
         compile group: 'org.slf4j', name: 'slf4j-api', version: slf4jVersion
     }
 }
 
-project('segment') {
+project(':segment') {
     dependencies {
         testCompile project(':test:common')
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookkeeperVersion
@@ -65,11 +92,11 @@ project('segment') {
     }
 }
 
-project('connectors:flink') {
+project(':connectors:flink') {
     dependencies {
+        compile group: 'org.apache.flink', name: 'flink-core', version: flinkVersion
+        compile group: 'org.apache.flink', name: 'flink-table_2.11', version: flinkVersion
         compile project(':segment')
-        compile group: 'org.apache.flink', name: 'flink-streaming-java_' + scalaVersion, version: flinkVersion
-        compile group: 'org.apache.flink', name: 'flink-table_' + scalaVersion, version: flinkVersion
     }
 }
 
