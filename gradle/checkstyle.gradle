@@ -11,8 +11,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'SegmentX'
+plugins.withId('checkstyle') {
+    checkstyle {
+        toolVersion = checkstyleVersion
 
-include 'connectors:flink',
-        'segment',
-        'test:common'
+        configFile = new File(rootDir, "checkstyle/checkstyle.xml")
+        configProperties = [importControlFile: "$rootDir/checkstyle/import-control.xml"]
+    }
+
+    plugins.withId('java') {
+        checkstyle {
+            // Exclude generated code from Checkstyle checks
+            checkstyleMain.exclude '**/generated/**'
+        }
+    }
+}

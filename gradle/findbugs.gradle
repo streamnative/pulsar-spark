@@ -11,8 +11,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'SegmentX'
-
-include 'connectors:flink',
-        'segment',
-        'test:common'
+plugins.withId('findbugs') {
+    findbugs {
+        toolVersion = findbugsVersion
+        effort = "default"
+    }
+    tasks.withType(FindBugs) {
+        includeFilter = file("$rootDir/checkstyle/findbugs-include.xml")
+        excludeFilter = file("$rootDir/checkstyle/findbugs-exclude.xml")
+        reports {
+            xml.enabled false
+            html.enabled true
+        }
+    }
+}
