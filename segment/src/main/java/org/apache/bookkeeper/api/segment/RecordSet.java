@@ -11,8 +11,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'ledgerx'
+package org.apache.bookkeeper.api.segment;
 
-include ':test:common',
-        ':segment',
-        ':connectors:flink'
+/**
+ * A set of records.
+ */
+public interface RecordSet extends AutoCloseable {
+
+    /**
+     * Check whether there is remaining records in this record set.
+     *
+     * @return true if there is remaining records in this record set.
+     * otherwise false.
+     */
+    boolean hasNext();
+
+    /**
+     * Get the next record in this record set.
+     *
+     * @return next record in this record set.
+     */
+    Record next();
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    void close();
+
+}

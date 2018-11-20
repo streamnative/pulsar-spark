@@ -11,8 +11,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'ledgerx'
+package org.apache.bookkeeper.api.segment;
 
-include ':test:common',
-        ':segment',
-        ':connectors:flink'
+/**
+ * Segment provider to access segment.
+ */
+public interface SegmentStore extends AutoCloseable {
+
+    /**
+     * Open the segment entry reader for a given <i>segment</i>.
+     *
+     * @param segment segment to open to read
+     * @return an instance of segment entry reader to read entries.
+     */
+    SegmentEntryReader openSegmentEntryReader(Segment segment);
+
+    @Override
+    void close();
+
+}

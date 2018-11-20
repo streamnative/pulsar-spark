@@ -11,8 +11,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'ledgerx'
+package org.apache.bookkeeper.api.segment;
 
-include ':test:common',
-        ':segment',
-        ':connectors:flink'
+/**
+ * Exception is thrown when reaching end of segment.
+ */
+public class EndOfSegmentException extends Exception {
+
+    public EndOfSegmentException() {
+        super();
+    }
+
+    public EndOfSegmentException(String msg) {
+        super(msg);
+    }
+
+}

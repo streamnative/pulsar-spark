@@ -11,8 +11,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'ledgerx'
-
-include ':test:common',
-        ':segment',
-        ':connectors:flink'
+/**
+ * An extension to existing ledger api for better integrating with existing analytics frameworks
+ * (such as Flink, Presto).
+ *
+ * <p>NOTE: merge this back to bookkeeper.
+ */
+package org.apache.bookkeeper.api.segment;

@@ -29,7 +29,7 @@ subprojects {
     targetCompatibility = 1.8
 
     version = ledgerxVersion
-    group = "org.apache.bookkeeper.ledgerx"
+    group = "org.apache.bookkeeper.segment"
 
     repositories {
         jcenter()
@@ -83,7 +83,7 @@ project(':test:common') {
     }
 }
 
-project(':ledgerx') {
+project(':segment') {
     dependencies {
         testCompile project(':test:common')
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookkeeperVersion
@@ -96,7 +96,7 @@ project(':connectors:flink') {
     dependencies {
         compile group: 'org.apache.flink', name: 'flink-core', version: flinkVersion
         compile group: 'org.apache.flink', name: 'flink-table_2.11', version: flinkVersion
-        compile project(':ledgerx')
+        compile project(':segment')
     }
 }
 

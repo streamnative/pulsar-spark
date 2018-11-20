@@ -11,8 +11,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'ledgerx'
+package org.apache.bookkeeper.api.segment;
 
-include ':test:common',
-        ':segment',
-        ':connectors:flink'
+/**
+ * Represent a record batched in a {@link org.apache.bookkeeper.client.api.LedgerEntry}.
+ */
+public interface Record extends AutoCloseable {
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    void close();
+
+}

@@ -11,8 +11,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'ledgerx'
+package org.apache.bookkeeper.api.segment;
 
-include ':test:common',
-        ':segment',
-        ':connectors:flink'
+import org.apache.bookkeeper.client.api.LedgerEntry;
+
+/**
+ * Entry Reader that reads entries within a segment.
+ */
+public interface SegmentEntryReader extends AutoCloseable {
+
+    /**
+     * Return next available entry in the segment.
+     *
+     * @return next available entry in the segment
+     * @throws EndOfSegmentException when reaching end of segment.
+     */
+    LedgerEntry readNext();
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    void close();
+
+}

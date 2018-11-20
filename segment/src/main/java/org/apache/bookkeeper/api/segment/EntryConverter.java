@@ -11,8 +11,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'ledgerx'
+package org.apache.bookkeeper.api.segment;
 
-include ':test:common',
-        ':segment',
-        ':connectors:flink'
+import org.apache.bookkeeper.client.api.LedgerEntry;
+
+/**
+ * A converter that converts {@link LedgerEntry} to a {@link RecordSet}.
+ */
+public interface EntryConverter {
+
+    /**
+     * Convert an <tt>entry</tt> to a {@link RecordSet}.
+     *
+     * @param entry a ledger entry
+     * @return a record set
+     */
+    RecordSet convertEntry(LedgerEntry entry);
+
+}
