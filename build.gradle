@@ -20,6 +20,7 @@ apply plugin: 'idea'
 allprojects {
     apply from: "$rootDir/gradle/license.gradle"
     apply plugin: 'checkstyle'
+    apply plugin: 'findbugs'
 }
 
 subprojects {
@@ -119,4 +120,12 @@ licenseFormat.dependsOn licenseFormatAll
 
 task licenseCheckAll(type: com.hierynomus.gradle.license.tasks.LicenseCheck) {
     source = fileTree(dir: ".").include("**/*")
+}
+
+// findbugs plugin
+tasks.withType(FindBugs) {
+    reports {
+        xml.enabled false
+        html.enabled true
+    }
 }
