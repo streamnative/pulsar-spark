@@ -13,23 +13,14 @@
  */
 package org.apache.bookkeeper.api.segment;
 
-import java.util.concurrent.CompletableFuture;
-import org.apache.bookkeeper.client.api.ReadHandle;
-
 /**
- * Segment provider to access segment.
+ * Listener on state changes on a segment.
  */
-public interface SegmentStore extends AutoCloseable {
+public interface SegmentStateListener {
 
     /**
-     * Open the segment entry reader for a given <i>segment</i>.
-     *
-     * @param segment segment to open to read
-     * @return an instance of segment entry reader to read entries.
+     * Triggered when a reader is caught up on an inprogress listener.
      */
-    CompletableFuture<ReadHandle> openSegmentEntryReader(Segment segment);
-
-    @Override
-    void close();
+    void onCaughtupOnInprogress();
 
 }

@@ -13,23 +13,13 @@
  */
 package org.apache.bookkeeper.api.segment;
 
-import java.util.concurrent.CompletableFuture;
-import org.apache.bookkeeper.client.api.ReadHandle;
-
 /**
- * Segment provider to access segment.
+ * Exception is thrown when read requests are cancelled.
  */
-public interface SegmentStore extends AutoCloseable {
+public class ReadCancelledException extends Exception {
 
-    /**
-     * Open the segment entry reader for a given <i>segment</i>.
-     *
-     * @param segment segment to open to read
-     * @return an instance of segment entry reader to read entries.
-     */
-    CompletableFuture<ReadHandle> openSegmentEntryReader(Segment segment);
-
-    @Override
-    void close();
+    public ReadCancelledException(String msg) {
+        super(msg);
+    }
 
 }

@@ -39,6 +39,8 @@ subprojects {
 
     dependencies {
         compile group: 'org.slf4j', name: 'slf4j-api', version: slf4jVersion
+        compileOnly group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        testCompile group: 'junit', name: 'junit', version: junitVersion
     }
 
     task javadocJar(type: Jar) {
@@ -79,7 +81,9 @@ idea {
 
 project(':test:common') {
     dependencies {
-        compile group: 'org.slf4j', name: 'slf4j-api', version: slf4jVersion
+        compile group: 'org.apache.distributedlog', name: 'distributedlog-core', classifier: 'tests', version: bookkeeperVersion
+        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compile group: 'junit', name: 'junit', version: junitVersion
     }
 }
 
@@ -87,8 +91,9 @@ project(':segment') {
     dependencies {
         testCompile project(':test:common')
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookkeeperVersion
-        compile group: 'org.apache.pulsar', name: 'managed-ledger', version: pulsarVersion
-        compile group: 'org.apache.pulsar', name: 'pulsar-client-admin', version: pulsarVersion
+        compile group: 'org.apache.bookkeeper', name: 'circe-checksum', ext: 'jar', version: bookkeeperVersion
+        compile group: 'org.apache.pulsar', name: 'managed-ledger-original', version: pulsarVersion
+        compile group: 'org.apache.pulsar', name: 'pulsar-client-admin-original', version: pulsarVersion
     }
 }
 

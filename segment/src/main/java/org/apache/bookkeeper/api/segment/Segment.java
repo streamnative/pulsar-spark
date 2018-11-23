@@ -14,12 +14,27 @@
 package org.apache.bookkeeper.api.segment;
 
 import java.io.Serializable;
+import org.apache.bookkeeper.client.api.DigestType;
 import org.apache.bookkeeper.versioning.Version.Occurred;
 
 /**
  * Class represents the metadata of a segment.
  */
 public interface Segment extends Serializable {
+
+    /**
+     * Name of the segment.
+     *
+     * @return name of the segment.
+     */
+    String name();
+
+    /**
+     * Id of the segment.
+     *
+     * @return id of the segment.
+     */
+    Long id();
 
     /**
      * Whether the segment is sealed or not.
@@ -56,5 +71,13 @@ public interface Segment extends Serializable {
      * @return the locations storing the segment.
      */
     String[] getLocations();
+
+    /**
+     * Returns an entry converter that can be used for converting {@link org.apache.bookkeeper.client.api.LedgerEntry}
+     * to {@link RecordSet}.
+     *
+     * @return entry convert.
+     */
+    EntryConverter entryConverter();
 
 }

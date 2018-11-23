@@ -13,6 +13,8 @@
  */
 package org.apache.bookkeeper.api.segment;
 
+import java.io.IOException;
+import java.util.List;
 import org.apache.bookkeeper.client.api.LedgerEntry;
 
 /**
@@ -26,7 +28,7 @@ public interface SegmentEntryReader extends AutoCloseable {
      * @return next available entry in the segment
      * @throws EndOfSegmentException when reaching end of segment.
      */
-    LedgerEntry readNext();
+    List<LedgerEntry> readNext() throws IOException;
 
     /**
      * {@inheritDoc}
