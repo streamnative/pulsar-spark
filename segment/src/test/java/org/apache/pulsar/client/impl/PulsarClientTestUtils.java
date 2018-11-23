@@ -15,15 +15,19 @@ package org.apache.pulsar.client.impl;
 
 import static com.scurrilous.circe.checksum.Crc32cIntChecksum.computeChecksum;
 import static com.scurrilous.circe.checksum.Crc32cIntChecksum.resumeChecksum;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.common.api.Commands;
+import org.apache.pulsar.common.api.proto.PulsarApi.CompressionType;
 import org.apache.pulsar.common.api.proto.PulsarApi.MessageMetadata;
 import org.apache.pulsar.common.compression.CompressionCodec;
 import org.apache.pulsar.common.util.protobuf.ByteBufCodedOutputStream;
@@ -48,8 +52,15 @@ public class PulsarClientTestUtils {
                                                  CompressionCodec compressor) {
         ByteBuf compressedPayload = compressor.encode(payload);
         payload.release();
-        MessageMetadata metadata = metadataBuilder.build();
+        try {
+            return serializeMessage(metadataBuilder.build(), compressedPayload);
+        } finally {
+            metadataBuilder.recycle();
+        }
+    }
 
+    private static ByteBuf serializeMessage(MessageMetadata metadata,
+                                            ByteBuf compressedPayload) {
         int metadataSize = metadata.getSerializedSize();
         int magicAndChecksumSize = 2 + 4; /* magic + checksum_length */
         int headerSize = magicAndChecksumSize + 4 + metadataSize;
@@ -78,7 +89,6 @@ public class PulsarClientTestUtils {
         header.resetReaderIndex();
 
         metadata.recycle();
-        metadataBuilder.recycle();
 
         CompositeByteBuf command = PooledByteBufAllocator.DEFAULT.compositeBuffer(2);
         command.addComponent(header);
@@ -86,6 +96,57 @@ public class PulsarClientTestUtils {
         command.writerIndex(header.readableBytes() + compressedPayload.readableBytes());
 
         return command;
+    }
+
+    public static ByteBuf serializeBatchedMessage(int numMessages,
+                                                  CompressionType compressionType,
+                                                  String topicName,
+                                                  String producerName,
+                                                  String payloadPrefix,
+                                                  MessageMetadata.Builder metadataBuilder) {
+        BatchMessageContainer container = new BatchMessageContainer(
+            numMessages, compressionType, topicName, producerName);
+
+        for (int i = 0; i < numMessages; i++) {
+            MessageImpl<byte[]> msg = MessageImpl.create(
+                MessageMetadata.newBuilder(metadataBuilder.build())
+                    .setSequenceId(i)
+                    .setCompression(compressionType),
+                ByteBuffer.wrap((payloadPrefix + "-" + i).getBytes(UTF_8)),
+                Schema.BYTES);
+
+            container.add(msg, new SendCallback() {
+                @Override
+                public void sendComplete(Exception e) {
+                }
+
+                @Override
+                public void addCallback(MessageImpl<?> msg, SendCallback scb) {
+                }
+
+                @Override
+                public SendCallback getNextSendCallback() {
+                    return null;
+                }
+
+                @Override
+                public MessageImpl<?> getNextMessage() {
+                    return null;
+                }
+
+                @Override
+                public CompletableFuture<MessageId> getFuture() {
+                    return null;
+                }
+            });
+        }
+
+        // build the batched message buffer
+        ByteBuf compressedPayload = container.getCompressedBatchMetadataAndPayload();
+
+        // set batch
+        MessageMetadata metadata = container.setBatchAndBuild();
+        return serializeMessage(metadata, compressedPayload);
     }
 
 }
