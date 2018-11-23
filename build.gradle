@@ -19,6 +19,7 @@ apply plugin: 'idea'
 
 allprojects {
     apply from: "$rootDir/gradle/license.gradle"
+    apply plugin: 'checkstyle'
 }
 
 subprojects {

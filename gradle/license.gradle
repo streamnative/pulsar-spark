@@ -24,6 +24,7 @@ allprojects {
             "**/.vagrant/*",
             "**/build/*",
             "**/myid.j2",
+            "**/out/*",
             ".gradle/*",
             ".idea/*",
             "LICENSE",

@@ -29,7 +29,7 @@ import org.apache.pulsar.common.compression.CompressionCodec;
 import org.apache.pulsar.common.util.protobuf.ByteBufCodedOutputStream;
 
 /**
- * Test utils for accessing pulsar client classes
+ * Test utils for accessing pulsar client classes.
  */
 @Slf4j
 public class PulsarClientTestUtils {

@@ -14,7 +14,6 @@
 package org.apache.bookkeeper.api.segment;
 
 import java.io.Serializable;
-import org.apache.bookkeeper.client.api.DigestType;
 import org.apache.bookkeeper.versioning.Version.Occurred;
 
 /**
