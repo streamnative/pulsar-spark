@@ -14,12 +14,15 @@
 package org.apache.bookkeeper.segment.pulsar;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.AccessLevel;
+import lombok.Getter;
 import org.apache.bookkeeper.api.segment.EntryConverter;
 import org.apache.bookkeeper.api.segment.Segment;
 import org.apache.bookkeeper.client.api.LedgerMetadata;
@@ -30,22 +33,27 @@ import org.apache.bookkeeper.versioning.Version.Occurred;
 /**
  * A pulsar segment.
  */
+@Getter(AccessLevel.PACKAGE)
 public class PulsarSegment implements Segment {
 
+    @JsonProperty
     private final String topicName;
+    @JsonProperty
     private final int partitionId;
+    @JsonProperty
     private final long ledgerId;
+    @JsonProperty
     private final byte[] ledgerMetadataBytes;
 
-    private volatile String fullyQualifiedSegmentName = null;
-    private volatile LedgerMetadata ledgerMetadata = null;
+    private transient String fullyQualifiedSegmentName = null;
+    private transient LedgerMetadata ledgerMetadata = null;
 
     @JsonCreator
     public PulsarSegment(
         @JsonProperty("topicName") String topicName,
         @JsonProperty("partitionId") int partitionId,
         @JsonProperty("ledgerId") long ledgerId,
-        @JsonProperty("ledgerMetadata") byte[] ledgerMetadata) {
+        @JsonProperty("ledgerMetadataBytes") byte[] ledgerMetadata) {
         this.topicName = topicName;
         this.partitionId = partitionId;
         this.ledgerId = ledgerId;
@@ -80,6 +88,7 @@ public class PulsarSegment implements Segment {
         return ledgerId;
     }
 
+    @JsonIgnore
     @Override
     public boolean isSealed() {
         deserializeLedgerMetadataIfNeeded();
@@ -120,6 +129,7 @@ public class PulsarSegment implements Segment {
         }
     }
 
+    @JsonIgnore
     @Override
     public String[] getLocations() {
         deserializeLedgerMetadataIfNeeded();
@@ -131,7 +141,7 @@ public class PulsarSegment implements Segment {
         return allBookies.stream()
             .map(addr -> addr.toString())
             .collect(Collectors.toList())
-            .toArray(new String[allBookies.size()]);
+            .toArray(new String[0]);
     }
 
     @Override
