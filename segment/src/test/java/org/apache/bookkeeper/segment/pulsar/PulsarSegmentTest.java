@@ -57,7 +57,7 @@ public class PulsarSegmentTest {
     }
 
     /**
-     * Test Json Serialization
+     * Test Json Serialization.
      */
     @Test
     public void testJsonSerialization() throws Exception {
@@ -85,7 +85,7 @@ public class PulsarSegmentTest {
     }
 
     /**
-     * Test Java Object Serialization
+     * Test Java Object Serialization.
      */
     @Test
     public void testJavaObjectSerialization() throws Exception {
