@@ -114,7 +114,8 @@ public abstract class PulsarServiceTestCase {
         }
         if (!admin.namespaces().getNamespaces(publicTenant).contains(defaultNamespace)) {
             admin.namespaces().createNamespace(defaultNamespace);
-            admin.namespaces().setNamespaceReplicationClusters(defaultNamespace, Sets.newHashSet(config.getClusterName()));
+            admin.namespaces().setNamespaceReplicationClusters(
+                defaultNamespace, Sets.newHashSet(config.getClusterName()));
         }
     }
 
