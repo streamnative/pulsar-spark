@@ -27,7 +27,6 @@ import java.io.ObjectOutputStream;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.bookkeeper.client.BookKeeper.DigestType;
@@ -48,7 +47,7 @@ public class PulsarSegmentTest {
             DigestType.CRC32C,
             PASSWD
         );
-        List<BookieSocketAddress> ensemble = new ArrayList<>(numBookies);
+        ArrayList<BookieSocketAddress> ensemble = new ArrayList<>(numBookies);
         for (int i = 0; i < numBookies; i++) {
             ensemble.add(new BookieSocketAddress("127.0.0.1", 3181 + i));
         }

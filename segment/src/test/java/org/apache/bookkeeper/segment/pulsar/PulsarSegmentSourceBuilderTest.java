@@ -21,7 +21,7 @@ import org.junit.Test;
 /**
  * Unit test {@link PulsarSegmentSourceBuilder}.
  */
-public class PulsarSegmentStoreBuilderTest {
+public class PulsarSegmentSourceBuilderTest {
 
     @Test(expected = NullPointerException.class)
     public void testWithNullAdminUrl() {

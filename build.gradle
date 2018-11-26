@@ -85,10 +85,14 @@ project(':test:common') {
     dependencies {
         compile group: 'junit', name: 'junit', version: junitVersion
         compile group: 'org.apache.distributedlog', name: 'distributedlog-core', classifier: 'tests', version: bookkeeperVersion
+        compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', classifier: 'tests', version: bookkeeperVersion
         compile group: 'org.mockito', name: 'mockito-core', version: mockitoVersion
         compile group: 'org.powermock', name: 'powermock-api-mockito2', version: powermockVersion
         compile group: 'org.powermock', name: 'powermock-module-junit4', version: powermockVersion
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compile('org.apache.pulsar:pulsar-broker:' + pulsarVersion) {
+            exclude group: 'org.eclipse.jetty', module: 'jetty-servlet'
+        }
     }
 }
 
@@ -97,8 +101,14 @@ project(':segment') {
         testCompile project(':test:common')
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookkeeperVersion
         compile group: 'org.apache.bookkeeper', name: 'circe-checksum', ext: 'jar', version: bookkeeperVersion
-        compile group: 'org.apache.pulsar', name: 'managed-ledger-original', version: pulsarVersion
+        compile('org.apache.bookkeeper.stats:prometheus-metrics-provider:' + bookkeeperVersion) {
+            exclude group: 'org.eclipse.jetty', module: 'jetty-servlet'
+        }
+        compile('org.apache.pulsar:managed-ledger-original:' + pulsarVersion) {
+            exclude group: 'org.apache.bookkeeper.stats', module: 'prometheus-metrics-provider'
+        }
         compile group: 'org.apache.pulsar', name: 'pulsar-client-admin-original', version: pulsarVersion
+        compile('org.eclipse.jetty:jetty-servlet:9.3.11.v20160721')
     }
 }
 
