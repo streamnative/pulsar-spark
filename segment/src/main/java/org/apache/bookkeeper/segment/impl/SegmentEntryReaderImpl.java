@@ -358,7 +358,7 @@ class SegmentEntryReaderImpl implements SafeRunnable, SegmentEntryReader {
             return;
         }
         // segment is changed, then re-open the log segment
-        store.openSegmentEntryReader(segment)
+        store.openRandomAccessEntryReader(segment)
             .whenComplete(new FutureEventListener<ReadHandle>() {
                 @Override
                 public void onSuccess(ReadHandle value) {
@@ -615,15 +615,19 @@ class SegmentEntryReaderImpl implements SafeRunnable, SegmentEntryReader {
     }
 
     @Override
-    public List<LedgerEntry> readNext() throws IOException {
+    public List<LedgerEntry> readNext() throws EndOfSegmentException, IOException {
         // 1000 is an indicator
-        return FutureUtils.result(readNextAsync(1000), cause -> {
-            if (cause instanceof IOException) {
-                return (IOException) cause;
+        try {
+            return FutureUtils.result(readNextAsync(1000));
+        } catch (Exception e) {
+            if (e instanceof EndOfSegmentException) {
+                throw (EndOfSegmentException) e;
+            } else if (e instanceof IOException) {
+                throw (IOException) e;
             } else {
-                return new IOException("Exception on reading entries from segment '" + metadata.name() + "'", cause);
+                throw new IOException("Exception on reading entries from segment '" + metadata.name() + "'", e);
             }
-        });
+        }
     }
 
     private void processReadRequests() {

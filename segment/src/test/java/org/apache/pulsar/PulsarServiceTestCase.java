@@ -44,6 +44,7 @@ public abstract class PulsarServiceTestCase {
     protected static Path testDataPath;
     protected static LocalBookkeeperEnsemble localEnsemble;
     protected static PulsarService pulsarService;
+    protected static int zkPort;
     protected static int brokerServicePort;
     protected static int webServicePort;
 
@@ -57,7 +58,7 @@ public abstract class PulsarServiceTestCase {
         Path zkDirPath = Files.createDirectory(Paths.get(testDataPath.toString(), "zk"));
         Path bkDirPath = Files.createDirectory(Paths.get(testDataPath.toString(), "bk"));
 
-        int zkPort = PortManager.nextFreePort();
+        zkPort = PortManager.nextFreePort();
 
         localEnsemble = new LocalBookkeeperEnsemble(
             3,
@@ -129,6 +130,10 @@ public abstract class PulsarServiceTestCase {
         }
 
         MoreFiles.deleteRecursively(testDataPath, RecursiveDeleteOption.ALLOW_INSECURE);
+    }
+
+    protected static String getZkServers() {
+        return "127.0.0.1:" + zkPort;
     }
 
     protected static String getBrokerServiceUrl() {

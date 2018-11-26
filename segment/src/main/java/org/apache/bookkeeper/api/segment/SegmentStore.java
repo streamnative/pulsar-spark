@@ -13,6 +13,7 @@
  */
 package org.apache.bookkeeper.api.segment;
 
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import org.apache.bookkeeper.client.api.ReadHandle;
 
@@ -22,12 +23,26 @@ import org.apache.bookkeeper.client.api.ReadHandle;
 public interface SegmentStore extends AutoCloseable {
 
     /**
-     * Open the segment entry reader for a given <i>segment</i>.
+     * Open the random access entry reader for a given <i>segment</i>.
      *
      * @param segment segment to open to read
-     * @return an instance of segment entry reader to read entries.
+     * @return an instance of random access entry reader to read entries
      */
-    CompletableFuture<ReadHandle> openSegmentEntryReader(Segment segment);
+    CompletableFuture<ReadHandle> openRandomAccessEntryReader(Segment segment);
+
+    /**
+     * Open a sequential entry reader to read entries from a given <i>segment</i> sequentially.
+     *
+     * @param segment segment to open to read
+     * @param startEntryId the entry id to start reading
+     * @param endEntryId the entry id to stop reading
+     * @param config read ahead config
+     * @return
+     */
+    CompletableFuture<SegmentEntryReader> openSequentialEntryReader(Segment segment,
+                                                                    long startEntryId,
+                                                                    Optional<Long> endEntryId,
+                                                                    ReadAheadConfig config);
 
     @Override
     void close();

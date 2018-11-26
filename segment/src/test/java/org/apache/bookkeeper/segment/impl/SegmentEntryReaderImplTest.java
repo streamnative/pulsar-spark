@@ -13,21 +13,32 @@
  */
 package org.apache.bookkeeper.segment.impl;
 
+import static org.apache.bookkeeper.common.concurrent.FutureUtils.result;
+import static org.junit.Assert.assertEquals;
+
+import java.util.List;
+import org.apache.bookkeeper.api.segment.Segment;
+import org.apache.bookkeeper.api.segment.SegmentSource;
+import org.apache.bookkeeper.api.segment.SegmentSource.SegmentBatch;
 import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.common.util.OrderedScheduler;
 import org.apache.bookkeeper.conf.ClientConfiguration;
+import org.apache.bookkeeper.segment.pulsar.PulsarSegmentSourceBuilder;
 import org.apache.bookkeeper.zookeeper.ExponentialBackoffRetryPolicy;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
-import org.apache.distributedlog.TestDistributedLogBase;
+import org.apache.pulsar.PulsarServiceTestCase;
+import org.apache.pulsar.client.api.Producer;
+import org.apache.pulsar.client.api.Schema;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TestName;
 
 /**
  * Unit test {@link SegmentEntryReaderImpl}.
  */
-public class SegmentEntryReaderImplTest extends TestDistributedLogBase {
+public class SegmentEntryReaderImplTest extends PulsarServiceTestCase {
 
     @Rule
     public final TestName runtime = new TestName();
@@ -36,16 +47,15 @@ public class SegmentEntryReaderImplTest extends TestDistributedLogBase {
     private BookKeeper bkc;
     private ZooKeeperClient zkc;
 
-    @Before
-    public void setup() throws Exception {
-        super.setup();
+    @Override
+    public void doSetup() throws Exception {
         zkc = ZooKeeperClient.newBuilder()
-            .connectString(zkServers)
+            .connectString(getZkServers())
             .sessionTimeoutMs(30000)
             .operationRetryPolicy(new ExponentialBackoffRetryPolicy(2000, 30))
             .build();
         conf = new ClientConfiguration()
-            .setMetadataServiceUri("zk://" + zkServers + "/ledgers");
+            .setMetadataServiceUri("zk://" + getZkServers() + "/ledgers");
         bkc = BookKeeper.newBuilder(new ClientConfiguration())
             .build();
         scheduler = OrderedScheduler.newSchedulerBuilder()
@@ -54,8 +64,8 @@ public class SegmentEntryReaderImplTest extends TestDistributedLogBase {
             .build();
     }
 
-    @After
-    public void teardown() throws Exception {
+    @Override
+    public void doTeardown() throws Exception {
         if (null != bkc) {
             bkc.close();
         }
@@ -65,14 +75,15 @@ public class SegmentEntryReaderImplTest extends TestDistributedLogBase {
         if (null != zkc) {
             zkc.close();
         }
-        super.teardown();
     }
+
+
     /**
 
-    BKLogSegmentEntryReader createEntryReader(LogSegmentMetadata segment,
-                                              long startEntryId,
-                                              DistributedLogConfiguration conf)
-        throws Exception {
+    SegmentEntryReaderImpl createEntryReader(Segment segment, long startEntryId) throws Exception {
+
+
+
         LogSegmentEntryStore store = new BKLogSegmentEntryStore(
             conf,
             ConfUtils.getConstDynConf(conf),
@@ -84,6 +95,8 @@ public class SegmentEntryReaderImplTest extends TestDistributedLogBase {
             AsyncFailureInjector.NULL);
         return (BKLogSegmentEntryReader) Utils.ioResult(store.openReader(segment, startEntryId));
     }
+
+
 
     void generateCompletedLogSegments(DistributedLogManager dlm,
                                       DistributedLogConfiguration conf,
@@ -115,22 +128,42 @@ public class SegmentEntryReaderImplTest extends TestDistributedLogBase {
         return writer;
     }
 
-    @Test(timeout = 60000)
+    private void createNonPartitionedTopic(String topicName, int numMessages) throws Exception {
+        try (Producer<String> producer = client.newProducer(Schema.STRING)
+            .enableBatching(false)
+            .topic(topicName)
+            .create()
+        ) {
+            for (int i = 0; i < numMessages; i++) {
+                producer.send("message-" + i);
+            }
+            producer.flush();
+        }
+    }
+
+    private List<Segment> getNonPartitionedTopicSegments(String topicName) throws Exception {
+        SegmentSource source = PulsarSegmentSourceBuilder.newBuilder()
+            .withAdminUrl(getWebServiceUrl())
+            .withTopic(topicName)
+            .build();
+        SegmentBatch batch = result(source.getNextSegmentBatch(Integer.MAX_VALUE));
+        return batch.getSegments();
+    }
+
+    @Test
     public void testReadEntriesFromCompleteLogSegment() throws Exception {
-        DistributedLogConfiguration confLocal = new DistributedLogConfiguration();
-        confLocal.addConfiguration(conf);
-        confLocal.setOutputBufferSize(0);
-        confLocal.setPeriodicFlushFrequencyMilliSeconds(0);
-        confLocal.setImmediateFlushEnabled(false);
-        confLocal.setNumPrefetchEntriesPerLogSegment(10);
-        confLocal.setMaxPrefetchEntriesPerLogSegment(10);
-        DistributedLogManager dlm = createNewDLM(confLocal, runtime.getMethodName());
-        generateCompletedLogSegments(dlm, confLocal, 1, 20);
-        List<LogSegmentMetadata> segments = dlm.getLogSegments();
-        assertEquals(segments.size() + " log segments found, expected to be only one",
+        final String topicName = runtime.getMethodName();
+        final int numMessages = 20;
+
+        createNonPartitionedTopic(topicName, numMessages);
+        admin.topics().unload(topicName);
+
+        List<Segment> segments = getNonPartitionedTopicSegments(topicName);
+
+        assertEquals(segments.size() + " segments found, expected to be only one",
             1, segments.size());
 
-        BKLogSegmentEntryReader reader = createEntryReader(segments.get(0), 0, confLocal);
+        SegmentEntryReaderImpl reader = createEntryReader(segments.get(0), 0, confLocal);
         reader.start();
         boolean done = false;
         long txId = 1L;
@@ -162,6 +195,7 @@ public class SegmentEntryReaderImplTest extends TestDistributedLogBase {
         Utils.close(reader);
     }
 
+    /**
     @Test(timeout = 60000)
     public void testCloseReaderToCancelPendingReads() throws Exception {
         DistributedLogConfiguration confLocal = new DistributedLogConfiguration();

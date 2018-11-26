@@ -84,7 +84,6 @@ idea {
 project(':test:common') {
     dependencies {
         compile group: 'junit', name: 'junit', version: junitVersion
-        compile group: 'org.apache.distributedlog', name: 'distributedlog-core', classifier: 'tests', version: bookkeeperVersion
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', classifier: 'tests', version: bookkeeperVersion
         compile group: 'org.mockito', name: 'mockito-core', version: mockitoVersion
         compile group: 'org.powermock', name: 'powermock-api-mockito2', version: powermockVersion

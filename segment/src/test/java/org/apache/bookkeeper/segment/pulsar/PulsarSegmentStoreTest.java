@@ -60,7 +60,7 @@ public class PulsarSegmentStoreTest {
     @Test(expected = IllegalArgumentException.class)
     public void testOpenInvalidSegment() throws Exception {
         Segment invalidSegment = mock(Segment.class);
-        result(store.openSegmentEntryReader(invalidSegment));
+        result(store.openRandomAccessEntryReader(invalidSegment));
     }
 
     @Test
@@ -78,7 +78,7 @@ public class PulsarSegmentStoreTest {
 
         PulsarSegment segment = mock(PulsarSegment.class);
         when(segment.getLedgerId()).thenReturn(ledgerId);
-        assertSame(mockRh, result(store.openSegmentEntryReader(segment)));
+        assertSame(mockRh, result(store.openRandomAccessEntryReader(segment)));
 
         verify(mockBk, times(1)).newOpenLedgerOp();
     }

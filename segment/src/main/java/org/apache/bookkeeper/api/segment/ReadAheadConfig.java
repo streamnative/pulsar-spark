@@ -13,28 +13,33 @@
  */
 package org.apache.bookkeeper.api.segment;
 
-import java.io.IOException;
-import java.util.List;
-import org.apache.bookkeeper.client.api.LedgerEntry;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.experimental.Accessors;
 
-/**
- * Entry Reader that reads entries within a segment.
- */
-public interface SegmentEntryReader extends AutoCloseable {
-
-    /**
-     * Return next available entry in the segment.
-     *
-     * @return next available entry in the segment
-     * @throws EndOfSegmentException when reaching end of segment
-     * @throws IOException when encountered io exception
-     */
-    List<LedgerEntry> readNext() throws EndOfSegmentException, IOException;
+@Builder
+@Accessors(fluent = true)
+@Getter
+public class ReadAheadConfig {
 
     /**
-     * {@inheritDoc}
+     * Number of entries to prefetch for each call.
      */
-    @Override
-    void close();
+    private final int numPrefetchEntries = 3;
+
+    /**
+     * Max number of entries to prefetch.
+     */
+    private final int maxPrefetchEntries = 1000;
+
+    /**
+     * Wait time when the read ahead cache is full.
+     */
+    private final int readAheadWaitTime = 200;
+
+    /**
+     * The long-poll timeout milliseconds of reading lac.
+     */
+    private final long readLacTimeoutMs = 10000;
 
 }
