@@ -13,10 +13,15 @@
  */
 package org.apache.bookkeeper.segment.pulsar;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.base.MoreObjects;
+import com.google.common.base.MoreObjects.ToStringHelper;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -147,5 +152,32 @@ public class PulsarSegment implements Segment {
     @Override
     public EntryConverter entryConverter() {
         return new PulsarEntryConverter(topicName, ledgerId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(topicName, ledgerId, partitionId) * 13 + Arrays.hashCode(ledgerMetadataBytes);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof PulsarSegment)) {
+            return false;
+        }
+        PulsarSegment other = (PulsarSegment) obj;
+        return Objects.equals(topicName, other.topicName)
+            && Objects.equals(ledgerId, other.ledgerId)
+            && Objects.equals(partitionId, other.partitionId)
+            && Arrays.equals(ledgerMetadataBytes, other.ledgerMetadataBytes);
+    }
+
+    @Override
+    public String toString() {
+        ToStringHelper helper = MoreObjects.toStringHelper("PulsarSegment");
+        helper.add("TopicName", topicName);
+        helper.add("PartitionId", partitionId);
+        helper.add("LedgerId", ledgerId);
+        helper.add("LedgerMetadata", new String(ledgerMetadataBytes, UTF_8));
+        return helper.toString();
     }
 }
