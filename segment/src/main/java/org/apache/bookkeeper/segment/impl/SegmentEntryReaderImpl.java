@@ -325,6 +325,7 @@ class SegmentEntryReaderImpl implements SafeRunnable, SegmentEntryReader {
         return nextEntryId;
     }
 
+    @Override
     public void start() {
         prefetchIfNecessary();
     }
@@ -713,7 +714,7 @@ class SegmentEntryReaderImpl implements SafeRunnable, SegmentEntryReader {
                 hitEndOfLogSegment = (null == entry) && isEndOfLogSegment();
             }
             // reach end of log segment
-            if (hitEndOfLogSegment) {
+            if (hitEndOfLogSegment && !nextRequest.hasReadEntries()) {
                 completeExceptionally(
                     new EndOfSegmentException("Reach end of segment '" + metadata.name() + "'"), false);
                 return;
@@ -740,7 +741,6 @@ class SegmentEntryReaderImpl implements SafeRunnable, SegmentEntryReader {
                         return;
                     }
                     // the reference is retained on `entry.getEntry()`.
-                    // Entry.Reader is responsible for releasing it.
                     nextRequest.addEntry(entry.getEntry());
                 } finally {
                     removedEntry.release();

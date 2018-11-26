@@ -32,10 +32,14 @@ class PulsarEntryConverter implements EntryConverter {
 
     @Override
     public RecordSet convertEntry(LedgerEntry entry) {
-        return PulsarRecordSet.create(
+        PulsarRecordSet rs = PulsarRecordSet.create(
             topicName,
             ledgerId,
             entry
         );
+        if (!rs.initialize()) {
+            throw new RuntimeException("entry " + entry.getEntryId() + " @ ledger " + ledgerId + " is corrupted");
+        }
+        return rs;
     }
 }

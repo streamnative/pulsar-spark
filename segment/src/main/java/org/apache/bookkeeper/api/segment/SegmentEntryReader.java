@@ -23,6 +23,11 @@ import org.apache.bookkeeper.client.api.LedgerEntry;
 public interface SegmentEntryReader extends AutoCloseable {
 
     /**
+     * Start fetching the entries.
+     */
+    void start();
+
+    /**
      * Return next available entry in the segment.
      *
      * @return next available entry in the segment

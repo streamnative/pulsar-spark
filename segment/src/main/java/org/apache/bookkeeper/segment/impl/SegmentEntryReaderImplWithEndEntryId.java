@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.api.segment.EndOfSegmentException;
 import org.apache.bookkeeper.api.segment.SegmentEntryReader;
 import org.apache.bookkeeper.client.api.LedgerEntry;
@@ -25,6 +26,7 @@ import org.apache.bookkeeper.client.api.LedgerEntry;
 /**
  * A segment entry reader wraps an existing reader with end entry id.
  */
+@Slf4j
 class SegmentEntryReaderImplWithEndEntryId implements SegmentEntryReader {
 
     private final SegmentEntryReader reader;
@@ -35,6 +37,11 @@ class SegmentEntryReaderImplWithEndEntryId implements SegmentEntryReader {
                                          long endEntryId) {
         this.reader = reader;
         this.endEntryId = endEntryId;
+    }
+
+    @Override
+    public void start() {
+        this.reader.start();
     }
 
     @VisibleForTesting

@@ -13,24 +13,34 @@
  */
 package org.apache.bookkeeper.segment.impl;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.bookkeeper.common.concurrent.FutureUtils.result;
 import static org.junit.Assert.assertEquals;
 
 import java.util.List;
+import java.util.Optional;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.bookkeeper.api.segment.EndOfSegmentException;
+import org.apache.bookkeeper.api.segment.EntryConverter;
+import org.apache.bookkeeper.api.segment.ReadAheadConfig;
+import org.apache.bookkeeper.api.segment.Record;
+import org.apache.bookkeeper.api.segment.RecordSet;
 import org.apache.bookkeeper.api.segment.Segment;
+import org.apache.bookkeeper.api.segment.SegmentEntryReader;
 import org.apache.bookkeeper.api.segment.SegmentSource;
 import org.apache.bookkeeper.api.segment.SegmentSource.SegmentBatch;
 import org.apache.bookkeeper.client.api.BookKeeper;
+import org.apache.bookkeeper.client.api.DigestType;
+import org.apache.bookkeeper.client.api.LedgerEntry;
 import org.apache.bookkeeper.common.util.OrderedScheduler;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.bookkeeper.segment.pulsar.PulsarSegmentSourceBuilder;
+import org.apache.bookkeeper.segment.pulsar.PulsarSegmentStore;
 import org.apache.bookkeeper.zookeeper.ExponentialBackoffRetryPolicy;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
 import org.apache.pulsar.PulsarServiceTestCase;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.Schema;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
@@ -38,7 +48,11 @@ import org.junit.rules.TestName;
 /**
  * Unit test {@link SegmentEntryReaderImpl}.
  */
+@Slf4j
 public class SegmentEntryReaderImplTest extends PulsarServiceTestCase {
+
+    private static final DigestType digestType = DigestType.CRC32C;
+    private static final byte[] password = "".getBytes(UTF_8);
 
     @Rule
     public final TestName runtime = new TestName();
@@ -46,6 +60,7 @@ public class SegmentEntryReaderImplTest extends PulsarServiceTestCase {
     private ClientConfiguration conf;
     private BookKeeper bkc;
     private ZooKeeperClient zkc;
+    private PulsarSegmentStore segmentStore;
 
     @Override
     public void doSetup() throws Exception {
@@ -56,12 +71,15 @@ public class SegmentEntryReaderImplTest extends PulsarServiceTestCase {
             .build();
         conf = new ClientConfiguration()
             .setMetadataServiceUri("zk://" + getZkServers() + "/ledgers");
-        bkc = BookKeeper.newBuilder(new ClientConfiguration())
+        bkc = BookKeeper.newBuilder(conf)
             .build();
         scheduler = OrderedScheduler.newSchedulerBuilder()
             .name("test-segment-entry-reader")
             .numThreads(1)
             .build();
+        segmentStore = new PulsarSegmentStore(
+            bkc, digestType, password
+        );
     }
 
     @Override
@@ -127,6 +145,7 @@ public class SegmentEntryReaderImplTest extends PulsarServiceTestCase {
         }
         return writer;
     }
+     **/
 
     private void createNonPartitionedTopic(String topicName, int numMessages) throws Exception {
         try (Producer<String> producer = client.newProducer(Schema.STRING)
@@ -150,6 +169,7 @@ public class SegmentEntryReaderImplTest extends PulsarServiceTestCase {
         return batch.getSegments();
     }
 
+
     @Test
     public void testReadEntriesFromCompleteLogSegment() throws Exception {
         final String topicName = runtime.getMethodName();
@@ -163,36 +183,41 @@ public class SegmentEntryReaderImplTest extends PulsarServiceTestCase {
         assertEquals(segments.size() + " segments found, expected to be only one",
             1, segments.size());
 
-        SegmentEntryReaderImpl reader = createEntryReader(segments.get(0), 0, confLocal);
+        EntryConverter converter = segments.get(0).entryConverter();
+        SegmentEntryReader reader = result(segmentStore.openSequentialEntryReader(
+            segments.get(0),
+            0L,
+            Optional.empty(),
+            ReadAheadConfig.builder().build()
+        ));
+
         reader.start();
         boolean done = false;
-        long txId = 1L;
-        long entryId = 0L;
+        int index = 0;
         while (!done) {
-            Entry.Reader entryReader;
+            List<LedgerEntry> entries;
             try {
-                entryReader = Utils.ioResult(reader.readNext(1)).get(0);
-            } catch (EndOfLogSegmentException eol) {
+                entries = reader.readNext();
+            } catch (EndOfSegmentException eos) {
                 done = true;
                 continue;
             }
-            LogRecordWithDLSN record = entryReader.nextRecord();
-            while (null != record) {
-                if (!record.isControl()) {
-                    DLMTestUtil.verifyLogRecord(record);
-                    assertEquals(txId, record.getTransactionId());
-                    ++txId;
+
+            for (LedgerEntry entry : entries) {
+                try (RecordSet rs = converter.convertEntry(entry)) {
+                    while (rs.hasNext()) {
+                        try (Record record = rs.next()) {
+                            ++index;
+                        }
+                    }
+                } finally {
+                    entry.close();
                 }
-                DLSN dlsn = record.getDlsn();
-                assertEquals(1L, dlsn.getLogSegmentSequenceNo());
-                assertEquals(entryId, dlsn.getEntryId());
-                record = entryReader.nextRecord();
             }
-            ++entryId;
+
         }
-        assertEquals(21, txId);
-        assertFalse(reader.hasCaughtUpOnInprogress());
-        Utils.close(reader);
+        assertEquals(numMessages, index);
+        reader.close();
     }
 
     /**
