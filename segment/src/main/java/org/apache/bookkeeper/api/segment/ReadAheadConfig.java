@@ -17,6 +17,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.experimental.Accessors;
 
+/**
+ * ReadAhead Configuration.
+ */
 @Builder
 @Accessors(fluent = true)
 @Getter
