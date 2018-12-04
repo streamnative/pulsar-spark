@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.when;
 
 import org.apache.bookkeeper.api.segment.RecordSet;
 import org.apache.bookkeeper.client.api.LedgerEntry;
@@ -49,6 +50,7 @@ public class PulsarEntryConverterTest {
             topicName, ledgerId
         );
         PulsarRecordSet mockSet = mock(PulsarRecordSet.class);
+        when(mockSet.initialize()).thenReturn(true);
         PowerMockito.mockStatic(PulsarRecordSet.class);
         PowerMockito.doAnswer(invocation -> mockSet).when(
             PulsarRecordSet.class,
