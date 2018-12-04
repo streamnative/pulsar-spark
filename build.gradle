@@ -30,7 +30,7 @@ subprojects {
     sourceCompatibility = 1.8
     targetCompatibility = 1.8
 
-    version = ledgerxVersion
+    version = pulsarSegmentVersion
     group = "org.apache.bookkeeper.segment"
 
     repositories {
