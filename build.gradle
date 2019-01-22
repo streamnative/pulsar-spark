@@ -31,7 +31,7 @@ subprojects {
     targetCompatibility = 1.8
 
     version = pulsarSegmentVersion
-    group = "org.apache.bookkeeper.segment"
+    group = "org.apache.pulsar.segment"
 
     repositories {
         jcenter()

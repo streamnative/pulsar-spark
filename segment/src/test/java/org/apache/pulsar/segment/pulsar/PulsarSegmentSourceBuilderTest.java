@@ -1,0 +1,66 @@
+/**
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.apache.pulsar.segment.pulsar;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+
+import org.junit.Test;
+
+/**
+ * Unit test {@link PulsarSegmentSourceBuilder}.
+ */
+public class PulsarSegmentSourceBuilderTest {
+
+    @Test(expected = NullPointerException.class)
+    public void testWithNullAdminUrl() {
+        PulsarSegmentSourceBuilder.newBuilder()
+            .withAdminUrl(null);
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void testWithNullTopic() {
+        PulsarSegmentSourceBuilder.newBuilder()
+            .withTopic(null);
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void testWithNullTopics() {
+        PulsarSegmentSourceBuilder.newBuilder()
+            .withTopics("test-topic", null);
+    }
+
+    @Test
+    public void testBuildWithoutAdminUrl() throws Exception {
+        try {
+            PulsarSegmentSourceBuilder.newBuilder().build();
+            fail("Should fail to build without admin url");
+        } catch (NullPointerException npe) {
+            assertEquals("Admin Url is not set", npe.getMessage());
+        }
+    }
+
+    @Test
+    public void testBuildWithoutTopics() throws Exception {
+        try {
+            PulsarSegmentSourceBuilder.newBuilder()
+                .withAdminUrl("http://localhost:8080")
+                .build();
+            fail("Should fail to build without topics");
+        } catch (IllegalArgumentException iae) {
+            assertEquals("No topic is set", iae.getMessage());
+        }
+    }
+
+}
