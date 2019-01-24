@@ -104,6 +104,7 @@ public class PulsarSegmentSourceBuilder {
      * Build the segment source.
      *
      * @return segment source
+     * @throws Exception thrown when failed to build the segment store
      */
     @SuppressWarnings("deprecation")
     public SegmentSource build() throws Exception {

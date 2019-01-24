@@ -30,6 +30,7 @@ import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.TopicMetadata;
 import org.apache.pulsar.common.naming.TopicName;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
@@ -103,7 +104,7 @@ public class PulsarSegmentSourceTest extends PulsarServiceTestCase {
         assertEquals(10, segments.size());
     }
 
-    @Test
+    @Ignore
     public void testPartitionedTopicSegmentSource() throws Exception {
         String topicName = testName.getMethodName();
         createPartitionedTopic(topicName, 5, 4);

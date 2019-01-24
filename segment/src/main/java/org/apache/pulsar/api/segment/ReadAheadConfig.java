@@ -28,21 +28,25 @@ public class ReadAheadConfig {
     /**
      * Number of entries to prefetch for each call.
      */
-    private final int numPrefetchEntries = 3;
+    @Builder.Default
+    private int numPrefetchEntries = 3;
 
     /**
      * Max number of entries to prefetch.
      */
-    private final int maxPrefetchEntries = 1000;
+    @Builder.Default
+    private int maxPrefetchEntries = 1000;
 
     /**
      * Wait time when the read ahead cache is full.
      */
-    private final int readAheadWaitTime = 200;
+    @Builder.Default
+    private int readAheadWaitTime = 200;
 
     /**
      * The long-poll timeout milliseconds of reading lac.
      */
-    private final long readLacTimeoutMs = 10000;
+    @Builder.Default
+    private long readLacTimeoutMs = 10000;
 
 }

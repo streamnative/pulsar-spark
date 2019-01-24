@@ -41,12 +41,12 @@ import org.junit.BeforeClass;
 @Slf4j
 public abstract class PulsarServiceTestCase {
 
-    protected static Path testDataPath;
-    protected static LocalBookkeeperEnsemble localEnsemble;
-    protected static PulsarService pulsarService;
-    protected static int zkPort;
-    protected static int brokerServicePort;
-    protected static int webServicePort;
+    static Path testDataPath;
+    static LocalBookkeeperEnsemble localEnsemble;
+    static PulsarService pulsarService;
+    static int zkPort;
+    static int brokerServicePort;
+    static int webServicePort;
 
     protected PulsarClient client;
     protected PulsarAdmin admin;

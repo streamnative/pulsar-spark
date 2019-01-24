@@ -42,6 +42,7 @@ subprojects {
     dependencies {
         compile group: 'org.slf4j', name: 'slf4j-api', version: slf4jVersion
         compileOnly group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compileOnly group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsVersion
         testCompile group: 'junit', name: 'junit', version: junitVersion
     }
 

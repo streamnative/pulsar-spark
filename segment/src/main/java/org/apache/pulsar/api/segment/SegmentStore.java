@@ -37,7 +37,7 @@ public interface SegmentStore extends AutoCloseable {
      * @param startEntryId the entry id to start reading
      * @param endEntryId the entry id to stop reading
      * @param config read ahead config
-     * @return
+     * @return a instance of sequential entry reader to read entries
      */
     CompletableFuture<SegmentEntryReader> openSequentialEntryReader(Segment segment,
                                                                     long startEntryId,

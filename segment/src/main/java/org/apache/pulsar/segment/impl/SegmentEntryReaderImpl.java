@@ -626,7 +626,7 @@ class SegmentEntryReaderImpl implements SafeRunnable, SegmentEntryReader {
             } else if (e instanceof IOException) {
                 throw (IOException) e;
             } else {
-                throw new IOException("Exception on reading entries from segment '" + metadata.name() + "'", e);
+                throw new IOException("Exception on reading entries from segment '" + getSegment().name() + "'", e);
             }
         }
     }
@@ -716,7 +716,7 @@ class SegmentEntryReaderImpl implements SafeRunnable, SegmentEntryReader {
             // reach end of log segment
             if (hitEndOfLogSegment && !nextRequest.hasReadEntries()) {
                 completeExceptionally(
-                    new EndOfSegmentException("Reach end of segment '" + metadata.name() + "'"), false);
+                    new EndOfSegmentException("Reach end of segment '" + getSegment().name() + "'"), false);
                 return;
             }
             if (null == entry) {
@@ -727,7 +727,7 @@ class SegmentEntryReaderImpl implements SafeRunnable, SegmentEntryReader {
                 // we already reached end of the log segment
                 if (isEndOfLogSegment(entry.getEntryId())) {
                     completeExceptionally(
-                        new EndOfSegmentException("Reach end of segment '" + metadata.name() + "'"), false);
+                        new EndOfSegmentException("Reach end of segment '" + getSegment().name() + "'"), false);
                 }
                 return;
             }

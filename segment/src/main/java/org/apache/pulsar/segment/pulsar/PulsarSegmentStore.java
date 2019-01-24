@@ -13,6 +13,7 @@
  */
 package org.apache.pulsar.segment.pulsar;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.client.BookKeeperUtils;
@@ -29,6 +30,7 @@ import org.apache.pulsar.segment.impl.AbstractSegmentStore;
  * Pulsar segment store.
  */
 @Slf4j
+@SuppressFBWarnings("EI_EXPOSE_REP2")
 public class PulsarSegmentStore extends AbstractSegmentStore {
 
     private final BookKeeper bk;

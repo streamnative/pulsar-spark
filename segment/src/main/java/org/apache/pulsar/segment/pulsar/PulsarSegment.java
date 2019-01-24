@@ -20,6 +20,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.MoreObjects.ToStringHelper;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -39,7 +40,10 @@ import org.apache.pulsar.api.segment.Segment;
  * A pulsar segment.
  */
 @Getter(AccessLevel.PACKAGE)
+@SuppressFBWarnings("EI_EXPOSE_REP2")
 public class PulsarSegment implements Segment {
+
+    private static final long serialVersionUID = -856406083004344841L;
 
     @JsonProperty
     private final String topicName;

@@ -24,12 +24,12 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import org.apache.pulsar.api.segment.Segment;
 import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.client.api.DigestType;
 import org.apache.bookkeeper.client.api.OpenBuilder;
 import org.apache.bookkeeper.client.api.ReadHandle;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
+import org.apache.pulsar.api.segment.Segment;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
