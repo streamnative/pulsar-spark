@@ -13,23 +13,9 @@
  */
 package org.apache.pulsar.segment.test.common;
 
-import com.google.common.collect.Sets;
-import com.google.common.io.MoreFiles;
-import com.google.common.io.RecursiveDeleteOption;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.bookkeeper.test.PortManager;
-import org.apache.pulsar.broker.PulsarService;
-import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.api.PulsarClient;
-import org.apache.pulsar.common.naming.TopicName;
-import org.apache.pulsar.common.policies.data.ClusterData;
-import org.apache.pulsar.common.policies.data.TenantInfo;
-import org.apache.pulsar.zookeeper.LocalBookkeeperEnsemble;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -41,107 +27,31 @@ import org.junit.BeforeClass;
 @Slf4j
 public abstract class PulsarServiceTestCase {
 
-    static Path testDataPath;
-    static LocalBookkeeperEnsemble localEnsemble;
-    static PulsarService pulsarService;
-    static int zkPort;
-    static int brokerServicePort;
-    static int webServicePort;
+    private static final PulsarServiceResource PULSAR_SERVICE_RESOURCE = new PulsarServiceResource();
 
     protected PulsarClient client;
     protected PulsarAdmin admin;
 
     @BeforeClass
-    public static void setupCluster() throws Exception {
-        testDataPath = Files.createTempDirectory("pulsar");
-
-        Path zkDirPath = Files.createDirectory(Paths.get(testDataPath.toString(), "zk"));
-        Path bkDirPath = Files.createDirectory(Paths.get(testDataPath.toString(), "bk"));
-
-        zkPort = PortManager.nextFreePort();
-
-        localEnsemble = new LocalBookkeeperEnsemble(
-            3,
-            zkPort,
-            0,
-            zkDirPath.toString(),
-            bkDirPath.toString(),
-            true,
-            "127.0.0.1",
-            () -> PortManager.nextFreePort());
-        localEnsemble.start();
-
-        brokerServicePort = PortManager.nextFreePort();
-        webServicePort = PortManager.nextFreePort();
-
-        ServiceConfiguration serviceConf = new ServiceConfiguration();
-        serviceConf.setBrokerServicePort(brokerServicePort);
-        serviceConf.setWebServicePort(webServicePort);
-        serviceConf.setAdvertisedAddress("127.0.0.1");
-        serviceConf.setClusterName("standalone");
-        serviceConf.setZookeeperServers("127.0.0.1:" + zkPort);
-        serviceConf.setConfigurationStoreServers("127.0.0.1:" + zkPort);
-        serviceConf.setRunningStandalone(true);
-
-        pulsarService = new PulsarService(serviceConf, Optional.empty());
-        pulsarService.start();
-
-        try (PulsarAdmin admin = PulsarAdmin.builder()
-             .serviceHttpUrl(getWebServiceUrl())
-             .build()) {
-            createDefaultNameSpace(admin, serviceConf, serviceConf.getClusterName());
-        }
-
-    }
-
-    private static void createDefaultNameSpace(PulsarAdmin admin,
-                                               ServiceConfiguration config,
-                                               String cluster) throws Exception {
-        ClusterData clusterData = new ClusterData(
-            getWebServiceUrl(), null /* serviceUrlTls */,
-            getBrokerServiceUrl(), null /* brokerServiceUrlTls */);
-        if (!admin.clusters().getClusters().contains(cluster)) {
-            admin.clusters().createCluster(cluster, clusterData);
-        } else {
-            admin.clusters().updateCluster(cluster, clusterData);
-        }
-
-        // Create a public tenant and default namespace
-        final String publicTenant = TopicName.PUBLIC_TENANT;
-        final String defaultNamespace = TopicName.PUBLIC_TENANT + "/" + TopicName.DEFAULT_NAMESPACE;
-        if (!admin.tenants().getTenants().contains(publicTenant)) {
-            admin.tenants().createTenant(publicTenant,
-                    new TenantInfo(Sets.newHashSet(config.getSuperUserRoles()), Sets.newHashSet(cluster)));
-        }
-        if (!admin.namespaces().getNamespaces(publicTenant).contains(defaultNamespace)) {
-            admin.namespaces().createNamespace(defaultNamespace);
-            admin.namespaces().setNamespaceReplicationClusters(
-                defaultNamespace, Sets.newHashSet(config.getClusterName()));
-        }
+    public static void setupCluster() throws Throwable {
+        PULSAR_SERVICE_RESOURCE.before();
     }
 
     @AfterClass
     public static void teardownCluster() throws Exception {
-        if (null != pulsarService) {
-            pulsarService.close();
-        }
-        if (null != localEnsemble) {
-            localEnsemble.stop();
-        }
-
-        MoreFiles.deleteRecursively(testDataPath, RecursiveDeleteOption.ALLOW_INSECURE);
+        PULSAR_SERVICE_RESOURCE.after();
     }
 
     protected static String getZkServers() {
-        return "127.0.0.1:" + zkPort;
+        return PULSAR_SERVICE_RESOURCE.getZkServers();
     }
 
     protected static String getBrokerServiceUrl() {
-        return "pulsar://127.0.0.1:" + brokerServicePort;
+        return PULSAR_SERVICE_RESOURCE.getBrokerServiceUrl();
     }
 
     protected static String getWebServiceUrl() {
-        return "http://127.0.0.1:" + webServicePort;
+        return PULSAR_SERVICE_RESOURCE.getWebServiceUrl();
     }
 
     @Before
