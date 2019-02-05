@@ -85,11 +85,19 @@ idea {
 project(':test:common') {
     dependencies {
         compile group: 'junit', name: 'junit', version: junitVersion
-        compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', classifier: 'tests', version: bookkeeperVersion
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonslang3Version
         compile group: 'org.mockito', name: 'mockito-core', version: mockitoVersion
         compile group: 'org.powermock', name: 'powermock-api-mockito2', version: powermockVersion
         compile group: 'org.powermock', name: 'powermock-module-junit4', version: powermockVersion
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compile group: 'org.testcontainers', name: 'testcontainers', version : testcontainersVersion
+    }
+}
+
+project(':test:pulsar-common') {
+    dependencies {
+        compile project(':test:common')
+        compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', classifier: 'tests', version: bookkeeperVersion
         compile('org.apache.pulsar:pulsar-broker:' + pulsarVersion) {
             exclude group: 'org.eclipse.jetty', module: 'jetty-servlet'
         }
@@ -98,7 +106,7 @@ project(':test:common') {
 
 project(':segment') {
     dependencies {
-        testCompile project(':test:common')
+        testCompile project(':test:pulsar-common')
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookkeeperVersion
         compile group: 'org.apache.bookkeeper', name: 'circe-checksum', ext: 'jar', version: bookkeeperVersion
         compile('org.apache.bookkeeper.stats:prometheus-metrics-provider:' + bookkeeperVersion) {

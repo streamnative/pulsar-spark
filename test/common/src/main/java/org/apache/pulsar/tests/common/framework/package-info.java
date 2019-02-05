@@ -11,9 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'pulsar-segment'
-
-include ':test:common',
-        ':test:pulsar-common',
-        ':segment',
-        ':connectors:flink'
+/**
+ * Pulsar system test framework.
+ */
+package org.apache.pulsar.tests.common.framework;

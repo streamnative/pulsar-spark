@@ -11,9 +11,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'pulsar-segment'
+package org.apache.pulsar.tests.common.framework;
 
-include ':test:common',
-        ':test:pulsar-common',
-        ':segment',
-        ':connectors:flink'
+import java.lang.reflect.Method;
+import java.util.concurrent.CompletableFuture;
+
+/**
+ * A invoker interface to invoke a system test.
+ */
+public interface TestInvoker {
+
+    /**
+     * Start invoking a test method.
+     *
+     * @param testMethod test method to be invoked.
+     * @return a <tt>CompletableFuture</tt> which is completed once the test method invocation is completed.
+     */
+    CompletableFuture<Void> invokeAsync(Method testMethod);
+
+    /**
+     * Stop the test.
+     */
+    void stop();
+
+}

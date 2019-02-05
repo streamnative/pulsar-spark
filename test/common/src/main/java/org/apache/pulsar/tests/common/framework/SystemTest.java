@@ -11,9 +11,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'pulsar-segment'
+package org.apache.pulsar.tests.common.framework;
 
-include ':test:common',
-        ':test:pulsar-common',
-        ':segment',
-        ':connectors:flink'
+/**
+ * A test case that tests a {@link Service}.
+ */
+public abstract class SystemTest<T extends Service> {
+}
