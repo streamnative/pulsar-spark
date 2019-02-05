@@ -19,7 +19,6 @@ import static org.junit.Assert.assertEquals;
 
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.PulsarServiceTestCase;
 import org.apache.pulsar.api.segment.Segment;
 import org.apache.pulsar.api.segment.SegmentSource;
 import org.apache.pulsar.api.segment.SegmentSource.SegmentBatch;
@@ -30,6 +29,7 @@ import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.TopicMetadata;
 import org.apache.pulsar.common.naming.TopicName;
+import org.apache.pulsar.segment.test.common.PulsarServiceTestCase;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
