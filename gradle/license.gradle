@@ -25,6 +25,7 @@ allprojects {
             "**/build/*",
             "**/myid.j2",
             "**/out/*",
+            "**/target/*",
             ".gradle/*",
             ".idea/*",
             "LICENSE",

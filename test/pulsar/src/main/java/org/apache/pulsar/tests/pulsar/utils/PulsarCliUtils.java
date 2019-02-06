@@ -11,11 +11,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'pulsar-segment'
+package org.apache.pulsar.tests.pulsar.utils;
 
-include ':test:common',
-        ':test:pulsar-common',
-        ':test:pulsar',
-        ':segment',
-        ':connectors:flink',
-        ':tests:pulsar:admin'
+/**
+ * Constants for testing pulsar cli.
+ */
+public final class PulsarCliUtils {
+
+    private PulsarCliUtils() {}
+}

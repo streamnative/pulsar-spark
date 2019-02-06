@@ -11,11 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'pulsar-segment'
-
-include ':test:common',
-        ':test:pulsar-common',
-        ':test:pulsar',
-        ':segment',
-        ':connectors:flink',
-        ':tests:pulsar:admin'
+/**
+ * Util classes for testing pulsar service.
+ */
+package org.apache.pulsar.tests.pulsar.utils;

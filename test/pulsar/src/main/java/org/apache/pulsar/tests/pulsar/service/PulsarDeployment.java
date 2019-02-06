@@ -11,11 +11,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'pulsar-segment'
+package org.apache.pulsar.tests.pulsar.service;
 
-include ':test:common',
-        ':test:pulsar-common',
-        ':test:pulsar',
-        ':segment',
-        ':connectors:flink',
-        ':tests:pulsar:admin'
+/**
+ * The deployment type of a pulsar service.
+ */
+public enum PulsarDeployment {
+
+    TESTCONTAINER_STANDALONE(true),
+    TESTCONTAINER_CLUSTER(false),
+    KUBERNETES_CLUSTER(false);
+
+    private final boolean standalone;
+
+    PulsarDeployment(boolean standalone) {
+        this.standalone = standalone;
+    }
+
+    public boolean isStandalone() {
+        return standalone;
+    }
+
+}

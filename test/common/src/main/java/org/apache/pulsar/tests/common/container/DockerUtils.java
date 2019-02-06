@@ -37,6 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.utils.CharsetNames;
 import org.apache.commons.compress.utils.IOUtils;
+import org.apache.pulsar.tests.common.framework.ExecResult;
 
 /**
  * Docker utilities for integration tests.
@@ -134,16 +135,16 @@ public class DockerUtils {
         }
     }
 
-    public static ContainerExecResult runCommand(final DockerClient docker,
-                                                 final String containerId,
-                                                 final String... cmd) throws Exception {
+    public static ExecResult runCommand(final DockerClient docker,
+                                        final String containerId,
+                                        final String... cmd) throws Exception {
         return runCommand(docker, containerId, false, cmd);
     }
 
-    public static ContainerExecResult runCommand(final DockerClient docker,
-                                                 final String containerId,
-                                                 final boolean ignoreError,
-                                                 final String... cmd) throws Exception {
+    public static ExecResult runCommand(final DockerClient docker,
+                                        final String containerId,
+                                        final boolean ignoreError,
+                                        final String... cmd) throws Exception {
         final CompletableFuture<Boolean> future = new CompletableFuture<>();
         final InspectContainerResponse inspectContainerResponse = docker.inspectContainerCmd(containerId).exec();
         final String containerName = inspectContainerResponse.getName().replace("/", "");
@@ -207,7 +208,7 @@ public class DockerUtils {
             log.info("DOCKER.exec({}:{}): completed with {}", containerName, cmdString, retCode);
 
         }
-        return ContainerExecResult.of(
+        return ExecResult.of(
             retCode,
             stdout.toString(),
             stderr.toString()

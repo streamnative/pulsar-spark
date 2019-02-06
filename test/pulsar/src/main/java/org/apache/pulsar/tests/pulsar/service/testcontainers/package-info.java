@@ -11,11 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'pulsar-segment'
-
-include ':test:common',
-        ':test:pulsar-common',
-        ':test:pulsar',
-        ':segment',
-        ':connectors:flink',
-        ':tests:pulsar:admin'
+/**
+ * Pulsar service deployed by <a href="https://www.testcontainers.org">testcontainers</a>.
+ */
+package org.apache.pulsar.tests.pulsar.service.testcontainers;

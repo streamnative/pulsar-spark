@@ -11,11 +11,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'pulsar-segment'
+package org.apache.pulsar.tests.pulsar.admin;
 
-include ':test:common',
-        ':test:pulsar-common',
-        ':test:pulsar',
-        ':segment',
-        ':connectors:flink',
-        ':tests:pulsar:admin'
+import org.apache.pulsar.tests.common.framework.SystemTestSuite;
+import org.apache.pulsar.tests.common.framework.SystemTestSuite.SuiteClasses;
+import org.apache.pulsar.tests.pulsar.suites.PulsarServiceTestSuite;
+import org.junit.runner.RunWith;
+
+/**
+ * A system test suite that tests all namespace related operations.
+ */
+@RunWith(SystemTestSuite.class)
+@SuiteClasses(
+    NamespaceOperationsTest.class
+)
+public class NamespaceTestSuite extends PulsarServiceTestSuite {
+}

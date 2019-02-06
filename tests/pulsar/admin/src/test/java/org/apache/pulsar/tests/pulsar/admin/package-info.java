@@ -11,18 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.pulsar.tests.common.container;
-
-import lombok.Data;
-
 /**
- * Represents the result of executing a command.
+ * System tests for pulsar admin.
  */
-@Data(staticConstructor = "of")
-public class ContainerExecResult {
-
-    private final int exitCode;
-    private final String stdout;
-    private final String stderr;
-
-}
+package org.apache.pulsar.tests.pulsar.admin;

@@ -11,11 +11,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'pulsar-segment'
+package org.apache.pulsar.tests.pulsar.service;
 
-include ':test:common',
-        ':test:pulsar-common',
-        ':test:pulsar',
-        ':segment',
-        ':connectors:flink',
-        ':tests:pulsar:admin'
+/**
+ * Components of a Pulsar service.
+ */
+public enum PulsarComponent {
+
+    BOOKIE,
+    BROKER,
+    PROXY,
+    WORKER
+
+}

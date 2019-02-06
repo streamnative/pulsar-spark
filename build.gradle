@@ -91,6 +91,15 @@ project(':test:common') {
         compile group: 'org.powermock', name: 'powermock-module-junit4', version: powermockVersion
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'org.testcontainers', name: 'testcontainers', version : testcontainersVersion
+        compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: log4j2Version
+        compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: log4j2Version
+        compile group: 'org.apache.logging.log4j', name: 'log4j-slf4j-impl', version: log4j2Version
+    }
+}
+
+project(':test:pulsar') {
+    dependencies {
+        compile project(':test:common')
     }
 }
 
@@ -125,6 +134,16 @@ project(':connectors:flink') {
         compile group: 'org.apache.flink', name: 'flink-core', version: flinkVersion
         compile group: 'org.apache.flink', name: 'flink-table_2.11', version: flinkVersion
         compile project(':segment')
+    }
+}
+
+project(':tests:pulsar:admin') {
+    dependencies {
+        testCompile project(':test:pulsar')
+        testCompile group: 'org.apache.pulsar', name: 'pulsar-client-admin-original', version: pulsarVersion
+    }
+    test {
+        include '**/*TestSuite*'
     }
 }
 
