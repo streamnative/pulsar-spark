@@ -62,4 +62,16 @@ public interface Service {
      */
     List<URI> getServiceUris();
 
+    /**
+     * Return the service context.
+     *
+     * <p>The service context will include the information used by
+     * the test framework to invoke.
+     *
+     * @return service context
+     */
+    default ServiceContext getServiceContext() {
+        return new ServiceContext() {};
+    }
+
 }

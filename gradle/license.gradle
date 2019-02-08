@@ -16,6 +16,7 @@ allprojects {
     license {
         includes(["**/*"])
         excludes([
+            "**/Jenkinsfile",
             "**/Vagrantfile",
             "**/terraform.tfstate.d/*",
             "**/*.json",

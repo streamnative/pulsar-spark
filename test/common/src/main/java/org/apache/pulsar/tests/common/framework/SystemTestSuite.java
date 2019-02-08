@@ -131,4 +131,21 @@ public class SystemTestSuite<T extends Service> extends ParentRunner<Runner> {
     protected void runChild(Runner child, RunNotifier notifier) {
         child.run(notifier);
     }
+
+    public static boolean execute(String className) {
+        try {
+            Class<?> xlass = Class.forName(className);
+            SystemTestSuite runner = new SystemTestSuite(xlass);
+            runner.run(new RunNotifier());
+            return true;
+        } catch (Throwable ex) {
+            log.error("Error while executing the test", ex);
+            return false;
+        }
+    }
+
+    public static void main(String... args) {
+        String xlass = args[0];
+        System.exit(execute(xlass) ? 0 : 1);
+    }
 }

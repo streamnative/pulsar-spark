@@ -198,7 +198,33 @@ public class SystemTestRunner<T extends Service> extends BlockJUnit4ClassRunner 
     }
 
     private CompletableFuture<Void> invokeTestAsync(InvokerType type, Method method) {
+        log.info("Invoking test method {} by {}", method, type);
         TestInvokers invokers = new TestInvokers();
-        return invokers.getTestInvoker(type).invokeAsync(method);
+        try {
+            T service = getServiceFromSuite();
+            return invokers.getTestInvoker(type).invokeAsync(method, service.getServiceContext());
+        } catch (Exception e) {
+            log.error("Failed to retrieve service context from service");
+            throw new RuntimeException(
+                "Failed to retrieve service context from service when invoking system tests");
+        }
+    }
+
+    public static boolean execute(String className, String methodName) {
+        try {
+            Class<?> xlass = Class.forName(className);
+            SystemTestRunner runner = new SystemTestRunner(xlass);
+            Method m = xlass.getDeclaredMethod(methodName);
+            runner.runChild(new FrameworkMethod(m), new RunNotifier());
+            return true;
+        } catch (Throwable ex) {
+            log.error("Error while executing the test", ex);
+            return false;
+        }
+    }
+
+    public static void main(String... args) {
+        String[] classAndMethod = args[0].split("#");
+        System.exit(execute(classAndMethod[0], classAndMethod[1]) ? 0 : 1);
     }
 }

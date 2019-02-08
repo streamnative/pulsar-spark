@@ -28,6 +28,7 @@ public final class FrameworkUtils {
 
     static final String SKIP_SERVICE_INITIALIZATION = "skipServiceInitialization";
     static final String SYSTEM_TEST_INVOKER = "systemTestInvoker";
+    static final String DOCKER_TEST_JAR_PATH = "dockerTestJarPath";
 
     private FrameworkUtils() {}
 
@@ -62,7 +63,18 @@ public final class FrameworkUtils {
      * @return the system test invoker.
      */
     public static InvokerType getSystemTestInvoker() {
-        return InvokerType.valueOf(getConfig(SYSTEM_TEST_INVOKER, InvokerType.LOCAL.name()));
+        return InvokerType.valueOf(getConfig(SYSTEM_TEST_INVOKER, InvokerType.DOCKER.name()));
+    }
+
+    /**
+     * Helper method to get the docker jar path to run test in docker.
+     *
+     * @return docker jar path
+     */
+    public static String getDockerTestJarPath() {
+        return getConfig(
+            DOCKER_TEST_JAR_PATH,
+            "/Users/sijie/Workspaces/psegment/test/common/build/libs/common-0.0.1-dockertest.jar");
     }
 
     /**

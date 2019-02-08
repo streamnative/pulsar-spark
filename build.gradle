@@ -56,6 +56,19 @@ subprojects {
         from sourceSets.main.allSource
     }
 
+    task dockerTestJar(type: Jar) {
+        classifier = "dockertest"
+        zip64=true
+        from {
+            configurations.runtime.filter( {! (it.name =~ /.*\.pom/ )}).collect {
+                it.isDirectory() ? it : zipTree(it)
+            }
+        }
+        from sourceSets.test.output
+        from sourceSets.main.output
+        exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+    }
+
     artifacts {
         archives jar
         archives sourcesJar
@@ -63,12 +76,19 @@ subprojects {
     }
 
     test {
+        systemProperty "systemTestInvoker", "LOCAL"
         testLogging.showStandardStreams = true
         maxParallelForks = 1
         forkEvery 1
         reports {
             html.enabled = true
         }
+    }
+
+    task dockerTest(type: Test) {
+        dependsOn 'dockerTestJar'
+        systemProperty "dockerTestJarPath", "$dockerTestJar.archivePath.path"
+        systemProperty "systemTestInvoker", "DOCKER"
     }
 }
 
@@ -94,6 +114,13 @@ project(':test:common') {
         compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: log4j2Version
         compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: log4j2Version
         compile group: 'org.apache.logging.log4j', name: 'log4j-slf4j-impl', version: log4j2Version
+        compile group: 'org.apache.bookkeeper', name: 'bookkeeper-common', version: bookkeeperVersion
+    }
+    artifacts {
+        archives dockerTestJar
+    }
+    dockerTest {
+        include '**/*TestSuite*'
     }
 }
 

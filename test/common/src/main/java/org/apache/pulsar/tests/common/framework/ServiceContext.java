@@ -13,27 +13,8 @@
  */
 package org.apache.pulsar.tests.common.framework;
 
-import java.lang.reflect.Method;
-import java.util.concurrent.CompletableFuture;
-
 /**
- * A invoker interface to invoke a system test.
+ * Context exposed by the service to be used by the tests to communicate with the service.
  */
-public interface TestInvoker {
-
-    /**
-     * Start invoking a test method.
-     *
-     * @param testMethod test method to be invoked.
-     * @param ctx service context
-     * @return a <tt>CompletableFuture</tt> which is completed once the test method invocation is completed.
-     */
-    CompletableFuture<Void> invokeAsync(Method testMethod,
-                                        ServiceContext ctx);
-
-    /**
-     * Stop the test.
-     */
-    void stop();
-
+public interface ServiceContext {
 }

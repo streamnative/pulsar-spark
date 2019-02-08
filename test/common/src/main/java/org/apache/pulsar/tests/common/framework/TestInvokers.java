@@ -13,6 +13,8 @@
  */
 package org.apache.pulsar.tests.common.framework;
 
+import org.apache.pulsar.tests.common.framework.invokers.docker.DockerInvoker;
+
 /**
  * A central place to manage all available test invokers.
  */
@@ -31,6 +33,8 @@ public class TestInvokers {
      */
     public TestInvoker getTestInvoker(InvokerType invokerType) {
         switch (invokerType) {
+            case DOCKER:
+                return new DockerInvoker();
             default:
                 throw new IllegalArgumentException("Unsupported invoker type : " + invokerType);
         }
