@@ -72,9 +72,7 @@ public final class FrameworkUtils {
      * @return docker jar path
      */
     public static String getDockerTestJarPath() {
-        return getConfig(
-            DOCKER_TEST_JAR_PATH,
-            "/Users/sijie/Workspaces/psegment/test/common/build/libs/common-0.0.1-dockertest.jar");
+        return getConfig(DOCKER_TEST_JAR_PATH, null);
     }
 
     /**

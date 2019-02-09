@@ -13,8 +13,6 @@
  */
 package org.apache.pulsar.tests.common.framework.invokers.docker;
 
-import com.github.dockerjava.api.model.Bind;
-import com.github.dockerjava.api.model.Volume;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -62,14 +60,11 @@ public class DockerTestContainer extends GenericContainer<DockerTestContainer> {
         this.withCreateContainerCmdModifier(createContainerCmd -> {
             createContainerCmd.withName(containerName);
             createContainerCmd.withLabels(labels);
-            createContainerCmd.withWorkingDir("/test");
-            createContainerCmd.withBinds(
-                new Bind(dockertestJarPath, new Volume("/test/dockertest.jar"))
-            );
+            createContainerCmd.withWorkingDir("/");
             createContainerCmd.withCmd(
                 "java",
                 "-DsystemTestInvoker=LOCAL",
-                "-cp", "/test/dockertest.jar",
+                "-cp", "/dockertest.jar",
                 "org.apache.pulsar.tests.common.framework.SystemTestRunner",
                 className + "#" + methodName
             );

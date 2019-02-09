@@ -29,6 +29,7 @@ import org.apache.pulsar.tests.common.framework.ServiceContext;
 import org.apache.pulsar.tests.common.framework.TestInvoker;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
+import org.testcontainers.utility.MountableFile;
 
 /**
  * A invoker implementation that invokes junit test in a docker image.
@@ -86,6 +87,10 @@ public class DockerInvoker implements TestInvoker {
                 className,
                 methodName,
                 dockertestJarPath
+            )
+            .withCopyFileToContainer(
+                MountableFile.forHostPath(dockertestJarPath),
+                "/dockertest.jar"
             )
             .withLogConsumer(new Slf4jLogConsumer(log))
             .withNetwork(network);

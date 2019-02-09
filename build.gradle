@@ -119,6 +119,9 @@ project(':test:common') {
     artifacts {
         archives dockerTestJar
     }
+    test {
+        systemProperty "dockerTestJarPath", "$dockerTestJar.archivePath.path"
+    }
     dockerTest {
         include '**/*TestSuite*'
     }
