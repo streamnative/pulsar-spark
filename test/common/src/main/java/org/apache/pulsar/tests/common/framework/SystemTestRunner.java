@@ -13,13 +13,16 @@
  */
 package org.apache.pulsar.tests.common.framework;
 
+import com.google.common.collect.Sets;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.Method;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.tests.common.framework.SystemTestSuite.ServiceProvider;
@@ -59,6 +62,16 @@ public class SystemTestRunner<T extends Service> extends BlockJUnit4ClassRunner 
         Class<?> value();
     }
 
+    /**
+     * Annotation to annotate an invoker type to be invoked by {@link SystemTestRunner}.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @Inherited
+    public @interface Invokers {
+        InvokerType[] value();
+    }
+
     private static <T> Class<T> getTestSuiteClass(Class<T> klass) throws InitializationError {
         TestSuiteClass annotation = klass.getAnnotation(TestSuiteClass.class);
         if (annotation == null) {
@@ -66,6 +79,15 @@ public class SystemTestRunner<T extends Service> extends BlockJUnit4ClassRunner 
                 klass.getName()));
         }
         return (Class<T>) annotation.value();
+    }
+
+    private static <T> InvokerType[] getInvokerTypes(Class<T> klass) throws InitializationError {
+        Invokers annotation = klass.getAnnotation(Invokers.class);
+        if (null == annotation) {
+            return null;
+        } else {
+            return annotation.value();
+        }
     }
 
     private static <T extends Service> SystemTestSuite<T> newSystemTestSuite(Class<?> klass)
@@ -84,6 +106,7 @@ public class SystemTestRunner<T extends Service> extends BlockJUnit4ClassRunner 
     private final Class<T> serviceClass;
     private final SystemTestSuite testSuite;
     private final boolean ownTestSuite;
+    private final Set<InvokerType> invokerTypes;
 
     public SystemTestRunner(Class<?> klass) throws InitializationError {
         this(klass, getServiceClass(klass),  newSystemTestSuite(klass), true);
@@ -111,6 +134,15 @@ public class SystemTestRunner<T extends Service> extends BlockJUnit4ClassRunner 
         this.serviceClass = serviceClass;
         this.testSuite = testSuite;
         this.ownTestSuite = ownTestSuite;
+        InvokerType[] invokerTypeArray = getInvokerTypes(klass);
+        if (null == invokerTypeArray) {
+            this.invokerTypes = Collections.emptySet();
+        } else {
+            this.invokerTypes = Sets.newHashSet();
+            for (InvokerType it : invokerTypeArray) {
+                this.invokerTypes.add(it);
+            }
+        }
 
         if (!getTestClass().isANonStaticInnerClass() && hasOneConstructor()) {
             Class<?>[] paremterTypes = getTestClass().getOnlyConstructor().getParameterTypes();
@@ -183,17 +215,29 @@ public class SystemTestRunner<T extends Service> extends BlockJUnit4ClassRunner 
 
     private void invokeTest(InvokerType invokerType, FrameworkMethod method, RunNotifier notifier) {
         if (null == invokerType || InvokerType.LOCAL == invokerType) {
-            runLeaf(methodBlock(method), describeChild(method), notifier);
-        } else {
-            EachTestNotifier eachTestNotifier = new EachTestNotifier(notifier, describeChild(method));
-            try {
-                eachTestNotifier.fireTestStarted();
-                invokeTestAsync(invokerType, method.getMethod()).get();
-            } catch (Throwable e) {
-                eachTestNotifier.addFailure(e);
-            } finally {
-                eachTestNotifier.fireTestFinished();
+            if (this.invokerTypes.isEmpty()) {
+                runLeaf(methodBlock(method), describeChild(method), notifier);
+            } else {
+                for (InvokerType it : this.invokerTypes) {
+                    doInvokeTest(it, method, notifier);
+                }
             }
+        } else {
+            doInvokeTest(invokerType, method, notifier);
+        }
+    }
+
+    private void doInvokeTest(InvokerType invokerType,
+                              FrameworkMethod method,
+                              RunNotifier notifier) {
+        EachTestNotifier eachTestNotifier = new EachTestNotifier(notifier, describeChild(method));
+        try {
+            eachTestNotifier.fireTestStarted();
+            invokeTestAsync(invokerType, method.getMethod()).get();
+        } catch (Throwable e) {
+            eachTestNotifier.addFailure(e);
+        } finally {
+            eachTestNotifier.fireTestFinished();
         }
     }
 

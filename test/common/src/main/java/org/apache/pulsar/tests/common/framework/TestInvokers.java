@@ -20,7 +20,10 @@ import org.apache.pulsar.tests.common.framework.invokers.docker.DockerInvoker;
  */
 public class TestInvokers {
 
-    enum InvokerType {
+    /**
+     * Invoker type.
+     */
+    public enum InvokerType {
         LOCAL,
         DOCKER
     }

@@ -16,7 +16,9 @@ package org.apache.pulsar.tests.common.framework;
 import static org.junit.Assert.assertTrue;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.tests.common.framework.SystemTestRunner.Invokers;
 import org.apache.pulsar.tests.common.framework.SystemTestRunner.TestSuiteClass;
+import org.apache.pulsar.tests.common.framework.TestInvokers.InvokerType;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -25,6 +27,9 @@ import org.junit.runner.RunWith;
  */
 @RunWith(SystemTestRunner.class)
 @TestSuiteClass(MockServiceTestSuite.class)
+@Invokers({
+    InvokerType.DOCKER
+})
 @Slf4j
 public class MockServiceTestA extends SystemTest<MockService> {
 

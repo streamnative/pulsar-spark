@@ -63,7 +63,7 @@ public final class FrameworkUtils {
      * @return the system test invoker.
      */
     public static InvokerType getSystemTestInvoker() {
-        return InvokerType.valueOf(getConfig(SYSTEM_TEST_INVOKER, InvokerType.DOCKER.name()));
+        return InvokerType.valueOf(getConfig(SYSTEM_TEST_INVOKER, InvokerType.LOCAL.name()));
     }
 
     /**
