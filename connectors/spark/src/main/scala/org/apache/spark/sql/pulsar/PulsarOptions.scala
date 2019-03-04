@@ -11,12 +11,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'pulsar-segment'
+package org.apache.spark.sql.pulsar
 
-include ':test:common',
-        ':test:pulsar-common',
-        ':test:pulsar',
-        ':segment',
-        ':connectors:flink',
-        ':connectors:spark',
-        ':tests:pulsar:admin'
+private[pulsar] object PulsarOptions {
+
+  // options
+  val TOPIC_OPTION_KEY = "topic"
+  val SERVICE_URL_OPTION_KEY = "serviceUrl"
+  val TOPIC_SCHEMA_CLASS_OPTION_KEY = "topicSchemaClass"
+
+  // attributes for sink
+  val TOPIC_ATTRIBUTE_NAME: String = "topic"
+  val KEY_ATTRIBUTE_NAME: String = "key"
+  val VALUE_ATTRIBUTE_NAME: String = "value"
+
+}

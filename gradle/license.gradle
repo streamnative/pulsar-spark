@@ -27,6 +27,7 @@ allprojects {
             "**/myid.j2",
             "**/out/*",
             "**/target/*",
+            "**/META-INF/services/*",
             ".gradle/*",
             ".idea/*",
             "LICENSE",

@@ -42,6 +42,14 @@ public class PulsarServiceResource extends ExternalResource {
     int brokerServicePort;
     int webServicePort;
 
+    public void setup() {
+        try {
+            before();
+        } catch (Throwable throwable) {
+            throw new RuntimeException("Failed to setup pulsar service", throwable);
+        }
+    }
+
     @Override
     protected void before() throws Throwable {
         super.before();
@@ -110,6 +118,10 @@ public class PulsarServiceResource extends ExternalResource {
             admin.namespaces().setNamespaceReplicationClusters(
                 defaultNamespace, Sets.newHashSet(config.getClusterName()));
         }
+    }
+
+    public void teardown() {
+        after();
     }
 
     @Override

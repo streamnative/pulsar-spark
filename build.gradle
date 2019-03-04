@@ -13,6 +13,8 @@
  */
 plugins {
     id "com.github.hierynomus.license" version "0.14.0"
+    id "java"
+    id "scala"
 }
 
 apply plugin: 'idea'
@@ -164,6 +166,36 @@ project(':connectors:flink') {
         compile group: 'org.apache.flink', name: 'flink-core', version: flinkVersion
         compile group: 'org.apache.flink', name: 'flink-table_2.11', version: flinkVersion
         compile project(':segment')
+    }
+}
+
+project(':connectors:spark') {
+    apply plugin: 'scala'
+
+    project.tasks.compileScala.scalaCompileOptions.additionalParameters = ["-target:jvm-1.8"]
+    project.tasks.compileTestScala.scalaCompileOptions.additionalParameters = ["-target:jvm-1.8"]
+
+    javadoc {
+        enabled = false
+    }
+
+    findbugs {
+        sourceSets = []
+    }
+
+    dependencies {
+        compile group: 'org.apache.spark', name: 'spark-sql_2.11', version: sparkVersion
+        compile group: 'org.apache.spark', name: 'spark-tags_2.11', version: sparkVersion
+        compile group: 'org.apache.spark', name: 'spark-unsafe_2.11', version: sparkVersion
+        compile project(':segment')
+        testCompile group: 'org.apache.spark', name: 'spark-catalyst_2.11', classifier: 'tests', version: sparkVersion
+        testCompile group: 'org.apache.spark', name: 'spark-core_2.11', classifier: 'tests', version: sparkVersion
+        testCompile group: 'org.apache.spark', name: 'spark-sql_2.11', classifier: 'tests', version: sparkVersion
+        testCompile group: 'org.apache.spark', name: 'spark-tags_2.11', classifier: 'tests', version: sparkVersion
+        testCompile group: 'org.scalacheck', name: 'scalacheck_2.11', version: scalacheckVersion
+        testCompile group: 'org.scalatest', name: 'scalatest_2.11', version: scalatestVersion
+        testCompile project(':test:pulsar')
+        testCompile project(':test:pulsar-common')
     }
 }
 

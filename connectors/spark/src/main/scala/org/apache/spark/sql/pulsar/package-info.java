@@ -11,12 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'pulsar-segment'
-
-include ':test:common',
-        ':test:pulsar-common',
-        ':test:pulsar',
-        ':segment',
-        ':connectors:flink',
-        ':connectors:spark',
-        ':tests:pulsar:admin'
+/**
+ * Structured Streaming Data Source for Pulsar.
+ */
+package org.apache.spark.sql.pulsar;

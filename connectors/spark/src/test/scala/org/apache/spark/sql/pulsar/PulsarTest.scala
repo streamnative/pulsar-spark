@@ -11,12 +11,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-rootProject.name = 'pulsar-segment'
+package org.apache.spark.sql.pulsar
 
-include ':test:common',
-        ':test:pulsar-common',
-        ':test:pulsar',
-        ':segment',
-        ':connectors:flink',
-        ':connectors:spark',
-        ':tests:pulsar:admin'
+import org.apache.spark.SparkFunSuite
+import org.scalatest.BeforeAndAfterAll
+
+/**
+ * A trait to clean cached Pulsar producers in `afterAll`
+ */
+trait PulsarTest extends BeforeAndAfterAll {
+  self: SparkFunSuite =>
+
+  override def afterAll(): Unit = {
+    super.afterAll()
+    CachedPulsarClient.clear()
+  }
+
+}
