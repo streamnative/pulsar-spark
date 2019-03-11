@@ -78,8 +78,8 @@ private[pulsar] abstract class PulsarRowWriter(
   protected def sendRow(
       row: InternalRow, producer: Producer[Array[Byte]]): Unit = {
     val projectedRow = projection(row)
-    val key = projectedRow.getBinary(1)
-    val value = projectedRow.getBinary(2)
+    val key = projectedRow.getBinary(0)
+    val value = projectedRow.getBinary(1)
     producer.newMessage()
       .keyBytes(key)
       .value(value)

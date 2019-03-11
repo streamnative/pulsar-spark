@@ -17,8 +17,14 @@ private[pulsar] object PulsarOptions {
 
   // options
   val TOPIC_OPTION_KEY = "topic"
-  val SERVICE_URL_OPTION_KEY = "serviceUrl"
-  val TOPIC_SCHEMA_CLASS_OPTION_KEY = "topicSchemaClass"
+  val SERVICE_URL_OPTION_KEY = "service.url"
+  val TOPIC_SCHEMA_CLASS_OPTION_KEY = "topic.schema.class"
+
+  val FILTERED_KEYS: Set[String] = Set(
+    TOPIC_OPTION_KEY,
+    SERVICE_URL_OPTION_KEY,
+    TOPIC_SCHEMA_CLASS_OPTION_KEY
+  )
 
   // attributes for sink
   val TOPIC_ATTRIBUTE_NAME: String = "topic"

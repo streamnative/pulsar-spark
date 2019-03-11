@@ -60,16 +60,26 @@ private[pulsar] object CachedPulsarClient extends Logging {
 
   private def createPulsarClient(pulsarConf: ju.Map[String, Object]): Client = {
     val pulsarServiceUrl = pulsarConf.get(PulsarOptions.SERVICE_URL_OPTION_KEY).asInstanceOf[String]
-    val clientConf = new ju.HashMap[String, Object]()
-    clientConf.putAll(pulsarConf)
-    clientConf.remove(PulsarOptions.SERVICE_URL_OPTION_KEY)
-    val pulsarClient: Client = org.apache.pulsar.client.api.PulsarClient.builder()
-      .serviceUrl(pulsarServiceUrl)
-      .loadConf(clientConf)
-      .build();
-    logDebug(s"Created a new instance of PulsarClient for serviceUrl = $pulsarServiceUrl,"
-      + s" clientConf = $pulsarConf.")
-    pulsarClient
+    val clientConf = new PulsarConfigUpdater(
+      "pulsarClientCache",
+      pulsarConf.asScala.toMap,
+      PulsarOptions.FILTERED_KEYS
+    ).rebuild()
+    logInfo(s"Client Conf = ${clientConf}")
+    try {
+      val pulsarClient: Client = org.apache.pulsar.client.api.PulsarClient.builder()
+        .serviceUrl(pulsarServiceUrl)
+        .loadConf(clientConf)
+        .build();
+      logDebug(s"Created a new instance of PulsarClient for serviceUrl = $pulsarServiceUrl,"
+        + s" clientConf = $clientConf.")
+      pulsarClient
+    } catch {
+      case e =>
+        logError(s"Failed to create PulsarClient to serviceUrl ${pulsarServiceUrl}"
+          + s" using client conf ${clientConf}", e)
+        throw e
+    }
   }
 
   /**

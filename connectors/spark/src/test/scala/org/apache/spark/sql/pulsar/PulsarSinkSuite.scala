@@ -15,11 +15,14 @@ package org.apache.spark.sql.pulsar
 
 import java.util.concurrent.atomic.AtomicInteger
 
+import org.apache.pulsar.client.api.{PulsarClient, Schema, SubscriptionInitialPosition}
 import org.apache.pulsar.segment.test.common.PulsarServiceResource
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, StreamTest, StreamingQuery}
 import org.apache.spark.sql.test.SharedSQLContext
 import org.scalatest.time.SpanSugar._
+
+import scala.collection.mutable
 
 class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
   import testImplicits._
@@ -45,19 +48,24 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     }
   }
 
-  /** FIXME: required to implement CreatableRelationProvider
   test("batch - write to pulsar") {
     val topic = newTopic()
     val df = Seq("1", "2", "3", "4", "5") map { v =>
-      (topic, v)
-    } toDF("topic", "value")
+      (v, v)
+    } toDF("key", "value")
     df.write
       .format("pulsar")
-      .option("spark.pulsar.serviceUrl", pulsarResource.getBrokerServiceUrl)
-      .option("spark.pulsar.topic", topic)
+      .option(s"spark.pulsar.${PulsarOptions.SERVICE_URL_OPTION_KEY}", pulsarResource.getBrokerServiceUrl)
+      .option(s"spark.pulsar.${PulsarOptions.TOPIC_OPTION_KEY}", topic)
       .save()
+    val receivedKVs = verifyReceivedMessages(topic, 5)
+    assert(5 == receivedKVs._1.size)
+    assert(5 == receivedKVs._2.size)
+    1.to(5) foreach { i =>
+      assert(receivedKVs._1.contains(s"${i}"))
+      assert(receivedKVs._2.contains(s"${i}"))
+    }
   }
-    **/
 
   private val topicId = new AtomicInteger(0)
 
@@ -85,6 +93,33 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       withOptions.foreach(opt => stream.option(opt._1, opt._2))
     }
     stream.start()
+  }
+
+  private def verifyReceivedMessages(topic: String, numMessages: Int): (Set[String], Set[String]) = {
+    val client = PulsarClient.builder()
+      .serviceUrl(pulsarResource.getBrokerServiceUrl)
+      .build()
+
+    val consumer = client.newConsumer(Schema.BYTES)
+      .topic(topic)
+      .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
+      .subscriptionName("verifier")
+      .subscribe()
+
+    var receivedKeys: mutable.Set[String] = mutable.Set()
+    var receivedVals: mutable.Set[String] = mutable.Set()
+
+    1.to(numMessages) map { _ =>
+      val msg = consumer.receive()
+      logInfo(s"Received : key = ${msg.getKey}, value = ${new String(msg.getValue)}")
+      receivedKeys = receivedKeys + new String(msg.getKeyBytes)
+      receivedVals = receivedVals + new String(msg.getValue)
+    }
+
+    consumer.close()
+    client.close()
+
+    (receivedKeys.toSet, receivedVals.toSet)
   }
 
 }

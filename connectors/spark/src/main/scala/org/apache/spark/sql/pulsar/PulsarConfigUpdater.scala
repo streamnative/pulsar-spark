@@ -14,29 +14,46 @@
 package org.apache.spark.sql.pulsar
 
 import java.{util => ju}
-
 import scala.collection.JavaConverters._
-
 import org.apache.spark.internal.Logging
 
 /**
  * Class to conveniently update pulsar config params, while logging the changes.
  */
-private[pulsar] case class PulsarConfigUpdater(module: String, pulsarParams: Map[String, String])
+private[pulsar] case class PulsarConfigUpdater(
+   module: String,
+   pulsarParams: Map[String, Object],
+   blacklistedKeys: Set[String] = Set())
     extends Logging {
 
   private val map = new ju.HashMap[String, Object](pulsarParams.asJava)
 
   def set(key: String, value: Object): this.type = {
-    map.put(key, value)
-    logDebug(s"$module: Set $key to $value, earlier value: ${pulsarParams.getOrElse(key, "")}")
+    set(key, value, map)
+  }
+
+  def set(key: String, value: Object, map: ju.Map[String, Object]): this.type = {
+    if (blacklistedKeys.contains(key)) {
+      logInfo(s"$module: Skip $key")
+    } else {
+      map.put(key, value)
+      logInfo(s"$module: Set $key to $value, earlier value: ${pulsarParams.getOrElse(key, "")}")
+    }
     this
   }
 
   def setIfUnset(key: String, value: Object): this.type = {
-    if (!map.containsKey(key)) {
-      map.put(key, value)
-      logDebug(s"$module: Set $key to $value")
+    setIfUnset(key, value, map)
+  }
+
+  def setIfUnset(key: String, value: Object, map: ju.Map[String, Object]): this.type = {
+    if (blacklistedKeys.contains(key)) {
+      logInfo(s"$module: Skip $key")
+    } else {
+      if (!map.containsKey(key)) {
+        map.put(key, value)
+        logDebug(s"$module: Set $key to $value")
+      }
     }
     this
   }
@@ -47,5 +64,13 @@ private[pulsar] case class PulsarConfigUpdater(module: String, pulsarParams: Map
   }
 
   def build(): ju.Map[String, Object] = map
+
+  def rebuild(): ju.Map[String, Object] = {
+    val map = new ju.HashMap[String, Object]()
+    pulsarParams map { case (k, v) =>
+        set(k, v, map)
+    }
+    map
+  }
 
 }
