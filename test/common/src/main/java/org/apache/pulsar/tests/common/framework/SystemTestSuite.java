@@ -76,6 +76,7 @@ public class SystemTestSuite<T extends Service> extends ParentRunner<Runner> {
     public @interface ServiceProvider {
     }
 
+    @SuppressWarnings("unchecked")
     private static <T> Class<T>[] getAnnotatedClasses(Class<?> klass) throws InitializationError {
         SuiteClasses annotation = klass.getAnnotation(SuiteClasses.class);
         if (annotation == null) {
@@ -85,6 +86,7 @@ public class SystemTestSuite<T extends Service> extends ParentRunner<Runner> {
         return (Class<T>[]) annotation.value();
     }
 
+    @SuppressWarnings("unchecked")
     static <T> Class<T> getServiceClass(Class<?> klass) throws InitializationError {
         ServiceClass annotation = klass.getAnnotation(ServiceClass.class);
         if (annotation == null) {
@@ -132,6 +134,7 @@ public class SystemTestSuite<T extends Service> extends ParentRunner<Runner> {
         child.run(notifier);
     }
 
+    @SuppressWarnings("unchecked")
     public static boolean execute(String className) {
         try {
             Class<?> xlass = Class.forName(className);

@@ -17,6 +17,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.io.ByteArrayInputStream;
@@ -32,7 +33,6 @@ import org.apache.bookkeeper.client.BookKeeper.DigestType;
 import org.apache.bookkeeper.client.LedgerMetadata;
 import org.apache.bookkeeper.net.BookieSocketAddress;
 import org.apache.pulsar.api.segment.Segment;
-import org.apache.pulsar.shade.com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.Test;
 
 /**

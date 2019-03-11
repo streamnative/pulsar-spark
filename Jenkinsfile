@@ -42,7 +42,7 @@ spec:
     }
     stage('Build and Test PSegment') {
       container('imagebuilder') {
-        sh "./gradlew clean build"
+        sh "mvn clean license:check checkstyle:check install spotbugs:check -DskipTests"
       }
     }
   }

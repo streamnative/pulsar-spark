@@ -72,6 +72,7 @@ public class SystemTestRunner<T extends Service> extends BlockJUnit4ClassRunner 
         InvokerType[] value();
     }
 
+    @SuppressWarnings("unchecked")
     private static <T> Class<T> getTestSuiteClass(Class<T> klass) throws InitializationError {
         TestSuiteClass annotation = klass.getAnnotation(TestSuiteClass.class);
         if (annotation == null) {
@@ -90,6 +91,7 @@ public class SystemTestRunner<T extends Service> extends BlockJUnit4ClassRunner 
         }
     }
 
+    @SuppressWarnings("unchecked")
     private static <T extends Service> SystemTestSuite<T> newSystemTestSuite(Class<?> klass)
             throws InitializationError {
         Class<?> suiteClass = getTestSuiteClass(klass);
@@ -254,6 +256,7 @@ public class SystemTestRunner<T extends Service> extends BlockJUnit4ClassRunner 
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static boolean execute(String className, String methodName) {
         try {
             Class<?> xlass = Class.forName(className);

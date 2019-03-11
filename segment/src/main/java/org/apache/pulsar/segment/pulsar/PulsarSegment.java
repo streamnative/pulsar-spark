@@ -15,6 +15,9 @@ package org.apache.pulsar.segment.pulsar;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.MoreObjects.ToStringHelper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -33,9 +36,6 @@ import org.apache.bookkeeper.versioning.Version.Occurred;
 import org.apache.pulsar.api.segment.EntryConverter;
 import org.apache.pulsar.api.segment.Segment;
 import org.apache.pulsar.common.naming.TopicName;
-import org.apache.pulsar.shade.com.fasterxml.jackson.annotation.JsonCreator;
-import org.apache.pulsar.shade.com.fasterxml.jackson.annotation.JsonIgnore;
-import org.apache.pulsar.shade.com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * A pulsar segment.
