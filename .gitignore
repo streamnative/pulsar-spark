@@ -50,3 +50,6 @@ logs/*
 # Maven
 
 **/target/*
+
+# shaded
+**/dependency-reduced-pom.xml

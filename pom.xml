@@ -50,6 +50,7 @@
     <module>buildtools</module>
     <module>test</module>
     <module>segment</module>
+    <module>shaded</module>
     <module>connectors</module>
     <!-- TODO: remove these two modules since they are used for building a test framework for pulsar -->
     <module>tests</module>
@@ -662,6 +663,7 @@
             <exclude>NOTICE</exclude>
             <exclude>src/resources/license.template</exclude>
             <exclude>**/build/**</exclude>
+            <exclude>**/ahc.properties</exclude>
           </excludes>
           <mapping>
             <proto>JAVADOC_STYLE</proto>

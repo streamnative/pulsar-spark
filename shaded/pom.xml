@@ -21,13 +21,11 @@
     <artifactId>psegment-parent</artifactId>
     <version>0.0.1.6-SNAPSHOT</version>
   </parent>
-  <artifactId>psegment-connectors-parent</artifactId>
-  <name>PSegment :: Connectors :: Parent</name>
+  <artifactId>psegment-shaded-parent</artifactId>
+  <name>PSegment :: Shaded :: Parent</name>
   <packaging>pom</packaging>
   <modules>
-    <module>flink</module>
-    <module>hive</module>
-    <module>spark</module>
-    <module>hive-all</module>
+    <module>client</module>
+    <module>storage-tests</module>
   </modules>
 </project>

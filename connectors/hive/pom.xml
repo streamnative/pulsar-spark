@@ -38,7 +38,7 @@
     </dependency>
     <dependency>
       <groupId>org.apache.pulsar.segment</groupId>
-      <artifactId>psegment-core</artifactId>
+      <artifactId>pulsar-storage-client</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -52,6 +52,16 @@
       <artifactId>psegment-test-pulsar</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.pulsar</groupId>
+          <artifactId>pulsar-client-original</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.apache.pulsar</groupId>
+          <artifactId>pulsar-client-admin-original</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
   </dependencies>
 </project>
