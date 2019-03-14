@@ -13,13 +13,17 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.{util => ju}
+import java.{util, util => ju}
+
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SaveMode}
+import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SaveMode, SparkSession}
 import org.apache.spark.sql.execution.streaming.Sink
 import org.apache.spark.sql.sources._
+import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
+import org.apache.spark.sql.sources.v2.{DataSourceOptions, StreamWriteSupport}
 import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.types.StructType
+
 import scala.collection.JavaConverters._
 
 /**
@@ -31,6 +35,7 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
   with StreamSinkProvider
   with RelationProvider
   with CreatableRelationProvider
+  with StreamWriteSupport
   with Logging {
 
   import PulsarOptions._
@@ -124,7 +129,22 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
           "operation is not usable.")
     }
   }
-}
+
+  override def createStreamWriter(
+      queryId: String,
+      schema: StructType,
+      mode: OutputMode,
+      options: DataSourceOptions): StreamWriter = {
+    import scala.collection.JavaConverters._
+
+    val spark = SparkSession.getActiveSession.get
+    val parsedConf = parsePulsarParmsForProducer(options.asMap.asScala.toMap)
+    val pulsarConf = new ju.HashMap[String, Object]()
+    pulsarConf.putAll(parsedConf._3)
+    pulsarConf.put(PulsarOptions.SERVICE_URL_OPTION_KEY, parsedConf._1)
+
+    new PulsarStreamWriter(parsedConf._2, pulsarConf, schema)
+  }}
 
 private[pulsar] object PulsarProvider extends Logging {
   import PulsarOptions._
