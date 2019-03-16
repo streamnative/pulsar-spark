@@ -105,10 +105,13 @@
                   <include>io.grpc:*</include>
                   <include>io.jsonwebtoken:*</include>
                   <include>io.kubernetes</include>
+                  <include>io.netty:*</include>
                   <include>io.opencensus:*</include>
                   <include>io.prometheus:*</include>
                   <include>io.swagger:*</include>
-                  <include>javax.*:*</include>
+                  <include>javax.servlet:*</include>
+                  <include>javax.ws.rs:*</include>
+                  <include>javax.websocket:*</include>
                   <include>joda-time:*</include>
                   <include>net.java.dev.jna:*</include>
                   <include>org.apache.avro:*</include>
@@ -172,10 +175,12 @@
                   <pattern>com.squareup</pattern>
                   <shadedPattern>org.apache.pulsar.broker.shade.com.squareup</shadedPattern>
                 </relocation>
+                <!--
                 <relocation>
                   <pattern>com.sun</pattern>
                   <shadedPattern>org.apache.pulsar.broker.shade.com.sun</shadedPattern>
                 </relocation>
+                -->
                 <relocation>
                   <pattern>com.thoughtworks.paranamer</pattern>
                   <shadedPattern>org.apache.pulsar.broker.shade.com.thoughtworks.paranamer</shadedPattern>
@@ -229,8 +234,20 @@
                   <shadedPattern>org.apache.pulsar.broker.shade.javassist</shadedPattern>
                 </relocation>
                 <relocation>
-                  <pattern>javax</pattern>
-                  <shadedPattern>org.apache.pulsar.broker.shade.javax</shadedPattern>
+                  <pattern>javax.inject</pattern>
+                  <shadedPattern>org.apache.pulsar.broker.shade.javax.inject</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>javax.servlet</pattern>
+                  <shadedPattern>org.apache.pulsar.broker.shade.javax.servlet</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>javax.websocket</pattern>
+                  <shadedPattern>org.apache.pulsar.broker.shade.javax.websocket</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>javax.ws</pattern>
+                  <shadedPattern>org.apache.pulsar.broker.shade.javax.ws</shadedPattern>
                 </relocation>
                 <relocation>
                   <pattern>jersey</pattern>

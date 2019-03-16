@@ -13,7 +13,7 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.{util, util => ju}
+import java.{util => ju}
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SaveMode, SparkSession}

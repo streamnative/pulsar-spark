@@ -42,7 +42,13 @@ spec:
     }
     stage('Build and Test PSegment') {
       container('imagebuilder') {
-        sh "mvn clean license:check checkstyle:check install spotbugs:check"
+        sh """
+export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
+export PATH=/usr/lib/jvm/java-1.8.0-openjdk-amd64/bin:$PATH
+javac -version
+java -version
+mvn clean license:check checkstyle:check install spotbugs:check
+"""
       }
     }
   }
