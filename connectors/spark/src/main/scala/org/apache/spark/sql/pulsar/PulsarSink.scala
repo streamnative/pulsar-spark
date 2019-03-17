@@ -21,8 +21,8 @@ import org.apache.spark.sql.execution.streaming.Sink
 
 private[pulsar] class PulsarSink(
     sqlContext: SQLContext,
-    executorPulsarParams: ju.Map[String, Object],
-    serviceUrl: String,
+    pulsarClientConf: ju.Map[String, Object],
+    pulsarProducerConf: ju.Map[String, Object],
     topic: String) extends Sink with Logging {
 
   @volatile private var latestBatchId = -1L
@@ -36,8 +36,8 @@ private[pulsar] class PulsarSink(
       PulsarWriter.write(
         sqlContext.sparkSession,
         data.queryExecution,
-        executorPulsarParams,
-        serviceUrl,
+        pulsarClientConf,
+        pulsarProducerConf,
         topic
       )
       latestBatchId = batchId

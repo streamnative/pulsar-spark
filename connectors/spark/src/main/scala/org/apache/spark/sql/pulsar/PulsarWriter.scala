@@ -18,7 +18,7 @@ import java.{util => ju}
 import org.apache.pulsar.client.api.Message
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.execution.{QueryExecution, SQLExecution}
+import org.apache.spark.sql.execution.QueryExecution
 import org.apache.spark.sql.types.{BinaryType, StringType}
 import org.apache.spark.util.Utils
 
@@ -35,10 +35,7 @@ private[pulsar] object PulsarWriter {
 
   override def toString: String = "PulsarWriter"
 
-  def validateQuery(
-      schema: Seq[Attribute],
-      pulsarClientConf: ju.Map[String, Object],
-      topic: String): Unit = {
+  def validateQuery(schema: Seq[Attribute]): Unit = {
     schema.find(_.name == PulsarOptions.KEY_ATTRIBUTE_NAME).getOrElse(
       Literal(null, StringType)
     ).dataType match {
@@ -61,21 +58,20 @@ private[pulsar] object PulsarWriter {
       sparkSession: SparkSession,
       queryExecution: QueryExecution,
       pulsarClientConf: ju.Map[String, Object],
-      pulsarServiceUrl: String,
+      pulsarProducerConf: ju.Map[String, Object],
       topic: String): Unit = {
-    // build the pulsar conf
-    val pulsarConf = new ju.HashMap[String, Object]()
-    pulsarConf.putAll(pulsarClientConf)
-    // add pulsarServiceUrl to the conf, since the `CachedPulsarClient` will be using it for building the client
-    pulsarConf.put(PulsarOptions.SERVICE_URL_OPTION_KEY, pulsarServiceUrl)
 
     // validate the schema
     val schema = queryExecution.analyzed.output
-    validateQuery(schema, pulsarClientConf, topic)
+    validateQuery(schema)
 
     // execute RDD
     queryExecution.toRdd.foreachPartition { iter =>
-      val writeTask = new PulsarWriteTask(pulsarConf, schema, topic)
+      val writeTask = new PulsarWriteTask(
+        pulsarClientConf,
+        pulsarProducerConf,
+        topic,
+        schema)
       Utils.tryWithSafeFinally(block = writeTask.execute(iter))(
         finallyBlock = writeTask.close())
     }

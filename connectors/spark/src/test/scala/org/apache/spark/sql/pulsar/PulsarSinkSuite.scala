@@ -13,15 +13,19 @@
  */
 package org.apache.spark.sql.pulsar
 
+import java.nio.charset.StandardCharsets.UTF_8
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
 import org.apache.pulsar.client.api.{PulsarClient, Schema, SubscriptionInitialPosition}
 import org.apache.pulsar.segment.test.common.PulsarServiceResource
+import org.apache.spark.sql.execution.streaming.MemoryStream
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, StreamTest, StreamingQuery}
 import org.apache.spark.sql.test.SharedSQLContext
 import org.scalatest.time.SpanSugar._
 
+import scala.collection.JavaConversions._
 import scala.collection.mutable
 
 class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
@@ -55,8 +59,12 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     } toDF("key", "value")
     df.write
       .format("pulsar")
-      .option(s"spark.pulsar.${PulsarOptions.SERVICE_URL_OPTION_KEY}", pulsarResource.getBrokerServiceUrl)
-      .option(s"spark.pulsar.${PulsarOptions.TOPIC_OPTION_KEY}", topic)
+      .option(
+        s"${PulsarOptions.SPARK_PULSAR_COMMON_OPTION_KEY_PREFIX}${PulsarOptions.SERVICE_URL_OPTION_KEY}",
+        pulsarResource.getBrokerServiceUrl)
+      .option(
+        s"${PulsarOptions.SPARK_PULSAR_SINK_OPTION_KEY_PREFIX}${PulsarOptions.TOPIC_OPTION_KEY}",
+        topic)
       .save()
     val receivedKVs = verifyReceivedMessages(topic, 5)
     assert(5 == receivedKVs._1.size)
@@ -67,9 +75,57 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     }
   }
 
+  test("streaming - write aggregation") {
+    val input = MemoryStream[String]
+    val topic = newTopic()
+
+    createPulsarSubscription(topic, "keepalive")
+
+    val writer = createPulsarWriter(
+      input.toDF().groupBy("value").count(),
+      withTopic = Some(topic),
+      withOutputMode = Some(OutputMode.Update()))(
+      withSelectExpr = "CAST(value as STRING) key", "CAST(count as STRING) value"
+    )
+
+    input.addData("1", "2", "2", "3", "3", "3")
+    failAfter(streamingTimeout) {
+      writer.processAllAvailable()
+    }
+    checkTopicUnorderly(
+      topic, 3, ("1", "1"), ("2", "2"), ("3", "3"))
+
+    input.addData("1", "2", "3")
+    failAfter(streamingTimeout) {
+      writer.processAllAvailable()
+    }
+    checkTopicUnorderly(
+      topic, 6,
+      ("1", "1"), ("2", "2"), ("3", "3"),
+      ("1", "2"), ("2", "3"), ("3", "4")
+    )
+  }
+
   private val topicId = new AtomicInteger(0)
 
   private def newTopic(): String = s"topic-${topicId.getAndIncrement()}"
+
+  private def createPulsarSubscription(
+      topic: String,
+      subscription: String): Unit = {
+    val client = PulsarClient.builder()
+      .serviceUrl(pulsarResource.getBrokerServiceUrl)
+      .build()
+
+    val consumer = client.newConsumer(Schema.BYTES)
+      .topic(topic)
+      .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
+      .subscriptionName(subscription)
+      .subscribe()
+
+    consumer.close()
+    client.close()
+  }
 
   private def createPulsarWriter(
       input: DataFrame,
@@ -86,9 +142,13 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       stream = df.writeStream
         .format("pulsar")
         .option("checkpointLocation", checkpointDir.getCanonicalPath)
-        .option("spark.pulsar.serviceUrl", pulsarResource.getBrokerServiceUrl)
+        .option(
+          s"${PulsarOptions.SPARK_PULSAR_COMMON_OPTION_KEY_PREFIX}${PulsarOptions.SERVICE_URL_OPTION_KEY}",
+          pulsarResource.getBrokerServiceUrl)
         .queryName("pulsarStream")
-      withTopic.foreach(stream.option("topic", _))
+      withTopic.foreach(stream.option(
+        s"${PulsarOptions.SPARK_PULSAR_SINK_OPTION_KEY_PREFIX}${PulsarOptions.TOPIC_OPTION_KEY}",
+        _))
       withOutputMode.foreach(stream.outputMode(_))
       withOptions.foreach(opt => stream.option(opt._1, opt._2))
     }
@@ -112,14 +172,65 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     1.to(numMessages) map { _ =>
       val msg = consumer.receive()
       logInfo(s"Received : key = ${msg.getKey}, value = ${new String(msg.getValue)}")
-      receivedKeys = receivedKeys + new String(msg.getKeyBytes)
-      receivedVals = receivedVals + new String(msg.getValue)
+      receivedKeys = receivedKeys + new String(msg.getKeyBytes, UTF_8)
+      receivedVals = receivedVals + new String(msg.getValue, UTF_8)
     }
 
     consumer.close()
     client.close()
 
     (receivedKeys.toSet, receivedVals.toSet)
+  }
+
+  private def checkTopicUnorderly(topic: String,
+                                  numMessages: Int,
+                                  expectedAnswer: (String, String)*): Unit = {
+    val client = PulsarClient.builder()
+      .serviceUrl(pulsarResource.getBrokerServiceUrl)
+      .build()
+
+    val consumer = client.newConsumer(Schema.BYTES)
+      .topic(topic)
+      .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
+      .subscriptionName("verifier-" + UUID.randomUUID())
+      .subscribe()
+
+    var receivedResults: List[(String, String)] = List()
+
+    1.to(numMessages) map { _ =>
+      val msg = consumer.receive()
+      logInfo(s"Received : key = ${msg.getKey}, value = ${new String(msg.getValue, UTF_8)}")
+      val key = new String(msg.getKeyBytes, UTF_8)
+      val value = new String(msg.getValue, UTF_8)
+      receivedResults = receivedResults :+ ((key, value))
+    }
+
+    consumer.close()
+    client.close()
+
+    val resultSeq = receivedResults.sorted
+    val expectedSeq = expectedAnswer.toSeq.sorted
+
+    if (!compare(resultSeq, expectedSeq)) {
+      fail(
+        s"""
+           |Decoded objects do not match expected objects:
+           |expected: $expectedAnswer
+           |actual:   ${resultSeq}
+         """.stripMargin)
+    }
+
+  }
+
+  private def compare(obj1: Any, obj2: Any): Boolean = (obj1, obj2) match {
+    case (null, null) => true
+    case (null, _) => false
+    case (_, null) => false
+    case (a: Array[_], b: Array[_]) =>
+      a.length == b.length && a.zip(b).forall { case (l, r) => compare(l, r)}
+    case (a: Iterable[_], b: Iterable[_]) =>
+      a.size == b.size && a.zip(b).forall { case (l, r) => compare(l, r)}
+    case (a, b) => a == b
   }
 
 }

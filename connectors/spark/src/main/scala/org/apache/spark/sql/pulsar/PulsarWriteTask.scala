@@ -23,15 +23,18 @@ import org.apache.spark.sql.catalyst.expressions.{Attribute, Cast, Literal, Unsa
 import org.apache.spark.sql.types.{BinaryType, StringType}
 
 private[pulsar] class PulsarWriteTask(
-  pulsarConf: ju.Map[String, Object],
-  inputSchema: Seq[Attribute],
-  topic: String) extends PulsarRowWriter(inputSchema, topic) {
+  pulsarClientConf: ju.Map[String, Object],
+  pulsarProducerConf: ju.Map[String, Object],
+  topic: String,
+  inputSchema: Seq[Attribute]) extends PulsarRowWriter(inputSchema) {
 
-  lazy val producer = CachedPulsarClient.getOrCreate(pulsarConf)
+  lazy val producer = CachedPulsarClient.getOrCreate(pulsarClientConf)
     .newProducer(org.apache.pulsar.client.api.Schema.BYTES)
     .topic(topic)
-    .batchingMaxPublishDelay(100, TimeUnit.MILLISECONDS)
+    .loadConf(pulsarProducerConf)
     // maximizing the throughput
+    // TODO: set at the top level
+    .batchingMaxPublishDelay(100, TimeUnit.MILLISECONDS)
     .batchingMaxMessages(5 * 1024 * 1024)
     .create();
 
@@ -56,7 +59,7 @@ private[pulsar] class PulsarWriteTask(
 }
 
 private[pulsar] abstract class PulsarRowWriter(
-    inputSchema: Seq[Attribute], topic: String) {
+    inputSchema: Seq[Attribute]) {
 
   // used to synchronize with Pulsar callbacks
   @volatile protected var failedWrite: Throwable = _
