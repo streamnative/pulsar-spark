@@ -89,7 +89,8 @@
     <netty.version>4.1.32.Final</netty.version>
     <netty-boringssl.version>2.0.20.Final</netty-boringssl.version>
     <powermock.version>2.0.0-beta.5</powermock.version>
-    <pulsar.version>2.3.0</pulsar.version>
+    <!-- latest version from apache pulsar master -->
+    <pulsar.version>2.4.0-14a5ee0e7</pulsar.version>
     <scala.version>2.11</scala.version>
     <scalacheck.version>1.14.0</scalacheck.version>
     <scalatest.version>3.0.3</scalatest.version>
@@ -718,4 +719,16 @@
   </build>
   <profiles>
   </profiles>
+  <repositories>
+    <repository>
+      <id>central</id>
+      <layout>default</layout>
+      <url>https://repo1.maven.org/maven2</url>
+    </repository>
+    <repository>
+      <id>bintray-streamnative-maven</id>
+      <name>bintray</name>
+      <url>https://dl.bintray.com/streamnative/maven</url>
+    </repository>
+  </repositories>
 </project>
