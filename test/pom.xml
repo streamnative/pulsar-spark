@@ -25,8 +25,6 @@
   <name>PSegment :: Test :: Parent</name>
   <packaging>pom</packaging>
   <modules>
-    <module>common</module>
-    <module>pulsar</module>
     <module>pulsar-common</module>
   </modules>
 </project>

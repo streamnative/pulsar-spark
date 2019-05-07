@@ -48,12 +48,10 @@
   </issueManagement>
   <modules>
     <module>buildtools</module>
-    <module>test</module>
     <module>segment</module>
     <module>shaded</module>
     <module>connectors</module>
-    <!-- TODO: remove these two modules since they are used for building a test framework for pulsar -->
-    <module>tests</module>
+    <module>test</module>
   </modules>
   <developers>
     <developer>
@@ -90,13 +88,14 @@
     <netty-boringssl.version>2.0.20.Final</netty-boringssl.version>
     <powermock.version>2.0.0-beta.5</powermock.version>
     <!-- latest version from apache pulsar master -->
-    <pulsar.version>2.4.0-14a5ee0e7</pulsar.version>
+    <pulsar.version>2.4.0-42c3bf949</pulsar.version>
     <scala.version>2.11</scala.version>
     <scalacheck.version>1.14.0</scalacheck.version>
     <scalatest.version>3.0.3</scalatest.version>
     <slf4j.version>1.7.25</slf4j.version>
     <spark.version>2.4.0</spark.version>
     <spotbugs-annotations.version>3.1.8</spotbugs-annotations.version>
+    <streamnative-tests.version>0.0.8</streamnative-tests.version>
     <testcontainers.version>1.10.6</testcontainers.version>
     <!-- plugin dependencies -->
     <license-maven-plugin.version>3.0.rc1</license-maven-plugin.version>

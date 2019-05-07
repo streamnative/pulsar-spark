@@ -28,18 +28,18 @@
   <dependencies>
     <dependency>
       <groupId>org.apache.pulsar.segment</groupId>
-      <artifactId>psegment-test-common</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.pulsar.segment</groupId>
-      <artifactId>psegment-test-pulsar</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.pulsar.segment</groupId>
       <artifactId>psegment-test-pulsar-common</artifactId>
       <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.streamnative.tests</groupId>
+      <artifactId>framework-common</artifactId>
+      <version>${streamnative-tests.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.streamnative.tests</groupId>
+      <artifactId>framework-pulsar</artifactId>
+      <version>${streamnative-tests.version}</version>
     </dependency>
   </dependencies>
 

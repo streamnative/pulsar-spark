@@ -25,9 +25,9 @@
   <name>PSegment :: Connectors :: Spark</name>
   <dependencies>
     <dependency>
-      <groupId>org.apache.pulsar.segment</groupId>
-      <artifactId>pulsar-storage-client</artifactId>
-      <version>${project.version}</version>
+      <groupId>org.apache.pulsar</groupId>
+      <artifactId>pulsar-client-all</artifactId>
+      <version>${pulsar.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
@@ -43,9 +43,31 @@
     </dependency>
     <dependency>
       <groupId>org.apache.pulsar.segment</groupId>
-      <artifactId>pulsar-storage-tests</artifactId>
+      <artifactId>psegment-test-pulsar-common</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.streamnative.tests</groupId>
+      <artifactId>framework-common</artifactId>
+      <version>${streamnative-tests.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.streamnative.tests</groupId>
+      <artifactId>framework-pulsar</artifactId>
+      <version>${streamnative-tests.version}</version>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.pulsar</groupId>
+          <artifactId>pulsar-client-original</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.apache.pulsar</groupId>
+          <artifactId>pulsar-client-admin-original</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>

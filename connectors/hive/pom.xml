@@ -37,20 +37,21 @@
       <artifactId>hadoop-mapreduce-client-core</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.apache.pulsar.segment</groupId>
-      <artifactId>pulsar-storage-client</artifactId>
-      <version>${project.version}</version>
+      <groupId>org.apache.pulsar</groupId>
+      <artifactId>pulsar-client-all</artifactId>
+      <version>${pulsar.version}</version>
     </dependency>
+    <!-- test dependencies -->
     <dependency>
       <groupId>org.apache.pulsar.segment</groupId>
-      <artifactId>psegment-test-common</artifactId>
+      <artifactId>psegment-test-pulsar-common</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.apache.pulsar.segment</groupId>
-      <artifactId>psegment-test-pulsar</artifactId>
-      <version>${project.version}</version>
+      <groupId>io.streamnative.tests</groupId>
+      <artifactId>framework-pulsar</artifactId>
+      <version>${streamnative-tests.version}</version>
       <scope>test</scope>
       <exclusions>
         <exclusion>

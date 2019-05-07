@@ -41,6 +41,7 @@ import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.segment.pulsar.PulsarSegmentSourceBuilder;
 import org.apache.pulsar.segment.pulsar.PulsarSegmentStore;
 import org.apache.pulsar.segment.test.common.PulsarServiceTestCase;
+import org.apache.pulsar.segment.test.common.Utils;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;

@@ -52,6 +52,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     }
   }
 
+  /**
   test("batch - write to pulsar") {
     val topic = newTopic()
     val df = Seq("1", "2", "3", "4", "5") map { v =>
@@ -105,6 +106,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       ("1", "2"), ("2", "3"), ("3", "4")
     )
   }
+    **/
 
   private val topicId = new AtomicInteger(0)
 
