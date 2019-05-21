@@ -79,6 +79,7 @@
     <hamcrest.version>1.3</hamcrest.version>
     <hive.version>3.1.1</hive.version>
     <javax-annotations-api.version>1.3.2</javax-annotations-api.version>
+    <jna.version>5.2.0</jna.version>
     <jmh.version>1.19</jmh.version>
     <jmock.version>2.8.2</jmock.version>
     <junit.version>4.12</junit.version>
@@ -88,14 +89,14 @@
     <netty-boringssl.version>2.0.20.Final</netty-boringssl.version>
     <powermock.version>2.0.0-beta.5</powermock.version>
     <!-- latest version from apache pulsar master -->
-    <pulsar.version>2.4.0-42c3bf949</pulsar.version>
+    <pulsar.version>2.4.0-c509f86ba</pulsar.version>
     <scala.version>2.11</scala.version>
     <scalacheck.version>1.14.0</scalacheck.version>
     <scalatest.version>3.0.3</scalatest.version>
     <slf4j.version>1.7.25</slf4j.version>
     <spark.version>2.4.0</spark.version>
     <spotbugs-annotations.version>3.1.8</spotbugs-annotations.version>
-    <streamnative-tests.version>0.0.8</streamnative-tests.version>
+    <streamnative-tests.version>0.0.9</streamnative-tests.version>
     <testcontainers.version>1.10.6</testcontainers.version>
     <!-- plugin dependencies -->
     <license-maven-plugin.version>3.0.rc1</license-maven-plugin.version>
@@ -263,6 +264,12 @@
 
       <!-- pulsar & bookkeeper -->
       <dependency>
+        <groupId>net.java.dev.jna</groupId>
+        <artifactId>jna</artifactId>
+        <version>${jna.version}</version>
+      </dependency>
+
+      <dependency>
         <groupId>org.apache.bookkeeper</groupId>
         <artifactId>bookkeeper-server</artifactId>
         <version>${bookkeeper.version}</version>
@@ -283,6 +290,10 @@
           <exclusion>
             <groupId>io.netty</groupId>
             <artifactId>netty-*</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna</artifactId>
           </exclusion>
         </exclusions>
       </dependency>

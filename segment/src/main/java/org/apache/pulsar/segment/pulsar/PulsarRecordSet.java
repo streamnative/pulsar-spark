@@ -111,7 +111,7 @@ class PulsarRecordSet implements RecordSet {
         }
 
         uncompressPayload = MessageParser.uncompressPayloadIfNeeded(
-            messageId, msgMetadata, payload, topicName, "reader");
+            topicName, msgMetadata, payload, ledgerId, entryId, Commands.DEFAULT_MAX_MESSAGE_SIZE);
         if (null == uncompressPayload) {
             log.error("[{}] failed to decompress entry (lid={}, eid={})",
                 topicName, messageId.getLedgerId(), messageId.getEntryId());
