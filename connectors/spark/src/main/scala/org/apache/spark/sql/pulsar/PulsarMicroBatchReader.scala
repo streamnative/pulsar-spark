@@ -1,0 +1,238 @@
+/**
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.apache.spark.sql.pulsar
+
+import java.{util => ju}
+import java.util.{Optional, UUID}
+
+import scala.collection.JavaConverters._
+
+import org.apache.pulsar.client.api.{Message, MessageId, SubscriptionType}
+import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
+
+import org.apache.spark.internal.Logging
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.expressions.UnsafeRow
+import org.apache.spark.sql.pulsar.PulsarSourceUtils.messageExists
+import org.apache.spark.sql.sources.v2.reader.{InputPartition, InputPartitionReader}
+import org.apache.spark.sql.sources.v2.reader.streaming.{MicroBatchReader, Offset}
+import org.apache.spark.sql.types.StructType
+
+private[pulsar] class PulsarMicroBatchReader(
+    metadataReader: PulsarMetadataReader,
+    clientConf: ju.Map[String, Object],
+    consumerConf: ju.Map[String, Object],
+    metadataPath: String,
+    startingOffsets: SpecificPulsarOffset,
+    failOnDataLoss: Boolean,
+    subscriptionNamePrefix: String)
+  extends MicroBatchReader with Logging {
+
+  import PulsarSourceUtils._
+
+  private var startTopicOffsets: Map[String, MessageId] = _
+  private var endTopicOffsets: Map[String, MessageId] = _
+
+  val reportDataLoss = reportDataLossFunc(failOnDataLoss)
+
+  private lazy val initialTopicOffsets: SpecificPulsarOffset = {
+    val metadataLog = new PulsarSourceInitialOffsetWriter(SparkSession.getActiveSession.get, metadataPath)
+    metadataLog.getInitialOffset(metadataReader, startingOffsets, reportDataLoss)
+  }
+
+  // use general `MessageIdImpl` while talking with Spark,
+  // and internally deal with batchMessageIdImpl and MessageIdImpl
+  override def setOffsetRange(start: Optional[Offset], end: Optional[Offset]): Unit = {
+    initialTopicOffsets
+
+    startTopicOffsets = Option(start.orElse(null))
+        .map(_.asInstanceOf[SpecificPulsarOffset].topicOffsets)
+        .getOrElse(initialTopicOffsets.topicOffsets)
+
+    endTopicOffsets = Option(end.orElse(null))
+        .map(_.asInstanceOf[SpecificPulsarOffset].topicOffsets)
+        .getOrElse(metadataReader.fetchLatestOffsets().topicOffsets)
+  }
+
+  override def getStartOffset: Offset = SpecificPulsarOffset(startTopicOffsets)
+
+  override def getEndOffset: Offset = SpecificPulsarOffset(endTopicOffsets)
+
+  override def deserializeOffset(json: String): Offset = {
+    SpecificPulsarOffset(JsonUtils.topicOffsets(json))
+  }
+
+  override def commit(end: Offset): Unit = {
+    val endTopicOffsets = SpecificPulsarOffset.getTopicOffsets(end)
+    metadataReader.commitCursorToOffset(endTopicOffsets)
+  }
+
+  override def readSchema(): StructType = PulsarReader.pulsarSchema
+
+  override def planInputPartitions(): ju.List[InputPartition[InternalRow]] = {
+
+    val offsetRanges = endTopicOffsets.keySet.map { tp =>
+      val fromOffset = startTopicOffsets.getOrElse(tp, {
+        // TODO: discover partition add and delete (for PartitionedTopic)
+        // This should only happens when a new partition is added to a partitioned topic
+        throw new IllegalStateException(s"A new topic $tp is added, it's not supported currently")
+      })
+      val untilOffset = endTopicOffsets(tp)
+      val sortedExecutors = getSortedExecutorList()
+      val numExecutors = sortedExecutors.length
+      val preferredLoc = if (numExecutors > 0) {
+        // This allows cached PulsarClient in the executors to be re-used to read the same
+        // partition in every batch.
+        Some(sortedExecutors(Math.floorMod(tp.hashCode, numExecutors)))
+      } else None
+      PulsarOffsetRange(tp, fromOffset, untilOffset, preferredLoc)
+    }.filter { range =>
+      if (range.untilOffset.compareTo(range.fromOffset) < 0) {
+        reportDataLoss(s"${range.topic}'s offset was changed " +
+          s"from ${range.fromOffset} to ${range.untilOffset}, " +
+          "some data might has been missed")
+        false
+      } else {
+        true
+      }
+    }.toSeq
+
+    offsetRanges.map { range =>
+      new PulsarMicroBatchInputPartition(
+        range, clientConf, consumerConf,
+        failOnDataLoss, subscriptionNamePrefix): InputPartition[InternalRow]
+    }.asJava
+  }
+
+  override def stop(): Unit = {
+    metadataReader.removeCursor()
+    metadataReader.stop()
+  }
+}
+
+case class PulsarMicroBatchInputPartition(
+    range: PulsarOffsetRange,
+    clientConf: ju.Map[String, Object],
+    consumerConf: ju.Map[String, Object],
+    failOnDataLoss: Boolean,
+    subscriptionNamePrefix: String) extends InputPartition[InternalRow] {
+  override def preferredLocations(): Array[String] = range.preferredLoc.toArray
+
+  override def createPartitionReader(): InputPartitionReader[InternalRow] = {
+
+    val start = range.fromOffset
+    val end = range.untilOffset
+
+    if (start == end || !messageExists(end)) {
+      return PulsarMicroBatchEmptyInputPartitionReader
+    }
+    new PulsarMicroBatchInputPartitionReader(
+      range, clientConf, consumerConf, failOnDataLoss, subscriptionNamePrefix)
+  }
+}
+
+object PulsarMicroBatchEmptyInputPartitionReader
+    extends InputPartitionReader[InternalRow] with Logging {
+
+  override def next(): Boolean = false
+  override def get(): InternalRow = null
+  override def close(): Unit = {}
+}
+
+case class PulsarMicroBatchInputPartitionReader(
+    range: PulsarOffsetRange,
+    clientConf: ju.Map[String, Object],
+    consumerConf: ju.Map[String, Object],
+    failOnDataLoss: Boolean,
+    subscriptionNamePrefix: String) extends InputPartitionReader[InternalRow] with Logging {
+
+  import PulsarSourceUtils._
+
+  val tp = range.topic
+  val start = range.fromOffset
+  val end = range.untilOffset
+
+  val reportDataLoss = reportDataLossFunc(failOnDataLoss)
+
+  val converter = new PulsarMessageToUnsafeRowConverter
+
+  val consumer = CachedPulsarClient.getOrCreate(clientConf)
+    .newConsumer()
+    .topic(tp)
+    .subscriptionName(s"$subscriptionNamePrefix-${UUID.randomUUID()}")
+    .subscriptionType(SubscriptionType.Exclusive)
+    .loadConf(consumerConf)
+    .subscribe()
+  consumer.seek(start)
+
+  private var inEnd: Boolean = false
+  private var isLast: Boolean = false
+  private val enterEndFunc: (MessageId => Boolean) = enteredEnd(end)
+
+  private var nextRow: UnsafeRow = _
+  private var nextMessage: Message[Array[Byte]] = _
+  private var nextId: MessageId = _
+
+  if (start != MessageId.earliest) {
+    nextMessage = consumer.receive()
+    nextId = nextMessage.getMessageId
+    if (start != MessageId.earliest && !messageIdRoughEquals(nextId, start)) {
+      reportDataLoss(s"Potential Data Loss: intended to start at $start, " +
+        s"actually we get $nextId")
+    }
+
+    (start, nextId) match {
+      case (_: BatchMessageIdImpl, _: BatchMessageIdImpl) =>
+      // we seek using a batch message id, we can read next directly in `getNext()`
+      case (_: MessageIdImpl, cbmid: BatchMessageIdImpl) =>
+        // we seek using a message id, this is supposed to be read by previous task since it's
+        // inclusive for the last batch (start, end], so we skip this batch
+        val newStart = new MessageIdImpl(cbmid.getLedgerId, cbmid.getEntryId + 1, cbmid.getPartitionIndex)
+        consumer.seek(newStart)
+      case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
+      // current entry is a non-batch entry, we can read next directly in `getNext()`
+    }
+  } else {
+    nextId = MessageId.earliest
+  }
+
+  override def next(): Boolean = {
+    if (isLast) {
+      return false
+    }
+
+    nextMessage = consumer.receive()
+    nextId = nextMessage.getMessageId
+
+    nextRow = converter.toUnsafeRow(nextMessage)
+
+    inEnd = enterEndFunc(nextId)
+    if (inEnd) {
+      isLast = isLastMessage(nextId)
+    }
+
+    true
+  }
+
+  override def get(): InternalRow = {
+    assert(nextRow != null)
+    nextRow
+  }
+
+  override def close(): Unit = {
+    consumer.unsubscribe()
+    consumer.close()
+  }
+}

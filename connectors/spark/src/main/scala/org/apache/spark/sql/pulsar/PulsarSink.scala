@@ -23,7 +23,7 @@ private[pulsar] class PulsarSink(
     sqlContext: SQLContext,
     pulsarClientConf: ju.Map[String, Object],
     pulsarProducerConf: ju.Map[String, Object],
-    topic: String) extends Sink with Logging {
+    topic: Option[String]) extends Sink with Logging {
 
   @volatile private var latestBatchId = -1L
 

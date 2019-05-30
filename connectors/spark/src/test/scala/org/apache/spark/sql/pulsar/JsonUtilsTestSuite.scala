@@ -24,9 +24,9 @@ import org.scalatest.junit.JUnitRunner
 class JsonUtilsTestSuite extends SparkFunSuite with BeforeAndAfterEach {
 
   test("serialize and deserialize topics") {
-    val topics : Array[String] = 0.to(9) map { i =>
+    val topics : Array[String] = 0.to(9).map { i =>
       s"topic-${i}"
-    } toArray
+    }.toArray
 
     val str = JsonUtils.topics(topics)
     val readTopics = JsonUtils.topics(str).toSeq.sorted.toArray
@@ -38,9 +38,9 @@ class JsonUtilsTestSuite extends SparkFunSuite with BeforeAndAfterEach {
   }
 
   test("serialize and deserialize topic earliest offsets") {
-    val topicOffsets : Map[String, MessageId] = 0.to(9) map { i =>
+    val topicOffsets : Map[String, MessageId] = 0.to(9).map { i =>
       (s"topic-${i}", MessageId.earliest)
-    } toMap
+    }.toMap
 
     val str = JsonUtils.topicOffsets(topicOffsets)
     val readTopicOffsets = JsonUtils.topicOffsets(str)
@@ -54,9 +54,9 @@ class JsonUtilsTestSuite extends SparkFunSuite with BeforeAndAfterEach {
   }
 
   test("serialize and deserialize topic latest offsets") {
-    val topicOffsets : Map[String, MessageId] = 0.to(9) map { i =>
+    val topicOffsets : Map[String, MessageId] = 0.to(9).map { i =>
       (s"topic-${i}", MessageId.latest)
-    } toMap
+    }.toMap
 
     val str = JsonUtils.topicOffsets(topicOffsets)
     val readTopicOffsets = JsonUtils.topicOffsets(str)
@@ -70,9 +70,9 @@ class JsonUtilsTestSuite extends SparkFunSuite with BeforeAndAfterEach {
   }
 
   test("serialize and deserialize topic specific offsets") {
-    val topicOffsets : Map[String, MessageId] = 0.to(9) map { i =>
+    val topicOffsets : Map[String, MessageId] = 0.to(9).map { i =>
       (s"topic-${i}", new MessageIdImpl(10 + i, 100 + i, i))
-    } toMap
+    }.toMap
 
     val str = JsonUtils.topicOffsets(topicOffsets)
     val readTopicOffsets = JsonUtils.topicOffsets(str)
@@ -87,9 +87,9 @@ class JsonUtilsTestSuite extends SparkFunSuite with BeforeAndAfterEach {
   }
 
   test("serialize and deserialize topic specific batch offsets") {
-    val topicOffsets : Map[String, MessageId] = 0.to(9) map { i =>
+    val topicOffsets : Map[String, MessageId] = 0.to(9).map { i =>
       (s"topic-${i}", new BatchMessageIdImpl(10 + i, 100 + i, i, i))
-    } toMap
+    }.toMap
 
     val str = JsonUtils.topicOffsets(topicOffsets)
     val readTopicOffsets = JsonUtils.topicOffsets(str)

@@ -29,5 +29,6 @@
     <module>hive</module>
     <module>spark</module>
     <module>hive-all</module>
+    <module>spark-all</module>
   </modules>
 </project>

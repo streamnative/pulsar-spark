@@ -13,9 +13,10 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.util.concurrent.TimeUnit
 import java.util.function.BiConsumer
 import java.{util => ju}
+
+import scala.collection.mutable
 
 import org.apache.pulsar.client.api.{MessageId, Producer}
 import org.apache.spark.sql.catalyst.InternalRow
@@ -23,20 +24,10 @@ import org.apache.spark.sql.catalyst.expressions.{Attribute, Cast, Literal, Unsa
 import org.apache.spark.sql.types.{BinaryType, StringType}
 
 private[pulsar] class PulsarWriteTask(
-  pulsarClientConf: ju.Map[String, Object],
-  pulsarProducerConf: ju.Map[String, Object],
-  topic: String,
-  inputSchema: Seq[Attribute]) extends PulsarRowWriter(inputSchema) {
-
-  lazy val producer = CachedPulsarClient.getOrCreate(pulsarClientConf)
-    .newProducer(org.apache.pulsar.client.api.Schema.BYTES)
-    .topic(topic)
-    .loadConf(pulsarProducerConf)
-    // maximizing the throughput
-    // TODO: set at the top level
-    .batchingMaxPublishDelay(100, TimeUnit.MILLISECONDS)
-    .batchingMaxMessages(5 * 1024 * 1024)
-    .create();
+    clientConf: ju.Map[String, Object],
+    producerConf: ju.Map[String, Object],
+    topic: Option[String],
+    inputSchema: Seq[Attribute]) extends PulsarRowWriter(inputSchema, clientConf, producerConf, topic) {
 
   /**
     * Writes key value data out to topics.
@@ -44,26 +35,51 @@ private[pulsar] class PulsarWriteTask(
   def execute(iterator: Iterator[InternalRow]): Unit = {
     while (iterator.hasNext && failedWrite == null) {
       val currentRow = iterator.next()
-      sendRow(currentRow, producer)
+      sendRow(currentRow)
     }
   }
 
   def close(): Unit = {
     checkForErrors()
-    if (producer != null) {
-      producer.flush()
-      checkForErrors()
-    }
+    producerClose()
+    checkForErrors()
   }
 
 }
 
 private[pulsar] abstract class PulsarRowWriter(
-    inputSchema: Seq[Attribute]) {
+    inputSchema: Seq[Attribute],
+    clientConf: ju.Map[String, Object],
+    producerConf: ju.Map[String, Object],
+    topic: Option[String]) {
+  
+  import PulsarOptions._
 
   // used to synchronize with Pulsar callbacks
   @volatile protected var failedWrite: Throwable = _
   protected val projection = createProjection
+
+  // reuse producer through the executor
+  protected lazy val singleProducer =
+    if (topic.isDefined) {
+      CachedPulsarProducer.getOrCreate((clientConf, producerConf, topic.get))
+    } else null
+  protected val topic2Producer: mutable.Map[String, Producer[Array[Byte]]] = mutable.Map.empty
+
+  def getProducer(tp: String): Producer[Array[Byte]] = {
+    if (null != singleProducer) {
+      return singleProducer
+    }
+
+    if (topic2Producer.contains(tp)) {
+      topic2Producer(tp)
+    } else {
+      val p =
+        CachedPulsarProducer.getOrCreate((clientConf, producerConf, tp))
+      topic2Producer.put(tp, p)
+      p
+    }
+  }
 
   private val sendCallback = new BiConsumer[MessageId, Throwable]() {
     override def accept(t: MessageId, u: Throwable): Unit = {
@@ -78,16 +94,22 @@ private[pulsar] abstract class PulsarRowWriter(
     * to failedWrite. Note that send is asynchronous; subclasses must flush() their producer before
     * assuming the row is in Pulsar.
     */
-  protected def sendRow(
-      row: InternalRow, producer: Producer[Array[Byte]]): Unit = {
+  protected def sendRow(row: InternalRow): Unit = {
     val projectedRow = projection(row)
-    val key = projectedRow.getBinary(0)
-    val value = projectedRow.getBinary(1)
-    producer.newMessage()
-      .keyBytes(key)
-      .value(value)
-      .sendAsync()
-      .whenComplete(sendCallback)
+    val topic = projectedRow.getUTF8String(0)
+    val key = projectedRow.getBinary(1)
+    val value = projectedRow.getBinary(2)
+
+    if (topic == null) {
+      throw new NullPointerException(s"null topic present in the data. Use the " +
+        s"$TOPIC_SINGLE option for setting a topic.")
+    }
+
+    val mb = getProducer(topic.toString).newMessage().value(value)
+    if (null != key) {
+      mb.keyBytes(key)
+    }
+    mb.sendAsync().whenComplete(sendCallback)
   }
 
   protected def checkForErrors(): Unit = {
@@ -96,27 +118,57 @@ private[pulsar] abstract class PulsarRowWriter(
     }
   }
 
+  protected def producerFlush(): Unit = {
+    if (singleProducer != null) {
+      singleProducer.flush()
+    } else {
+      topic2Producer.foreach(_._2.flush())
+    }
+  }
+
+  protected def producerClose(): Unit = {
+    producerFlush()
+    topic2Producer.clear()
+  }
+
   private def createProjection = {
-    val keyExpression = inputSchema.find(_.name == PulsarOptions.KEY_ATTRIBUTE_NAME)
+    val topicExpression = topic.map(Literal(_)).orElse {
+      inputSchema.find(_.name == TOPIC_ATTRIBUTE_NAME)
+    }.getOrElse {
+      throw new IllegalStateException(s"topic option required when no " +
+        s"'$TOPIC_ATTRIBUTE_NAME' attribute is present")
+    }
+    topicExpression.dataType match {
+      case StringType => // good
+      case t =>
+        throw new IllegalStateException(TOPIC_ATTRIBUTE_NAME +
+          s"attribute unsupported type $t. $TOPIC_ATTRIBUTE_NAME " +
+          s"must be a ${StringType.catalogString}")
+    }
+
+    val keyExpression = inputSchema.find(_.name == KEY_ATTRIBUTE_NAME)
       .getOrElse(Literal(null, BinaryType))
     keyExpression.dataType match {
       case StringType | BinaryType => // good
       case t =>
-        throw new IllegalStateException(s"${PulsarOptions.KEY_ATTRIBUTE_NAME} " +
+        throw new IllegalStateException(KEY_ATTRIBUTE_NAME +
           s"attribute unsupported type ${t.catalogString}")
     }
     val valueExpression = inputSchema
-      .find(_.name == PulsarOptions.VALUE_ATTRIBUTE_NAME).getOrElse(
+      .find(_.name == VALUE_ATTRIBUTE_NAME).getOrElse(
       throw new IllegalStateException("Required attribute " +
-        s"'${PulsarOptions.VALUE_ATTRIBUTE_NAME}' not found")
+        s"'$VALUE_ATTRIBUTE_NAME' not found")
     )
     valueExpression.dataType match {
       case StringType | BinaryType => // good
       case t =>
-        throw new IllegalStateException(s"${PulsarOptions.VALUE_ATTRIBUTE_NAME} " +
+        throw new IllegalStateException(VALUE_ATTRIBUTE_NAME +
           s"attribute unsupported type ${t.catalogString}")
     }
     UnsafeProjection.create(
-      Seq(Cast(keyExpression, BinaryType), Cast(valueExpression, BinaryType)), inputSchema)
+      Seq(
+        topicExpression,
+        Cast(keyExpression, BinaryType),
+        Cast(valueExpression, BinaryType)), inputSchema)
   }
 }

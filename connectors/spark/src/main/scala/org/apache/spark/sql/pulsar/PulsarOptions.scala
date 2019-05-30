@@ -13,46 +13,58 @@
  */
 package org.apache.spark.sql.pulsar
 
+// All options should be lowercase to simplify parameter matching
 private[pulsar] object PulsarOptions {
 
-  // option key prefix
+  // option key prefix for different modules
   val PULSAR_CLIENT_OPTION_KEY_PREFIX = "pulsar.client."
   val PULSAR_PRODUCER_OPTION_KEY_PREFIX = "pulsar.producer."
   val PULSAR_CONSUMER_OPTION_KEY_PREFIX = "pulsar.consumer."
   val PULSAR_READER_OPTION_KEY_PREFIX = "pulsar.reader."
-  val SPARK_PULSAR_COMMON_OPTION_KEY_PREFIX = "spark.pulsar.common."
-  val SPARK_PULSAR_SINK_OPTION_KEY_PREFIX = "spark.pulsar.sink."
-  val SPARK_PULSAR_SOURCE_OPTION_KEY_PREFIX = "spark.pulsar.source."
 
   // options
 
-  val STRATEGY_OPTION_KEY_SUBSCRIBE = "subscribe"
-  val STRATEGY_OPTION_KEY_SUBSCRIBEPATTERN = "subscribepattern"
-  val STRATEGY_OPTION_KEY_ASSIGN = "assign"
+  val TOPIC_SINGLE = "topic"
+  val TOPIC_MULTI = "topics"
+  val TOPIC_PATTERN = "topicspattern"
 
-  val STRATEGY_OPTION_KEYS = Set(
-    STRATEGY_OPTION_KEY_SUBSCRIBE,
-    STRATEGY_OPTION_KEY_SUBSCRIBEPATTERN,
-    STRATEGY_OPTION_KEY_ASSIGN
+  val TOPIC_OPTION_KEYS = Set(
+    TOPIC_SINGLE,
+    TOPIC_MULTI,
+    TOPIC_PATTERN
   )
 
+  val SERVICE_URL_OPTION_KEY = "service.url"
+  val ADMIN_URL_OPTION_KEY = "admin.url"
   val STARTING_OFFSETS_OPTION_KEY = "startingoffsets"
   val ENDING_OFFSETS_OPTION_KEY = "endingoffsets"
-  val FAIL_ON_DATA_LOSS_OPTION_KEY = "failondataloss"
-  val MIN_PARTITIONS_OPTION_KEY = "minpartitions"
 
-  val TOPIC_OPTION_KEY = "topic"
-  val SUBSCRIPTION_OPTION_KEY = "subscription"
-  val SERVICE_URL_OPTION_KEY = "service.url"
+  val FAIL_ON_DATA_LOSS_OPTION_KEY = "failondataloss"
+
+  val INSTRUCTION_FOR_FAIL_ON_DATA_LOSS_FALSE =
+    """
+      |Some data may have been lost because they are not available in Pulsar any more; either the
+      | data was aged out by Pulsar or the topic may have been deleted before all the data in the
+      | topic was processed. If you want your streaming query to fail on such cases, set the source
+      | option "failOnDataLoss" to "true".
+    """.stripMargin
+
+  val INSTRUCTION_FOR_FAIL_ON_DATA_LOSS_TRUE =
+    """
+      |Some data may have been lost because they are not available in Pulsar any more; either the
+      | data was aged out by Pulsar or the topic may have been deleted before all the data in the
+      | topic was processed. If you don't want your streaming query to fail on such cases, set the
+      | source option "failOnDataLoss" to "false".
+    """.stripMargin
+
+
   val TOPIC_SCHEMA_CLASS_OPTION_KEY = "topic.schema.class"
 
   val FILTERED_KEYS: Set[String] = Set(
-    TOPIC_OPTION_KEY,
+    TOPIC_SINGLE,
     SERVICE_URL_OPTION_KEY,
-    TOPIC_SCHEMA_CLASS_OPTION_KEY
-  )
+    TOPIC_SCHEMA_CLASS_OPTION_KEY)
 
-  // attributes for sink
   val TOPIC_ATTRIBUTE_NAME: String = "topic"
   val KEY_ATTRIBUTE_NAME: String = "key"
   val VALUE_ATTRIBUTE_NAME: String = "value"

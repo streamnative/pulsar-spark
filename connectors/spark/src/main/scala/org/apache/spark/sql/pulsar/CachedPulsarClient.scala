@@ -16,11 +16,12 @@ package org.apache.spark.sql.pulsar
 import java.{util => ju}
 import java.util.concurrent.{ConcurrentMap, ExecutionException, TimeUnit}
 
+import scala.collection.JavaConverters._
+import scala.util.control.NonFatal
+
 import com.google.common.cache._
 import com.google.common.util.concurrent.{ExecutionError, UncheckedExecutionException}
 
-import scala.collection.JavaConverters._
-import scala.util.control.NonFatal
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 
@@ -32,7 +33,7 @@ private[pulsar] object CachedPulsarClient extends Logging {
 
   private lazy val cacheExpireTimeout: Long =
     Option(SparkEnv.get).map(_.conf.getTimeAsMs(
-      "spark.pulsar.producer.cache.timeout",
+      "spark.pulsar.client.cache.timeout",
       s"${defaultCacheExpireTimeout}ms")).getOrElse(defaultCacheExpireTimeout)
 
   private val cacheLoader = new CacheLoader[Seq[(String, Object)], Client] {
@@ -75,7 +76,7 @@ private[pulsar] object CachedPulsarClient extends Logging {
         + s" clientConf = $clientConf.")
       pulsarClient
     } catch {
-      case e =>
+      case e: Throwable =>
         logError(s"Failed to create PulsarClient to serviceUrl ${pulsarServiceUrl}"
           + s" using client conf ${clientConf}", e)
         throw e

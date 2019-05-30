@@ -16,6 +16,7 @@ package org.apache.spark.sql.pulsar
 import java.sql.Timestamp
 
 import org.apache.pulsar.client.api.Message
+
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow
 import org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowWriter
 import org.apache.spark.sql.catalyst.util.DateTimeUtils

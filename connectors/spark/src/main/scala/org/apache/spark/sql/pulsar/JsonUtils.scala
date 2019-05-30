@@ -13,14 +13,15 @@
  */
 package org.apache.spark.sql.pulsar
 
-import org.apache.pulsar.client.api.MessageId
 import org.json4s.NoTypeHints
 import org.json4s.jackson.Serialization
+
+import org.apache.pulsar.client.api.MessageId
 
 /**
  * Utils for converting pulsar objects to and from json.
  */
-private object JsonUtils {
+object JsonUtils {
 
   private implicit val formats = Serialization.formats(NoTypeHints)
 
@@ -33,7 +34,7 @@ private object JsonUtils {
   }
 
   def topicOffsets(str: String): Map[String, MessageId] = {
-    Serialization.read[Map[String, Array[Byte]]](str) map { case (topic, msgIdBytes) =>
+    Serialization.read[Map[String, Array[Byte]]](str).map { case (topic, msgIdBytes) =>
       (topic, MessageId.fromByteArray(msgIdBytes))
     }
   }

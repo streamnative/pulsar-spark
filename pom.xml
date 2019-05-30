@@ -88,13 +88,15 @@
     <netty.version>4.1.32.Final</netty.version>
     <netty-boringssl.version>2.0.20.Final</netty-boringssl.version>
     <powermock.version>2.0.0-beta.5</powermock.version>
+    <protobuf3.version>3.5.1</protobuf3.version>
     <!-- latest version from apache pulsar master -->
     <pulsar.version>2.4.0-c509f86ba</pulsar.version>
-    <scala.version>2.11</scala.version>
+    <scala.version>2.11.12</scala.version>
+    <scala.binary.version>2.11</scala.binary.version>
     <scalacheck.version>1.14.0</scalacheck.version>
     <scalatest.version>3.0.3</scalatest.version>
     <slf4j.version>1.7.25</slf4j.version>
-    <spark.version>2.4.0</spark.version>
+    <spark.version>2.4.2</spark.version>
     <spotbugs-annotations.version>3.1.8</spotbugs-annotations.version>
     <streamnative-tests.version>0.0.9</streamnative-tests.version>
     <testcontainers.version>1.10.6</testcontainers.version>
@@ -108,7 +110,7 @@
     <maven-surefire-plugin.version>2.21.0</maven-surefire-plugin.version>
     <os-maven-plugin.version>1.4.1.Final</os-maven-plugin.version>
     <puppycrawl.checkstyle.version>6.19</puppycrawl.checkstyle.version>
-    <scala-maven-plugin.version>3.4.6</scala-maven-plugin.version>
+    <scala-maven-plugin.version>4.0.2</scala-maven-plugin.version>
     <scalatest-maven-plugin.version>2.0.0</scalatest-maven-plugin.version>
     <spotbugs-maven-plugin.version>3.1.8</spotbugs-maven-plugin.version>
   </properties>
@@ -396,7 +398,7 @@
       </dependency>
       <dependency>
         <groupId>org.apache.flink</groupId>
-        <artifactId>flink-table_${scala.version}</artifactId>
+        <artifactId>flink-table_${scala.binary.version}</artifactId>
         <version>${flink.version}</version>
       </dependency>
 
@@ -404,12 +406,12 @@
 
       <dependency>
         <groupId>org.scalacheck</groupId>
-        <artifactId>scalacheck_${scala.version}</artifactId>
+        <artifactId>scalacheck_${scala.binary.version}</artifactId>
         <version>${scalacheck.version}</version>
       </dependency>
       <dependency>
         <groupId>org.scalatest</groupId>
-        <artifactId>scalatest_${scala.version}</artifactId>
+        <artifactId>scalatest_${scala.binary.version}</artifactId>
         <version>${scalatest.version}</version>
       </dependency>
 
@@ -417,40 +419,40 @@
 
       <dependency>
         <groupId>org.apache.spark</groupId>
-        <artifactId>spark-sql_${scala.version}</artifactId>
+        <artifactId>spark-sql_${scala.binary.version}</artifactId>
         <version>${spark.version}</version>
       </dependency>
       <dependency>
         <groupId>org.apache.spark</groupId>
-        <artifactId>spark-tags_${scala.version}</artifactId>
+        <artifactId>spark-tags_${scala.binary.version}</artifactId>
         <version>${spark.version}</version>
       </dependency>
       <dependency>
         <groupId>org.apache.spark</groupId>
-        <artifactId>spark-unsafe_${scala.version}</artifactId>
+        <artifactId>spark-unsafe_${scala.binary.version}</artifactId>
         <version>${spark.version}</version>
       </dependency>
       <dependency>
         <groupId>org.apache.spark</groupId>
-        <artifactId>spark-catalyst_${scala.version}</artifactId>
-        <version>${spark.version}</version>
-        <classifier>tests</classifier>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.spark</groupId>
-        <artifactId>spark-core_${scala.version}</artifactId>
+        <artifactId>spark-catalyst_${scala.binary.version}</artifactId>
         <version>${spark.version}</version>
         <classifier>tests</classifier>
       </dependency>
       <dependency>
         <groupId>org.apache.spark</groupId>
-        <artifactId>spark-sql_${scala.version}</artifactId>
+        <artifactId>spark-core_${scala.binary.version}</artifactId>
         <version>${spark.version}</version>
         <classifier>tests</classifier>
       </dependency>
       <dependency>
         <groupId>org.apache.spark</groupId>
-        <artifactId>spark-tags_${scala.version}</artifactId>
+        <artifactId>spark-sql_${scala.binary.version}</artifactId>
+        <version>${spark.version}</version>
+        <classifier>tests</classifier>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.spark</groupId>
+        <artifactId>spark-tags_${scala.binary.version}</artifactId>
         <version>${spark.version}</version>
         <classifier>tests</classifier>
       </dependency>
@@ -567,6 +569,12 @@
     <dependency>
       <groupId>org.powermock</groupId>
       <artifactId>powermock-module-junit4</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+      <version>${protobuf3.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -704,21 +712,47 @@
         <version>${scala-maven-plugin.version}</version>
         <executions>
           <execution>
-            <id>scala-compile-first</id>
-            <phase>process-resources</phase>
+            <id>eclipse-add-source</id>
             <goals>
               <goal>add-source</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>scala-compile-first</id>
+            <goals>
               <goal>compile</goal>
             </goals>
           </execution>
           <execution>
-            <id>scala-test-compile</id>
-            <phase>process-test-resources</phase>
+            <id>scala-test-compile-first</id>
             <goals>
               <goal>testCompile</goal>
             </goals>
           </execution>
         </executions>
+        <configuration>
+          <scalaVersion>${scala.binary.version}</scalaVersion>
+          <recompileMode>all</recompileMode>
+          <useZincServer>false</useZincServer>
+          <args>
+            <arg>-unchecked</arg>
+            <arg>-deprecation</arg>
+            <arg>-feature</arg>
+            <arg>-explaintypes</arg>
+            <arg>-Yno-adapted-args</arg>
+          </args>
+          <jvmArgs>
+            <jvmArg>-Xms1024m</jvmArg>
+            <jvmArg>-Xmx1024m</jvmArg>
+          </jvmArgs>
+          <javacArgs>
+            <javacArg>-source</javacArg>
+            <javacArg>${javac.target}</javacArg>
+            <javacArg>-target</javacArg>
+            <javacArg>${javac.target}</javacArg>
+            <javacArg>-Xlint:all,-serial,-path,-try</javacArg>
+          </javacArgs>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.scalatest</groupId>

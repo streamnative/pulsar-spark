@@ -13,12 +13,10 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.util.concurrent.TimeUnit
 import java.{util => ju}
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.pulsar.PulsarWriter.validateQuery
 import org.apache.spark.sql.sources.v2.writer.{DataWriter, DataWriterFactory, WriterCommitMessage}
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
 import org.apache.spark.sql.types.StructType
@@ -32,38 +30,38 @@ case object PulsarWriterCommitMessage extends WriterCommitMessage
 /**
  * A [[StreamWriter]] for Pulsar writing. Responsible for generating the writer factory.
  *
- * @param topic The topic this writer is responsible for.
- * @param producerParams Parameters for Pulsar producers in each task.
  * @param schema The schema of the input data.
+ * @param clientConf Parameters for Pulsar client in each task.
+ * @param producerConf Parameters for Pulsar producers in each task.
+ * @param topic The topic this writer is responsible for.
  */
 class PulsarStreamWriter(
     schema: StructType,
-    pulsarClientConf: ju.Map[String, Object],
-    pulsarProducerConf: ju.Map[String, Object],
-    topic: String)
+    clientConf: ju.Map[String, Object],
+    producerConf: ju.Map[String, Object],
+    topic: Option[String])
   extends StreamWriter {
 
-  validateQuery(schema.toAttributes)
-
   override def createWriterFactory(): PulsarStreamWriterFactory =
-    PulsarStreamWriterFactory(schema, pulsarClientConf, pulsarProducerConf, topic)
+    PulsarStreamWriterFactory(schema, clientConf, producerConf, topic)
 
   override def commit(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {}
   override def abort(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {}
 }
 
 /**
- * A [[StreamingDataWriterFactory]] for Pulsar writing. Will be serialized and sent to executors to
+ * A [[DataWriterFactory]] for Pulsar writing. Will be serialized and sent to executors to
  * generate the per-task data writers.
- * @param topic The topic that should be written to.
- * @param producerParams Parameters for Pulsar producers in each task.
  * @param schema The schema of the input data.
+ * @param clientConf Parameters for Pulsar client.
+ * @param producerConf Parameters for Pulsar producers in each task.
+ * @param topic The topic that should be written to.
  */
 case class PulsarStreamWriterFactory(
     schema: StructType,
-    clientParams: ju.Map[String, Object],
-    producerParams: ju.Map[String, Object],
-    topic: String)
+    clientConf: ju.Map[String, Object],
+    producerConf: ju.Map[String, Object],
+    topic: Option[String])
   extends DataWriterFactory[InternalRow] {
 
   override def createDataWriter(
@@ -72,8 +70,8 @@ case class PulsarStreamWriterFactory(
       epochId: Long): DataWriter[InternalRow] = {
     new PulsarStreamDataWriter(
       schema.toAttributes,
-      clientParams,
-      producerParams,
+      clientConf,
+      producerConf,
       topic
     )
   }
@@ -83,29 +81,21 @@ case class PulsarStreamWriterFactory(
  * A [[DataWriter]] for Pulsar writing. One data writer will be created in each partition to
  * process incoming rows.
  *
- * @param targetTopic The topic that this data writer is targeting.
- * @param producerParams Parameters to use for the Pulsar producer.
+ * @param topic The topic that this data writer is targeting.
+ * @param clientConf Parameters to use for the Pulsar client.
+ * @param producerConf Parameters to use for the Pulsar producer.
  * @param inputSchema The attributes in the input data.
  */
 class PulsarStreamDataWriter(
     inputSchema: Seq[Attribute],
-    pulsarClientConf: ju.Map[String, Object],
-    pulsarProducerConf: ju.Map[String, Object],
-    topic: String)
-  extends PulsarRowWriter(inputSchema) with DataWriter[InternalRow] {
-
-  lazy val producer = CachedPulsarClient.getOrCreate(pulsarClientConf)
-    .newProducer(org.apache.pulsar.client.api.Schema.BYTES)
-    .topic(topic)
-    .loadConf(pulsarProducerConf)
-    .batchingMaxPublishDelay(100, TimeUnit.MILLISECONDS)
-    // maximizing the throughput
-    .batchingMaxMessages(5 * 1024 * 1024)
-    .create();
+    clientConf: ju.Map[String, Object],
+    producerConf: ju.Map[String, Object],
+    topic: Option[String])
+  extends PulsarRowWriter(inputSchema, clientConf, producerConf, topic) with DataWriter[InternalRow] {
 
   def write(row: InternalRow): Unit = {
     checkForErrors()
-    sendRow(row, producer)
+    sendRow(row)
   }
 
   def commit(): WriterCommitMessage = {
@@ -113,7 +103,7 @@ class PulsarStreamDataWriter(
     // This requires flushing and then checking that no callbacks produced errors.
     // We also check for errors before to fail as soon as possible - the check is cheap.
     checkForErrors()
-    producer.flush()
+    producerFlush()
     checkForErrors()
     PulsarWriterCommitMessage
   }
@@ -122,10 +112,7 @@ class PulsarStreamDataWriter(
 
   def close(): Unit = {
     checkForErrors()
-    if (producer != null) {
-      producer.flush()
-      checkForErrors()
-      producer.close()
-    }
+    producerClose()
+    checkForErrors()
   }
 }

@@ -21,7 +21,7 @@
     <artifactId>psegment-connectors-parent</artifactId>
     <version>0.0.1.6-SNAPSHOT</version>
   </parent>
-  <artifactId>psegment-connectors-spark</artifactId>
+  <artifactId>psegment-connectors-spark_${scala.binary.version}</artifactId>
   <name>PSegment :: Connectors :: Spark</name>
   <dependencies>
     <dependency>
@@ -31,15 +31,18 @@
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
-      <artifactId>spark-sql_${scala.version}</artifactId>
+      <artifactId>spark-sql_${scala.binary.version}</artifactId>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
-      <artifactId>spark-tags_${scala.version}</artifactId>
+      <artifactId>spark-tags_${scala.binary.version}</artifactId>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
-      <artifactId>spark-unsafe_${scala.version}</artifactId>
+      <artifactId>spark-unsafe_${scala.binary.version}</artifactId>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.pulsar.segment</groupId>
@@ -71,36 +74,36 @@
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
-      <artifactId>spark-catalyst_${scala.version}</artifactId>
+      <artifactId>spark-catalyst_${scala.binary.version}</artifactId>
       <classifier>tests</classifier>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
-      <artifactId>spark-core_${scala.version}</artifactId>
+      <artifactId>spark-core_${scala.binary.version}</artifactId>
       <classifier>tests</classifier>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
-      <artifactId>spark-sql_${scala.version}</artifactId>
+      <artifactId>spark-sql_${scala.binary.version}</artifactId>
       <classifier>tests</classifier>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
-      <artifactId>spark-tags_${scala.version}</artifactId>
+      <artifactId>spark-tags_${scala.binary.version}</artifactId>
       <classifier>tests</classifier>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.scalacheck</groupId>
-      <artifactId>scalacheck_${scala.version}</artifactId>
+      <artifactId>scalacheck_${scala.binary.version}</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.scalatest</groupId>
-      <artifactId>scalatest_${scala.version}</artifactId>
+      <artifactId>scalatest_${scala.binary.version}</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -124,6 +127,9 @@
           <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
           <junitxml>.</junitxml>
           <filereports>WDF TestSuite.txt</filereports>
+          <systemProperties>
+            <log4j.configuration>${project.basedir}/src/test/resources/log4j.properties</log4j.configuration>
+          </systemProperties>
         </configuration>
         <executions>
           <execution>

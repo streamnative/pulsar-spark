@@ -30,7 +30,7 @@
     </dependency>
     <dependency>
       <groupId>org.apache.flink</groupId>
-      <artifactId>flink-table_${scala.version}</artifactId>
+      <artifactId>flink-table_${scala.binary.version}</artifactId>
     </dependency>
   </dependencies>
 </project>

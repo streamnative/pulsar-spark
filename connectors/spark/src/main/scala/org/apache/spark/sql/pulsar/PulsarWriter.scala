@@ -16,6 +16,7 @@ package org.apache.spark.sql.pulsar
 import java.{util => ju}
 
 import org.apache.pulsar.client.api.Message
+
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.execution.QueryExecution
@@ -24,7 +25,7 @@ import org.apache.spark.util.Utils
 
 /**
   * The [[PulsarWriter]] class is used to write data from a batch query
-  * or structured streaming query, given by a [[QueryExecution]], to Kafka.
+  * or structured streaming query, given by a [[QueryExecution]], to Pulsar.
   * The data is assumed to have a value column, and an optional topic and key
   * columns. If the topic column is missing, then the topic must come from
   * the 'topic' configuration option. If the key column is missing, then a
@@ -35,7 +36,23 @@ private[pulsar] object PulsarWriter {
 
   override def toString: String = "PulsarWriter"
 
-  def validateQuery(schema: Seq[Attribute]): Unit = {
+  import PulsarOptions._
+
+  def validateQuery(schema: Seq[Attribute], topic: Option[String]): Unit = {
+    schema.find(_.name == TOPIC_ATTRIBUTE_NAME).getOrElse(
+      if (topic.isEmpty) {
+        throw new AnalysisException(s"topic option required when no " +
+          s"'$TOPIC_ATTRIBUTE_NAME' attribute is present. Use the " +
+          s"$TOPIC_SINGLE option for setting a topic.")
+      } else {
+        Literal(topic.get, StringType)
+      }
+    ).dataType match {
+      case StringType => // good
+      case _ =>
+        throw new AnalysisException(s"Topic type must be a ${StringType.catalogString}")
+    }
+
     schema.find(_.name == PulsarOptions.KEY_ATTRIBUTE_NAME).getOrElse(
       Literal(null, StringType)
     ).dataType match {
@@ -59,11 +76,11 @@ private[pulsar] object PulsarWriter {
       queryExecution: QueryExecution,
       pulsarClientConf: ju.Map[String, Object],
       pulsarProducerConf: ju.Map[String, Object],
-      topic: String): Unit = {
+      topic: Option[String]): Unit = {
 
     // validate the schema
     val schema = queryExecution.analyzed.output
-    validateQuery(schema)
+    validateQuery(schema, topic)
 
     // execute RDD
     queryExecution.toRdd.foreachPartition { iter =>

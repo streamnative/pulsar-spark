@@ -14,32 +14,41 @@
 package org.apache.spark.sql.pulsar
 
 import org.apache.pulsar.client.api.MessageId
+
 import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset}
 import org.apache.spark.sql.sources.v2.reader.streaming.{PartitionOffset, Offset => OffsetV2}
 
-private[pulsar] case class PulsarSourceOffset(topicOffsets: Map[String, MessageId])
-  extends OffsetV2 {
+private[pulsar] sealed trait PulsarOffset
+
+private[pulsar] case object EarliestOffset extends PulsarOffset
+
+private[pulsar] case object LatestOffset extends PulsarOffset
+
+private[pulsar] case class SpecificPulsarOffset(topicOffsets: Map[String, MessageId])
+  extends OffsetV2 with PulsarOffset {
 
   override val json = JsonUtils.topicOffsets(topicOffsets)
-
 }
 
-private[pulsar] case class PulsarSourcePartitionOffset(topic: String, messageId: MessageId)
+private[pulsar] case class PulsarPartitionOffset(topic: String, messageId: MessageId)
   extends PartitionOffset
 
-private[pulsar] object PulsarSourceOffset {
+private[pulsar] object SpecificPulsarOffset {
 
   def getTopicOffsets(offset: Offset): Map[String, MessageId] = {
     offset match {
-      case o: PulsarSourceOffset => o.topicOffsets
-      case so: SerializedOffset => PulsarSourceOffset(so).topicOffsets
+      case o: SpecificPulsarOffset => o.topicOffsets
+      case so: SerializedOffset => SpecificPulsarOffset(so).topicOffsets
       case _ =>
         throw new IllegalArgumentException(
           s"Invalid conversion from offset of ${offset.getClass} to PulsarSourceOffset")
     }
   }
 
-  def apply(offset: SerializedOffset): PulsarSourceOffset =
-    PulsarSourceOffset(JsonUtils.topicOffsets(offset.json))
+  def apply(offset: SerializedOffset): SpecificPulsarOffset =
+    SpecificPulsarOffset(JsonUtils.topicOffsets(offset.json))
 
+  def apply(offsetTuples: (String, MessageId)*): SpecificPulsarOffset = {   
+    SpecificPulsarOffset(offsetTuples.toMap)
+  }
 }

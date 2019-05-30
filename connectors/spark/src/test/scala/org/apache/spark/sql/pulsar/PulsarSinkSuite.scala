@@ -13,46 +13,25 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.nio.charset.StandardCharsets.UTF_8
-import java.util.UUID
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 
-import org.apache.pulsar.client.api.{PulsarClient, Schema, SubscriptionInitialPosition}
-import org.apache.pulsar.segment.test.common.PulsarServiceResource
-import org.apache.spark.sql.execution.streaming.MemoryStream
-import org.apache.spark.sql.{DataFrame, Row}
-import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, StreamTest, StreamingQuery}
-import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.pulsar.common.naming.TopicName
 import org.scalatest.time.SpanSugar._
-
-import scala.collection.JavaConversions._
-import scala.collection.mutable
+import org.apache.spark.SparkException
+import org.apache.spark.sql.catalyst.expressions.{AttributeReference, SpecificInternalRow, UnsafeProjection}
+import org.apache.spark.sql.execution.streaming.MemoryStream
+import org.apache.spark.sql.{AnalysisException, DataFrame, Row, SaveMode}
+import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, StreamTest, StreamingQuery, StreamingQueryException}
+import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.types.{BinaryType, DataType}
 
 class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
   import testImplicits._
-
-  protected var pulsarResource: PulsarServiceResource = _
+  import PulsarOptions._
 
   override val streamingTimeout = 30.seconds
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    pulsarResource = new PulsarServiceResource()
-    pulsarResource.setup()
-  }
-
-  override def afterAll(): Unit = {
-    try {
-      if (pulsarResource != null) {
-        pulsarResource.teardown()
-        pulsarResource = null
-      }
-    } finally {
-      super.afterAll()
-    }
-  }
-
-  /**
   test("batch - write to pulsar") {
     val topic = newTopic()
     val df = Seq("1", "2", "3", "4", "5") map { v =>
@@ -60,27 +39,89 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     } toDF("key", "value")
     df.write
       .format("pulsar")
-      .option(
-        s"${PulsarOptions.SPARK_PULSAR_COMMON_OPTION_KEY_PREFIX}${PulsarOptions.SERVICE_URL_OPTION_KEY}",
-        pulsarResource.getBrokerServiceUrl)
-      .option(
-        s"${PulsarOptions.SPARK_PULSAR_SINK_OPTION_KEY_PREFIX}${PulsarOptions.TOPIC_OPTION_KEY}",
-        topic)
+      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(TOPIC_SINGLE, topic)
       .save()
-    val receivedKVs = verifyReceivedMessages(topic, 5)
-    assert(5 == receivedKVs._1.size)
-    assert(5 == receivedKVs._2.size)
-    1.to(5) foreach { i =>
-      assert(receivedKVs._1.contains(s"${i}"))
-      assert(receivedKVs._2.contains(s"${i}"))
-    }
+
+    checkAnswer(
+      createPulsarReader(topic).selectExpr("CAST(value as STRING) value"),
+      Row("1") :: Row("2") :: Row("3") :: Row("4") :: Row("5") :: Nil)
   }
 
-  test("streaming - write aggregation") {
+  test("batch - null topic field value, and no topic option") {
+    val df = Seq[(String, String)](null.asInstanceOf[String] -> "1").toDF("topic", "value")
+    val ex = intercept[SparkException] {
+      df.write
+        .format("pulsar")
+        .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+        .save()
+    }
+    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
+      "null topic present in the data"))
+  }
+
+  test("batch - unsupported save modes") {
+    val topic = newTopic()
+    val df = Seq[(String, String)](null.asInstanceOf[String] -> "1").toDF("topic", "value")
+
+    // Test bad save mode Ignore
+    var ex = intercept[AnalysisException] {
+      df.write
+        .format("pulsar")
+        .option(SERVICE_URL_OPTION_KEY,serviceUrl)
+        .mode(SaveMode.Ignore)
+        .save()
+    }
+    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
+      s"save mode ignore not allowed for pulsar"))
+
+    // Test bad save mode Overwrite
+    ex = intercept[AnalysisException] {
+      df.write
+        .format("pulsar")
+        .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+        .mode(SaveMode.Overwrite)
+        .save()
+    }
+    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
+      s"save mode overwrite not allowed for pulsar"))
+  }
+
+  test("streaming - write to pulsar with topic field") {
     val input = MemoryStream[String]
     val topic = newTopic()
 
-    createPulsarSubscription(topic, "keepalive")
+    val writer = createPulsarWriter(
+      input.toDF(),
+      withTopic = None,
+      withOutputMode = Some(OutputMode.Append))(
+      withSelectExpr = s"'$topic' as topic", "value")
+
+    val reader = createPulsarReader(topic)
+      .selectExpr("CAST(key as STRING) key", "CAST(value as STRING) value")
+      .selectExpr("CAST(key as INT) key", "CAST(value as INT) value")
+      .as[(Option[Int], Int)]
+      .map(_._2)
+
+    try {
+      input.addData("1", "2", "3", "4", "5")
+      failAfter(streamingTimeout) {
+        writer.processAllAvailable()
+      }
+      checkDatasetUnorderly(reader, 1, 2, 3, 4, 5)
+      input.addData("6", "7", "8", "9", "10")
+      failAfter(streamingTimeout) {
+        writer.processAllAvailable()
+      }
+      checkDatasetUnorderly(reader, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+    } finally {
+      writer.stop()
+    }
+  }
+
+  test("streaming - write aggregation w/o topic field, with topic option") {
+    val input = MemoryStream[String]
+    val topic = newTopic()
 
     val writer = createPulsarWriter(
       input.toDF().groupBy("value").count(),
@@ -89,44 +130,169 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       withSelectExpr = "CAST(value as STRING) key", "CAST(count as STRING) value"
     )
 
-    input.addData("1", "2", "2", "3", "3", "3")
-    failAfter(streamingTimeout) {
-      writer.processAllAvailable()
-    }
-    checkTopicUnorderly(
-      topic, 3, ("1", "1"), ("2", "2"), ("3", "3"))
+    val reader = createPulsarReader(topic)
+      .selectExpr("CAST(key as STRING) key", "CAST(value as STRING) value")
+      .selectExpr("CAST(key as INT) key", "CAST(value as INT) value")
+      .as[(Int, Int)]
 
-    input.addData("1", "2", "3")
-    failAfter(streamingTimeout) {
-      writer.processAllAvailable()
+    try {
+      input.addData("1", "2", "2", "3", "3", "3")
+      failAfter(streamingTimeout) {
+        writer.processAllAvailable()
+      }
+      checkDatasetUnorderly(reader, (1, 1), (2, 2), (3, 3))
+
+      input.addData("1", "2", "3")
+      failAfter(streamingTimeout) {
+        writer.processAllAvailable()
+      }
+      checkDatasetUnorderly(reader, (1, 1), (2, 2), (3, 3), (1, 2), (2, 3), (3, 4))
+    } finally {
+      writer.stop()
     }
-    checkTopicUnorderly(
-      topic, 6,
-      ("1", "1"), ("2", "2"), ("3", "3"),
-      ("1", "2"), ("2", "3"), ("3", "4")
-    )
   }
-    **/
+
+  test("streaming - aggregation with topic field and topic option") {
+    /* The purpose of this test is to ensure that the topic option
+     * overrides the topic field. We begin by writing some data that
+     * includes a topic field and value (e.g., 'foo') along with a topic
+     * option. Then when we read from the topic specified in the option
+     * we should see the data i.e., the data was written to the topic
+     * option, and not to the topic in the data e.g., foo
+     */
+    val input = MemoryStream[String]
+    val topic = newTopic()
+
+    val writer = createPulsarWriter(
+      input.toDF().groupBy("value").count(),
+      withTopic = Some(topic),
+      withOutputMode = Some(OutputMode.Update()))(
+      withSelectExpr = "'foo' as topic",
+      "CAST(value as STRING) key", "CAST(count as STRING) value")
+
+    val reader = createPulsarReader(topic)
+      .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+      .selectExpr("CAST(key AS INT)", "CAST(value AS INT)")
+      .as[(Int, Int)]
+
+    try {
+      input.addData("1", "2", "2", "3", "3", "3")
+      failAfter(streamingTimeout) {
+        writer.processAllAvailable()
+      }
+      checkDatasetUnorderly(reader, (1, 1), (2, 2), (3, 3))
+      input.addData("1", "2", "3")
+      failAfter(streamingTimeout) {
+        writer.processAllAvailable()
+      }
+      checkDatasetUnorderly(reader, (1, 1), (2, 2), (3, 3), (1, 2), (2, 3), (3, 4))
+    } finally {
+      writer.stop()
+    }
+  }
+
+  test("streaming - write data with bad schema") {
+    val input = MemoryStream[String]
+    val topic = newTopic()
+
+    var writer: StreamingQuery = null
+    var ex: Exception = null
+
+    try {
+      /* No value field */
+      ex = intercept[StreamingQueryException] {
+        writer = createPulsarWriter(input.toDF(), withTopic = Some(topic))(
+          withSelectExpr = s"'$topic' as topic", "value as key"
+        )
+        input.addData("1", "2", "3", "4", "5")
+        writer.processAllAvailable()
+      }
+    } finally {
+      writer.stop()
+    }
+    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
+      "required attribute 'value' not found"))
+  }
+
+  test("streaming - write data with valid schema but wrong types") {
+    val input = MemoryStream[String]
+    val topic = newTopic()
+
+    var writer: StreamingQuery = null
+    var ex: Exception = null
+
+    try {
+      /* value field wrong type */
+      ex = intercept[StreamingQueryException] {
+        writer = createPulsarWriter(input.toDF(), withTopic = Some(topic))(
+          withSelectExpr = s"'$topic' as topic", "CAST(value as INT) as value"
+        )
+        input.addData("1", "2", "3", "4", "5")
+        writer.processAllAvailable()
+      }
+    } finally {
+      writer.stop()
+    }
+    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
+      "value attribute type must be a string or binary"))
+
+    try {
+      ex = intercept[StreamingQueryException] {
+        /* key field wrong type */
+        writer = createPulsarWriter(input.toDF(), withTopic = Some(topic))(
+          withSelectExpr = s"'$topic' as topic", "CAST(value as INT) as key", "value"
+        )
+        input.addData("1", "2", "3", "4", "5")
+        writer.processAllAvailable()
+      }
+    } finally {
+      writer.stop()
+    }
+    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
+      "key attribute type must be a string or binary"))
+  }
+
+  ignore("generic - write big data with small producer buffer") {
+    /* This test ensures that we understand the semantics of Pulsar when
+    * is comes to blocking on a call to send when the send buffer is full.
+    * This test will configure the smallest possible producer buffer and
+    * indicate that we should block when it is full. Thus, no exception should
+    * be thrown in the case of a full buffer.
+    */
+    val topic = newTopic()
+    val clientOptions = new java.util.HashMap[String, Object]
+    clientOptions.put(SERVICE_URL_OPTION_KEY, serviceUrl)
+    clientOptions.put("buffer.memory", "16384") // min buffer size
+    clientOptions.put("block.on.buffer.full", "true")
+    val producerOptions = new java.util.HashMap[String, Object]
+    val inputSchema = Seq(AttributeReference("value", BinaryType)())
+    val data = new Array[Byte](15000) // large value
+    val writeTask = new PulsarWriteTask(clientOptions, producerOptions, Some(topic), inputSchema)
+    try {
+      val fieldTypes: Array[DataType] = Array(BinaryType)
+      val converter = UnsafeProjection.create(fieldTypes)
+      val row = new SpecificInternalRow(fieldTypes)
+      row.update(0, data)
+      val iter = Seq.fill(1000)(converter.apply(row)).iterator
+      writeTask.execute(iter)
+    } finally {
+      writeTask.close()
+    }
+  }
 
   private val topicId = new AtomicInteger(0)
 
-  private def newTopic(): String = s"topic-${topicId.getAndIncrement()}"
+  private def newTopic(): String = TopicName.get(s"topic-${topicId.getAndIncrement()}").toString
 
-  private def createPulsarSubscription(
-      topic: String,
-      subscription: String): Unit = {
-    val client = PulsarClient.builder()
-      .serviceUrl(pulsarResource.getBrokerServiceUrl)
-      .build()
-
-    val consumer = client.newConsumer(Schema.BYTES)
-      .topic(topic)
-      .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
-      .subscriptionName(subscription)
-      .subscribe()
-
-    consumer.close()
-    client.close()
+  private def createPulsarReader(topic: String): DataFrame = {
+    spark.read
+      .format("pulsar")
+      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(ADMIN_URL_OPTION_KEY, adminUrl)
+      .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
+      .option(ENDING_OFFSETS_OPTION_KEY, "latest")
+      .option(TOPIC_SINGLE, topic)
+      .load()
   }
 
   private def createPulsarWriter(
@@ -144,95 +310,12 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       stream = df.writeStream
         .format("pulsar")
         .option("checkpointLocation", checkpointDir.getCanonicalPath)
-        .option(
-          s"${PulsarOptions.SPARK_PULSAR_COMMON_OPTION_KEY_PREFIX}${PulsarOptions.SERVICE_URL_OPTION_KEY}",
-          pulsarResource.getBrokerServiceUrl)
+        .option(SERVICE_URL_OPTION_KEY, serviceUrl)
         .queryName("pulsarStream")
-      withTopic.foreach(stream.option(
-        s"${PulsarOptions.SPARK_PULSAR_SINK_OPTION_KEY_PREFIX}${PulsarOptions.TOPIC_OPTION_KEY}",
-        _))
+      withTopic.foreach(stream.option(TOPIC_SINGLE, _))
       withOutputMode.foreach(stream.outputMode(_))
       withOptions.foreach(opt => stream.option(opt._1, opt._2))
     }
     stream.start()
   }
-
-  private def verifyReceivedMessages(topic: String, numMessages: Int): (Set[String], Set[String]) = {
-    val client = PulsarClient.builder()
-      .serviceUrl(pulsarResource.getBrokerServiceUrl)
-      .build()
-
-    val consumer = client.newConsumer(Schema.BYTES)
-      .topic(topic)
-      .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
-      .subscriptionName("verifier")
-      .subscribe()
-
-    var receivedKeys: mutable.Set[String] = mutable.Set()
-    var receivedVals: mutable.Set[String] = mutable.Set()
-
-    1.to(numMessages) map { _ =>
-      val msg = consumer.receive()
-      logInfo(s"Received : key = ${msg.getKey}, value = ${new String(msg.getValue)}")
-      receivedKeys = receivedKeys + new String(msg.getKeyBytes, UTF_8)
-      receivedVals = receivedVals + new String(msg.getValue, UTF_8)
-    }
-
-    consumer.close()
-    client.close()
-
-    (receivedKeys.toSet, receivedVals.toSet)
-  }
-
-  private def checkTopicUnorderly(topic: String,
-                                  numMessages: Int,
-                                  expectedAnswer: (String, String)*): Unit = {
-    val client = PulsarClient.builder()
-      .serviceUrl(pulsarResource.getBrokerServiceUrl)
-      .build()
-
-    val consumer = client.newConsumer(Schema.BYTES)
-      .topic(topic)
-      .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
-      .subscriptionName("verifier-" + UUID.randomUUID())
-      .subscribe()
-
-    var receivedResults: List[(String, String)] = List()
-
-    1.to(numMessages) map { _ =>
-      val msg = consumer.receive()
-      logInfo(s"Received : key = ${msg.getKey}, value = ${new String(msg.getValue, UTF_8)}")
-      val key = new String(msg.getKeyBytes, UTF_8)
-      val value = new String(msg.getValue, UTF_8)
-      receivedResults = receivedResults :+ ((key, value))
-    }
-
-    consumer.close()
-    client.close()
-
-    val resultSeq = receivedResults.sorted
-    val expectedSeq = expectedAnswer.toSeq.sorted
-
-    if (!compare(resultSeq, expectedSeq)) {
-      fail(
-        s"""
-           |Decoded objects do not match expected objects:
-           |expected: $expectedAnswer
-           |actual:   ${resultSeq}
-         """.stripMargin)
-    }
-
-  }
-
-  private def compare(obj1: Any, obj2: Any): Boolean = (obj1, obj2) match {
-    case (null, null) => true
-    case (null, _) => false
-    case (_, null) => false
-    case (a: Array[_], b: Array[_]) =>
-      a.length == b.length && a.zip(b).forall { case (l, r) => compare(l, r)}
-    case (a: Iterable[_], b: Iterable[_]) =>
-      a.size == b.size && a.zip(b).forall { case (l, r) => compare(l, r)}
-    case (a, b) => a == b
-  }
-
 }
