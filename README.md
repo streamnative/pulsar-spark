@@ -65,7 +65,6 @@ to configure your Eclipse setup.
 
 ## Available Connectors
 
-## Roadmap
+### Spark Pulsar Integration
 
-- [ ] Core Segment Library
-- [ ] Connectors
+See docs at [here](docs/spark-integration.md).
