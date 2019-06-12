@@ -17,14 +17,13 @@ import java.{util => ju}
 import java.util.{Optional, UUID}
 
 import scala.collection.JavaConverters._
-
-import org.apache.pulsar.client.api.{Message, MessageId, SubscriptionType}
+import org.apache.pulsar.client.api.{Message, MessageId, Schema, SubscriptionType}
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
+import org.apache.pulsar.common.schema.SchemaInfo
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.UnsafeRow
 import org.apache.spark.sql.pulsar.PulsarSourceUtils.messageExists
 import org.apache.spark.sql.sources.v2.reader.{InputPartition, InputPartitionReader}
 import org.apache.spark.sql.sources.v2.reader.streaming.{MicroBatchReader, Offset}
@@ -79,7 +78,9 @@ private[pulsar] class PulsarMicroBatchReader(
     metadataReader.commitCursorToOffset(endTopicOffsets)
   }
 
-  override def readSchema(): StructType = PulsarReader.pulsarSchema
+  lazy val pulsarSchema: SchemaInfo = metadataReader.getPulsarSchema()
+
+  override def readSchema(): StructType = SchemaUtils.pulsarSourceSchema(pulsarSchema)
 
   override def planInputPartitions(): ju.List[InputPartition[InternalRow]] = {
 
@@ -111,19 +112,20 @@ private[pulsar] class PulsarMicroBatchReader(
 
     offsetRanges.map { range =>
       new PulsarMicroBatchInputPartition(
-        range, clientConf, consumerConf,
+        range, new SchemaInfoSerializable(pulsarSchema), clientConf, consumerConf,
         failOnDataLoss, subscriptionNamePrefix): InputPartition[InternalRow]
     }.asJava
   }
 
   override def stop(): Unit = {
     metadataReader.removeCursor()
-    metadataReader.stop()
+    metadataReader.close()
   }
 }
 
 case class PulsarMicroBatchInputPartition(
     range: PulsarOffsetRange,
+    pulsarSchema: SchemaInfoSerializable,
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
     failOnDataLoss: Boolean,
@@ -139,7 +141,7 @@ case class PulsarMicroBatchInputPartition(
       return PulsarMicroBatchEmptyInputPartitionReader
     }
     new PulsarMicroBatchInputPartitionReader(
-      range, clientConf, consumerConf, failOnDataLoss, subscriptionNamePrefix)
+      range, pulsarSchema, clientConf, consumerConf, failOnDataLoss, subscriptionNamePrefix)
   }
 }
 
@@ -153,6 +155,7 @@ object PulsarMicroBatchEmptyInputPartitionReader
 
 case class PulsarMicroBatchInputPartitionReader(
     range: PulsarOffsetRange,
+    pulsarSchema: SchemaInfoSerializable,
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
     failOnDataLoss: Boolean,
@@ -166,10 +169,10 @@ case class PulsarMicroBatchInputPartitionReader(
 
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
 
-  val converter = new PulsarMessageToUnsafeRowConverter
-
+  private val deserializer = new PulsarDeserializer(pulsarSchema.si)
+  private val schema: Schema[_] = SchemaUtils.getPSchema(pulsarSchema.si)
   val consumer = CachedPulsarClient.getOrCreate(clientConf)
-    .newConsumer()
+    .newConsumer(schema)
     .topic(tp)
     .subscriptionName(s"$subscriptionNamePrefix-${UUID.randomUUID()}")
     .subscriptionType(SubscriptionType.Exclusive)
@@ -181,8 +184,8 @@ case class PulsarMicroBatchInputPartitionReader(
   private var isLast: Boolean = false
   private val enterEndFunc: (MessageId => Boolean) = enteredEnd(end)
 
-  private var nextRow: UnsafeRow = _
-  private var nextMessage: Message[Array[Byte]] = _
+  private var nextRow: InternalRow = _
+  private var nextMessage: Message[_] = _
   private var nextId: MessageId = _
 
   if (start != MessageId.earliest) {
@@ -216,7 +219,7 @@ case class PulsarMicroBatchInputPartitionReader(
     nextMessage = consumer.receive()
     nextId = nextMessage.getMessageId
 
-    nextRow = converter.toUnsafeRow(nextMessage)
+    nextRow = deserializer.deserialize(nextMessage)
 
     inEnd = enterEndFunc(nextId)
     if (inEnd) {

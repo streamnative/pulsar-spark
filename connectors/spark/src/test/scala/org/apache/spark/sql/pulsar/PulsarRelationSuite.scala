@@ -13,13 +13,17 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.util.Locale
+import java.text.SimpleDateFormat
+import java.util.{Date, Locale}
 import java.util.concurrent.atomic.AtomicInteger
 
-import org.apache.pulsar.client.api.MessageId
+import org.apache.pulsar.client.api.{Consumer, Message, MessageId, PulsarClient, Schema}
 import org.apache.pulsar.common.naming.TopicName
-import org.apache.spark.sql.QueryTest
+import org.apache.pulsar.common.schema.SchemaType
+import org.apache.spark.sql.{DataFrame, Encoder, Encoders, QueryTest}
 import org.apache.spark.sql.test.SharedSQLContext
+
+import scala.reflect.ClassTag
 
 class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTest {
   import testImplicits._
@@ -27,7 +31,6 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
 
   private val topicId = new AtomicInteger(0)
   private def newTopic(): String = TopicName.get(s"topic-${topicId.getAndIncrement()}").toString
-
 
   private def createDF(
       topic: String,
@@ -116,6 +119,65 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
     val df = createDF(topic,
       withOptions = Map("startingOffsets" -> "earliest", "endingOffsets" -> "latest"))
     checkAnswer(df.union(df), ((0 to 10) ++ (0 to 10)).map(_.toString).toDF)
+  }
+
+  test("test atomic types in query") {
+    import SchemaData._
+
+    def check[T: ClassTag](schemaType: SchemaType, datas: Seq[T], encoder: Encoder[T], str: T => String): (DataFrame, DataFrame) = {
+      val topic = newTopic()
+      sendTypedMessages[T](topic, schemaType, datas, None)
+
+      val df = createDF(topic,
+        withOptions = Map("startingOffsets" -> "earliest", "endingOffsets" -> "latest"))
+
+      val df2 = if (str == null) {
+        spark.createDataset(datas)(encoder).toDF().selectExpr("CAST(value as String)")
+      } else {
+        spark.createDataset(datas.map(str))(Encoders.STRING).toDF()
+      }
+      checkAnswer(df, df2)
+      (df, df2)
+    }
+
+    check[Boolean](SchemaType.BOOLEAN, booleanSeq, Encoders.scalaBoolean, null)
+    check[Int](SchemaType.INT32, int32Seq, Encoders.scalaInt, null)
+    check[String](SchemaType.STRING, stringSeq, Encoders.STRING, null)
+    check[Byte](SchemaType.INT8, int8Seq, Encoders.scalaByte, null)
+    check[Double](SchemaType.DOUBLE, doubleSeq, Encoders.scalaDouble, null)
+    check[Float](SchemaType.FLOAT, floatSeq, Encoders.scalaFloat, null)
+    check[Short](SchemaType.INT16, int16Seq, Encoders.scalaShort, null)
+    check[Long](SchemaType.INT64, int64Seq, Encoders.scalaLong, null)
+
+    // compare string, encoders are just placeholders, not actually used
+    check[Array[Byte]](SchemaType.BYTES, bytesSeq,
+      Encoders.BINARY, new String(_))
+    val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
+    check[Date](SchemaType.DATE, dateSeq,
+      Encoders.bean(classOf[Date]), dateFormat.format(_))
+    val tsFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+    check[java.sql.Timestamp](SchemaType.TIMESTAMP, timestampSeq,
+      Encoders.kryo(classOf[java.sql.Timestamp]), tsFormat.format(_))
+  }
+
+  test("test struct types in avro") {
+    import SchemaData._
+
+    val topic = newTopic()
+
+    sendTypedMessages[Foo](topic, SchemaType.AVRO, fooSeq, None)
+
+    val result = spark
+      .read
+      .format("pulsar")
+      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(ADMIN_URL_OPTION_KEY, adminUrl)
+      .option(TOPIC_MULTI, topic)
+      .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
+      .option(ENDING_OFFSETS_OPTION_KEY, "latest")
+      .load().selectExpr("i", "f", "bar")
+
+    checkAnswer(result, fooSeq.toDF())
   }
 
   test("bad batch query options") {

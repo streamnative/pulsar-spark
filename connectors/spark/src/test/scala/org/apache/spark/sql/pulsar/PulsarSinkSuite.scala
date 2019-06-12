@@ -13,15 +13,19 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.util.Locale
+import java.text.SimpleDateFormat
+import java.util.{Date, Locale}
 import java.util.concurrent.atomic.AtomicInteger
 
+import scala.reflect.ClassTag
+import org.apache.pulsar.client.api.Schema
 import org.apache.pulsar.common.naming.TopicName
+import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
 import org.scalatest.time.SpanSugar._
-import org.apache.spark.SparkException
+
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, SpecificInternalRow, UnsafeProjection}
 import org.apache.spark.sql.execution.streaming.MemoryStream
-import org.apache.spark.sql.{AnalysisException, DataFrame, Row, SaveMode}
+import org.apache.spark.sql.{AnalysisException, DataFrame, Encoder, Encoders, Row, SaveMode}
 import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, StreamTest, StreamingQuery, StreamingQueryException}
 import org.apache.spark.sql.test.SharedSQLContext
 import org.apache.spark.sql.types.{BinaryType, DataType}
@@ -29,6 +33,7 @@ import org.apache.spark.sql.types.{BinaryType, DataType}
 class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
   import testImplicits._
   import PulsarOptions._
+  import SchemaData._
 
   override val streamingTimeout = 30.seconds
 
@@ -40,6 +45,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     df.write
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(TOPIC_SINGLE, topic)
       .save()
 
@@ -48,16 +54,75 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       Row("1") :: Row("2") :: Row("3") :: Row("4") :: Row("5") :: Nil)
   }
 
-  test("batch - null topic field value, and no topic option") {
-    val df = Seq[(String, String)](null.asInstanceOf[String] -> "1").toDF("topic", "value")
-    val ex = intercept[SparkException] {
+  test("batch - atomic types") {
+    def check[T: ClassTag](schemaInfo: SchemaInfo, data: Seq[T], encoder: Encoder[T], str: T => String) = {
+      val topic = newTopic()
+
+      val df = if (str == null) {
+        spark.createDataset(data)(encoder).toDF().selectExpr("CAST(value as String)")
+      } else {
+        spark.createDataset(data.map(str))(Encoders.STRING).toDF()
+      }
+
       df.write
         .format("pulsar")
         .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+        .option(ADMIN_URL_OPTION_KEY, adminUrl)
+        .option(TOPIC_SINGLE, topic)
+        .save()
+
+      val df1 = createPulsarReader(topic).selectExpr("CAST(value as STRING) value")
+
+      checkAnswer(df1, df)
+    }
+
+    check[Boolean](Schema.BOOL.getSchemaInfo, booleanSeq, Encoders.scalaBoolean, null)
+    check[Int](Schema.INT32.getSchemaInfo, int32Seq, Encoders.scalaInt, null)
+    check[String](Schema.STRING.getSchemaInfo, stringSeq, Encoders.STRING, null)
+    check[Byte](Schema.INT8.getSchemaInfo, int8Seq, Encoders.scalaByte, null)
+    check[Double](Schema.DOUBLE.getSchemaInfo, doubleSeq, Encoders.scalaDouble, null)
+    check[Float](Schema.FLOAT.getSchemaInfo, floatSeq, Encoders.scalaFloat, null)
+    check[Short](Schema.INT16.getSchemaInfo, int16Seq, Encoders.scalaShort, null)
+    check[Long](Schema.INT64.getSchemaInfo, int64Seq, Encoders.scalaLong, null)
+
+    val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
+    check[Date](Schema.DATE.getSchemaInfo, dateSeq,
+      Encoders.bean(classOf[Date]), dateFormat.format(_))
+    val tsFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+    check[java.sql.Timestamp](Schema.TIMESTAMP.getSchemaInfo, timestampSeq,
+      Encoders.kryo(classOf[java.sql.Timestamp]), tsFormat.format(_))
+    check[Array[Byte]](Schema.BYTES.getSchemaInfo, bytesSeq,
+      Encoders.BINARY, new String(_))
+  }
+
+  test("batch - struct types") {
+    val topic = newTopic()
+
+    val df = fooSeq.toDF()
+
+    df.write
+      .format("pulsar")
+      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(ADMIN_URL_OPTION_KEY, adminUrl)
+      .option(TOPIC_SINGLE, topic)
+      .save()
+
+    val df1 = createPulsarReader(topic).selectExpr("i", "f", "bar")
+
+    checkAnswer(df1, df)
+  }
+
+  test("batch - null topic field value, and no topic option") {
+    val df = Seq[(String, String)](null.asInstanceOf[String] -> "1").toDF("topic", "value")
+    val ex = intercept[AnalysisException] {
+      df.write
+        .format("pulsar")
+        .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+        .option(ADMIN_URL_OPTION_KEY, adminUrl)
         .save()
     }
     assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
-      "null topic present in the data"))
+      "topic option required"))
   }
 
   test("batch - unsupported save modes") {
@@ -95,11 +160,11 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       input.toDF(),
       withTopic = None,
       withOutputMode = Some(OutputMode.Append))(
-      withSelectExpr = s"'$topic' as topic", "value")
+      withSelectExpr = s"'$topic' as __topic", "value")
 
     val reader = createPulsarReader(topic)
-      .selectExpr("CAST(key as STRING) key", "CAST(value as STRING) value")
-      .selectExpr("CAST(key as INT) key", "CAST(value as INT) value")
+      .selectExpr("CAST(__key as STRING) __key", "CAST(value as STRING) value")
+      .selectExpr("CAST(__key as INT) __key", "CAST(value as INT) value")
       .as[(Option[Int], Int)]
       .map(_._2)
 
@@ -127,12 +192,12 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       input.toDF().groupBy("value").count(),
       withTopic = Some(topic),
       withOutputMode = Some(OutputMode.Update()))(
-      withSelectExpr = "CAST(value as STRING) key", "CAST(count as STRING) value"
+      withSelectExpr = "CAST(value as STRING) __key", "CAST(count as STRING) value"
     )
 
     val reader = createPulsarReader(topic)
-      .selectExpr("CAST(key as STRING) key", "CAST(value as STRING) value")
-      .selectExpr("CAST(key as INT) key", "CAST(value as INT) value")
+      .selectExpr("CAST(__key as STRING) __key", "CAST(value as STRING) value")
+      .selectExpr("CAST(__key as INT) __key", "CAST(value as INT) value")
       .as[(Int, Int)]
 
     try {
@@ -167,12 +232,12 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       input.toDF().groupBy("value").count(),
       withTopic = Some(topic),
       withOutputMode = Some(OutputMode.Update()))(
-      withSelectExpr = "'foo' as topic",
-      "CAST(value as STRING) key", "CAST(count as STRING) value")
+      withSelectExpr = "'foo' as __topic",
+      "CAST(value as STRING) __key", "CAST(count as STRING) value")
 
     val reader = createPulsarReader(topic)
-      .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
-      .selectExpr("CAST(key AS INT)", "CAST(value AS INT)")
+      .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
+      .selectExpr("CAST(__key AS INT)", "CAST(value AS INT)")
       .as[(Int, Int)]
 
     try {
@@ -191,6 +256,97 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     }
   }
 
+  test("streaming - write atomic types") {
+
+    def check[T: ClassTag](schemaInfo: SchemaInfo, data: Seq[T], encoder: Encoder[T], str: T => String) = {
+      implicit val enc = encoder
+      val input = MemoryStream[T]
+      val topic = newTopic()
+      createPulsarSchema(topic, schemaInfo)
+
+      val writer = createPulsarWriter(
+        input.toDF(),
+        withTopic = Some(topic),
+        withOutputMode = Some(OutputMode.Append))(
+        withSelectExpr = s"'$topic' as __topic", "value")
+
+      try {
+        input.addData(data)
+        failAfter(streamingTimeout) {
+          writer.processAllAvailable()
+        }
+
+        val reader = createPulsarReader(topic)
+          .selectExpr("CAST(value as STRING)")
+          .as[String]
+
+        if (str == null) {
+          checkDatasetUnorderly[String](reader, data.map(_.toString): _*)
+        } else {
+          checkDatasetUnorderly[String](reader, data.map(str(_)): _*)
+        }
+      } finally {
+        writer.stop()
+      }
+    }
+
+    check[Boolean](Schema.BOOL.getSchemaInfo, booleanSeq, Encoders.scalaBoolean, null)
+    check[Int](Schema.INT32.getSchemaInfo, int32Seq, Encoders.scalaInt, null)
+    check[String](Schema.STRING.getSchemaInfo, stringSeq, Encoders.STRING, null)
+    check[Byte](Schema.INT8.getSchemaInfo, int8Seq, Encoders.scalaByte, null)
+    check[Double](Schema.DOUBLE.getSchemaInfo, doubleSeq, Encoders.scalaDouble, null)
+    check[Float](Schema.FLOAT.getSchemaInfo, floatSeq, Encoders.scalaFloat, null)
+    check[Short](Schema.INT16.getSchemaInfo, int16Seq, Encoders.scalaShort, null)
+    check[Long](Schema.INT64.getSchemaInfo, int64Seq, Encoders.scalaLong, null)
+    check[Array[Byte]](Schema.BYTES.getSchemaInfo, bytesSeq,
+      Encoders.BINARY, new String(_))
+
+    val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
+    check[java.sql.Date](Schema.DATE.getSchemaInfo, dateSeq.map(d => new java.sql.Date(d.getTime)),
+      Encoders.DATE, dateFormat.format(_))
+    val tsFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+    check[java.sql.Timestamp](Schema.TIMESTAMP.getSchemaInfo, timestampSeq,
+      Encoders.TIMESTAMP, tsFormat.format(_))
+  }
+
+  test("streaming - write struct type") {
+    val input = MemoryStream[Foo]
+    val topic = newTopic()
+
+    val writer = createPulsarWriter(
+      input.toDF(),
+      withTopic = Some(topic),
+      withOutputMode = Some(OutputMode.Append))(
+      withSelectExpr = "i", "f", "bar")
+
+    try {
+      input.addData(fooSeq)
+      failAfter(streamingTimeout) {
+        writer.processAllAvailable()
+      }
+
+      val reader = createPulsarReader(topic)
+        .selectExpr("i", "f", "bar").as[Foo]
+
+      implicit val orderingB = new Ordering[Bar] {
+        override def compare(x: Bar, y: Bar): Int = {
+          Ordering.Tuple2[Boolean, String].compare((x.b, x.s), (y.b, y.s))
+        }
+      }
+
+      implicit val orderingF = new Ordering[Foo] {
+        override def compare(x: Foo, y: Foo): Int = {
+          Ordering.Tuple3[Int, Float, Bar].compare((x.i, x.f, x.bar), (y.i, y.f, y.bar))
+        }
+      }
+
+      checkDatasetUnorderly[Foo](reader, fooSeq: _*)
+
+    } finally {
+      writer.stop()
+    }
+  }
+
   test("streaming - write data with bad schema") {
     val input = MemoryStream[String]
     val topic = newTopic()
@@ -202,7 +358,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       /* No value field */
       ex = intercept[StreamingQueryException] {
         writer = createPulsarWriter(input.toDF(), withTopic = Some(topic))(
-          withSelectExpr = s"'$topic' as topic", "value as key"
+          withSelectExpr = s"'$topic' as __topic", "value as __key"
         )
         input.addData("1", "2", "3", "4", "5")
         writer.processAllAvailable()
@@ -210,8 +366,6 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     } finally {
       writer.stop()
     }
-    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
-      "required attribute 'value' not found"))
   }
 
   test("streaming - write data with valid schema but wrong types") {
@@ -222,25 +376,10 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     var ex: Exception = null
 
     try {
-      /* value field wrong type */
-      ex = intercept[StreamingQueryException] {
-        writer = createPulsarWriter(input.toDF(), withTopic = Some(topic))(
-          withSelectExpr = s"'$topic' as topic", "CAST(value as INT) as value"
-        )
-        input.addData("1", "2", "3", "4", "5")
-        writer.processAllAvailable()
-      }
-    } finally {
-      writer.stop()
-    }
-    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
-      "value attribute type must be a string or binary"))
-
-    try {
       ex = intercept[StreamingQueryException] {
         /* key field wrong type */
         writer = createPulsarWriter(input.toDF(), withTopic = Some(topic))(
-          withSelectExpr = s"'$topic' as topic", "CAST(value as INT) as key", "value"
+          withSelectExpr = s"'$topic' as topic", "CAST(value as INT) as __key", "value"
         )
         input.addData("1", "2", "3", "4", "5")
         writer.processAllAvailable()
@@ -267,7 +406,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     val producerOptions = new java.util.HashMap[String, Object]
     val inputSchema = Seq(AttributeReference("value", BinaryType)())
     val data = new Array[Byte](15000) // large value
-    val writeTask = new PulsarWriteTask(clientOptions, producerOptions, Some(topic), inputSchema)
+    val writeTask = new PulsarWriteTask(clientOptions, producerOptions, Some(topic), inputSchema, "")
     try {
       val fieldTypes: Array[DataType] = Array(BinaryType)
       val converter = UnsafeProjection.create(fieldTypes)
@@ -311,6 +450,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
         .format("pulsar")
         .option("checkpointLocation", checkpointDir.getCanonicalPath)
         .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+        .option(ADMIN_URL_OPTION_KEY, adminUrl)
         .queryName("pulsarStream")
       withTopic.foreach(stream.option(TOPIC_SINGLE, _))
       withOutputMode.foreach(stream.outputMode(_))

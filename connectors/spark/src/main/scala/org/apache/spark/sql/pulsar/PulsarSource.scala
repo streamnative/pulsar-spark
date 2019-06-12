@@ -16,6 +16,7 @@ package org.apache.spark.sql.pulsar
 import java.{util => ju}
 
 import org.apache.pulsar.client.api.MessageId
+import org.apache.pulsar.common.schema.SchemaInfo
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
@@ -47,7 +48,9 @@ private[pulsar] class PulsarSource(
 
   private var currentTopicOffsets: Option[Map[String, MessageId]] = None
 
-  override def schema: StructType = PulsarReader.pulsarSchema
+  lazy val pulsarSchema: SchemaInfo = metadataReader.getPulsarSchema()
+
+  override def schema(): StructType = SchemaUtils.pulsarSourceSchema(pulsarSchema)
 
   override def getOffset: Option[Offset] = {
     // Make sure initialTopicOffsets is initialized
@@ -109,7 +112,8 @@ private[pulsar] class PulsarSource(
     }.toSeq
 
     val rdd = new PulsarSourceRDD(
-      sc, clientConf, consumerConf, offsetRanges, failOnDataLoss, subscriptionNamePrefix)
+      sc, new SchemaInfoSerializable(pulsarSchema),
+      clientConf, consumerConf, offsetRanges, failOnDataLoss, subscriptionNamePrefix)
 
     logInfo("GetBatch generating RDD of offset range: " +
       offsetRanges.sortBy(_.topic).mkString(", "))
@@ -124,6 +128,6 @@ private[pulsar] class PulsarSource(
 
   override def stop(): Unit = synchronized {
     metadataReader.removeCursor()
-    metadataReader.stop()
+    metadataReader.close()
   }
 }

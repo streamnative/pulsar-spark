@@ -26,6 +26,8 @@ import org.apache.spark.sql.types.StructType
  */
 private[pulsar] class PulsarRelation(
     override val sqlContext: SQLContext,
+    override  val schema: StructType,
+    schemaInfo: SchemaInfoSerializable,
     adminUrl: String,
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
@@ -36,8 +38,6 @@ private[pulsar] class PulsarRelation(
   extends BaseRelation with TableScan with Logging {
 
   import PulsarSourceUtils._
-
-  override def schema: StructType = PulsarReader.pulsarSchema
 
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
 
@@ -66,6 +66,7 @@ private[pulsar] class PulsarRelation(
 
     val rdd = new PulsarSourceRDD4Batch(
       sqlContext.sparkContext,
+      schemaInfo,
       adminUrl,
       clientConf,
       consumerConf,

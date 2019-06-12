@@ -22,7 +22,6 @@ import org.junit.runner.RunWith
 import org.scalatest.PrivateMethodTester
 import org.scalatest.junit.JUnitRunner
 
-@RunWith(classOf[JUnitRunner])
 class CachedPulsarClientSuite extends SharedSQLContext with PrivateMethodTester with PulsarTest {
 
   import PulsarOptions._

@@ -20,7 +20,6 @@ import org.junit.runner.RunWith
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.junit.JUnitRunner
 
-@RunWith(classOf[JUnitRunner])
 class JsonUtilsTestSuite extends SparkFunSuite with BeforeAndAfterEach {
 
   test("serialize and deserialize topics") {

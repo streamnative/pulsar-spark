@@ -17,8 +17,9 @@ import java.io.{Externalizable, ObjectInput, ObjectOutput}
 import java.util.UUID
 import java.{util => ju}
 
-import org.apache.pulsar.client.api.{Message, MessageId, SubscriptionType}
+import org.apache.pulsar.client.api.{Message, MessageId, Schema, SubscriptionType}
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
+import org.apache.pulsar.common.schema.SchemaInfo
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
@@ -47,7 +48,9 @@ class PulsarContinuousReader(
   // Exposed outside this object only for unit tests.
   @volatile private[sql] var knownTopics: Set[String] = _
 
-  override def readSchema(): StructType = PulsarReader.pulsarSchema
+  lazy val pulsarSchema: SchemaInfo = metadataReader.getPulsarSchema()
+
+  override def readSchema(): StructType = SchemaUtils.pulsarSourceSchema(pulsarSchema)
 
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
 
@@ -75,7 +78,7 @@ class PulsarContinuousReader(
     topicOffsets.toSeq.map {
       case (topic, start) => {
         new PulsarContinuousTopic(
-          topic, start, clientConf, consumerConf,
+          topic, new SchemaInfoSerializable(pulsarSchema), start, clientConf, consumerConf,
           failOnDataLoss, subscriptionNamePrefix
         ): InputPartition[InternalRow]
       }
@@ -103,19 +106,20 @@ class PulsarContinuousReader(
 
   override def stop(): Unit = {
     metadataReader.removeCursor()
-    metadataReader.stop()
+    metadataReader.close()
   }
 }
 
 private[pulsar] class PulsarContinuousTopic(
     var topic: String,
+    var schemaInfo: SchemaInfoSerializable,
     var startingOffsets: MessageId,
     var clientConf: ju.Map[String, Object],
     var consumerConf: ju.Map[String, Object],
     var failOnDataLoss: Boolean,
     var subscriptionNamePrefix: String) extends ContinuousInputPartition[InternalRow] with Externalizable {
 
-  def this() = this(null, null, null, null, false, null) // For deserialization only
+  def this() = this(null, null, null, null, null, false, null) // For deserialization only
 
   override def createContinuousReader(
       offset: PartitionOffset): InputPartitionReader[InternalRow] = {
@@ -124,6 +128,7 @@ private[pulsar] class PulsarContinuousTopic(
       s"Expected topic: $topic, but got: ${pulsarOffset.topic}")
     new PulsarContinuousTopicReader(
       topic,
+      schemaInfo,
       pulsarOffset.messageId,
       clientConf,
       consumerConf,
@@ -134,6 +139,7 @@ private[pulsar] class PulsarContinuousTopic(
   override def createPartitionReader(): InputPartitionReader[InternalRow] = {
     new PulsarContinuousTopicReader(
       topic,
+      schemaInfo,
       startingOffsets,
       clientConf,
       consumerConf,
@@ -143,6 +149,7 @@ private[pulsar] class PulsarContinuousTopic(
 
   override def writeExternal(out: ObjectOutput): Unit = {
     out.writeUTF(topic)
+    out.writeObject(schemaInfo)
     out.writeObject(clientConf)
     out.writeObject(consumerConf)
     out.writeBoolean(failOnDataLoss)
@@ -155,6 +162,7 @@ private[pulsar] class PulsarContinuousTopic(
 
   override def readExternal(in: ObjectInput): Unit = {
     topic = in.readUTF()
+    schemaInfo = in.readObject().asInstanceOf[SchemaInfoSerializable]
     clientConf = in.readObject().asInstanceOf[ju.Map[String, Object]]
     consumerConf = in.readObject().asInstanceOf[ju.Map[String, Object]]
     failOnDataLoss = in.readBoolean()
@@ -178,14 +186,17 @@ private[pulsar] class PulsarContinuousTopic(
  */
 class PulsarContinuousTopicReader(
     topic: String,
+    schemaInfo: SchemaInfoSerializable,
     startingOffsets: MessageId,
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String) extends ContinuousInputPartitionReader[InternalRow] {
-  private val converter = new PulsarMessageToUnsafeRowConverter
+
+  private val deserializer = new PulsarDeserializer(schemaInfo.si)
+  private val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
   private val consumer = CachedPulsarClient.getOrCreate(clientConf)
-    .newConsumer()
+    .newConsumer(schema)
     .topic(topic)
     .subscriptionName(s"$subscriptionNamePrefix-${UUID.randomUUID()}")
     .subscriptionType(SubscriptionType.Exclusive)
@@ -195,7 +206,7 @@ class PulsarContinuousTopicReader(
 
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
 
-  var currentMessage: Message[Array[Byte]] = _
+  var currentMessage: Message[_] = _
   var currentId: MessageId = _
 
   if (startingOffsets != MessageId.earliest) {
@@ -234,7 +245,7 @@ class PulsarContinuousTopicReader(
   }
 
   override def get(): InternalRow = {
-    converter.toUnsafeRow(currentMessage)
+    deserializer.deserialize(currentMessage)
   }
 
   override def close(): Unit = {

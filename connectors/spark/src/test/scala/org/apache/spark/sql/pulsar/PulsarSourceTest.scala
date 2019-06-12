@@ -16,9 +16,19 @@ package org.apache.spark.sql.pulsar
 import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.atomic.AtomicInteger
 
+import scala.collection.mutable
+import scala.reflect.ClassTag
+import scala.util.Random
+import scala.util.control.NonFatal
+
+import org.scalatest.time.SpanSugar._
+import org.scalatest.concurrent.Eventually
+import org.scalatest.concurrent.PatienceConfiguration.Timeout
+
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.common.naming.TopicName
-import org.scalatest.time.SpanSugar._
+import org.apache.pulsar.common.schema.SchemaType
+
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.{Dataset, QueryTest}
 import org.apache.spark.sql.catalyst.plans.physical.AllTuples
@@ -31,12 +41,6 @@ import org.apache.spark.sql.streaming.StreamingQueryListener.{QueryProgressEvent
 import org.apache.spark.sql.streaming.{OutputMode, StreamTest, StreamingQueryException, StreamingQueryListener}
 import org.apache.spark.sql.test.SharedSQLContext
 import org.apache.spark.util.{SystemClock, Utils}
-import org.scalatest.concurrent.Eventually
-import org.scalatest.concurrent.PatienceConfiguration.Timeout
-
-import scala.collection.mutable
-import scala.util.Random
-import scala.util.control.NonFatal
 
 class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest {
 
@@ -118,6 +122,73 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
       val offsets: Seq[(String, MessageId)] = sendMessages(topic, data.map { _.toString }.toArray)
 
       val midLast = PulsarSourceUtils.mid2Impl(offsets.last._2)
+
+      val offset = SpecificPulsarOffset((topic, midLast))
+      logInfo(s"Added data, expected offset $offset")
+      (pulsarSource, offset)
+    }
+
+    override def toString: String =
+      s"AddPulsarData(topics = $topics, data = $data, message = $message)"
+  }
+
+  /**
+    * Add data to Pulsar.
+    *
+    * `topicAction` can be used to run actions for each topic before inserting data.
+    */
+  case class AddPulsarTypedData[T: ClassTag](topics: Set[String], tpe: SchemaType, data: Seq[T])
+    (implicit ensureDataInMultiplePartition: Boolean = false,
+      concurrent: Boolean = false,
+      message: String = "",
+      topicAction: (String, Option[MessageId]) => Unit = (_, _) => {}) extends AddData {
+
+    override def addData(query: Option[StreamExecution]): (BaseStreamingSource, Offset) = {
+      query match {
+        // Make sure no Spark job is running when deleting a topic
+        case Some(m: MicroBatchExecution) => m.processAllAvailable()
+        case _ =>
+      }
+
+      val existingTopics = getAllTopicsSize().toMap
+      val newTopics = topics.diff(existingTopics.keySet)
+      for (newTopic <- newTopics) {
+        topicAction(newTopic, None)
+      }
+      for (existingTopicPartitions <- existingTopics) {
+        topicAction(existingTopicPartitions._1, Some(existingTopicPartitions._2))
+      }
+
+      require(
+        query.nonEmpty,
+        "Cannot add data when there is no query for finding the active pulsar source")
+
+      val sources = {
+        query.get.logicalPlan.collect {
+          case StreamingExecutionRelation(source: PulsarSource, _) => source
+          case StreamingExecutionRelation(source: PulsarMicroBatchReader, _) => source
+        } ++ (query.get.lastExecution match {
+          case null => Seq()
+          case e => e.logical.collect {
+            case StreamingDataSourceV2Relation(_, _, _, reader: PulsarContinuousReader) => reader
+          }
+        })
+      }.distinct
+
+      if (sources.isEmpty) {
+        throw new Exception(
+          "Could not find Pulsar source in the StreamExecution logical plan to add data to")
+      } else if (sources.size > 1) {
+        throw new Exception(
+          "Could not select the Pulsar source in the StreamExecution logical plan as there" +
+            "are multiple Pulsar sources:\n\t" + sources.mkString("\n\t"))
+      }
+      val pulsarSource = sources.head
+      val topic = topics.toSeq(Random.nextInt(topics.size))
+
+      val offsets: Seq[MessageId] = sendTypedMessages[T](topic, tpe, data, None)
+
+      val midLast = PulsarSourceUtils.mid2Impl(offsets.last)
 
       val offset = SpecificPulsarOffset((topic, midLast))
       logInfo(s"Added data, expected offset $offset")

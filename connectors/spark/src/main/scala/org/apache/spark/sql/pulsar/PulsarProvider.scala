@@ -30,6 +30,7 @@ import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
 import org.apache.spark.sql.sources.v2.{ContinuousReadSupport, DataSourceOptions, MicroBatchReadSupport, StreamWriteSupport}
 import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.types.StructType
+import org.apache.spark.util.Utils
 
 /**
  * The provider class for all Pulsar readers and writers. It is designed such that it throws
@@ -56,9 +57,17 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
       schema: Option[StructType],
       providerName: String,
       parameters: Map[String, String]): (String, StructType) = {
-    validateStreamOptions(parameters)
-    require(schema.isEmpty, "Pulsar source has a fixed schema and cannot be set with a custom one")
-    (shortName(), PulsarReader.pulsarSchema)
+
+    val caseInsensitiveParams = validateStreamOptions(parameters)
+    val confs = prepareConfForConsumer(parameters)
+
+    val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}"
+    val inferredSchema = Utils.tryWithResource(
+      new PulsarMetadataReader(
+        confs._3, confs._4, confs._1, subscriptionNamePrefix, caseInsensitiveParams)) { reader =>
+      reader.getAndCheckCompatible(schema)
+    }
+    (shortName(), inferredSchema)
   }
 
   override def createSource(
@@ -73,6 +82,8 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
     val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}-${metadataPath.hashCode}"
     val metadataReader = new PulsarMetadataReader(
       confs._3, confs._4, confs._1, subscriptionNamePrefix, caseInsensitiveParams)
+
+    metadataReader.getAndCheckCompatible(schema)
 
     // start from latest offset if not specified to be consistent with Pulsar source
     val offset = metadataReader.offsetForEachTopic(
@@ -102,6 +113,8 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
     val metadataReader = new PulsarMetadataReader(
       confs._3, confs._4, confs._1, subscriptionNamePrefix, caseInsensitiveParams)
 
+    metadataReader.getAndCheckCompatible(schema)
+
     // start from latest offset if not specified to be consistent with Pulsar source
     val offset: SpecificPulsarOffset = metadataReader.offsetForEachTopic(
       caseInsensitiveParams, STARTING_OFFSETS_OPTION_KEY, LatestOffset)
@@ -129,6 +142,8 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
     val metadataReader = new PulsarMetadataReader(
       confs._3, confs._4, confs._1, subscriptionNamePrefix, caseInsensitiveParams)
 
+    metadataReader.getAndCheckCompatible(schema)
+
     val offset = metadataReader.offsetForEachTopic(
       caseInsensitiveParams, STARTING_OFFSETS_OPTION_KEY, LatestOffset)
     metadataReader.setupCursor(offset)
@@ -150,23 +165,29 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
     val subscriptionNamePrefix = s"spark-pulsar-batch-${UUID.randomUUID}"
 
     val confs = prepareConfForConsumer(parameters)
-    val metadataReader = new PulsarMetadataReader(
-      confs._3, confs._4, confs._1, subscriptionNamePrefix, caseInsensitiveParams)
+    val (start, end, schema, pSchema) = Utils.tryWithResource(
+      new PulsarMetadataReader(
+        confs._3, confs._4, confs._1, subscriptionNamePrefix, caseInsensitiveParams)) { reader =>
 
-    val startingOffset = metadataReader.offsetForEachTopic(
-      caseInsensitiveParams, STARTING_OFFSETS_OPTION_KEY, EarliestOffset)
-    val endingOffset = metadataReader.offsetForEachTopic(
-      caseInsensitiveParams, ENDING_OFFSETS_OPTION_KEY, LatestOffset)
+      val startingOffset = reader.offsetForEachTopic(
+        caseInsensitiveParams, STARTING_OFFSETS_OPTION_KEY, EarliestOffset)
+      val endingOffset = reader.offsetForEachTopic(
+        caseInsensitiveParams, ENDING_OFFSETS_OPTION_KEY, LatestOffset)
 
-    metadataReader.stop()
+      val pulsarSchema = reader.getPulsarSchema()
+      val schema = SchemaUtils.pulsarSourceSchema(pulsarSchema)
+      (startingOffset, endingOffset, schema, pulsarSchema)
+    }
 
     new PulsarRelation(
       sqlContext,
+      schema,
+      new SchemaInfoSerializable(pSchema),
       confs._4,
       confs._1,
       confs._2,
-      startingOffset,
-      endingOffset,
+      start,
+      end,
       failOnDataLoss(caseInsensitiveParams),
       subscriptionNamePrefix)
   }
@@ -187,13 +208,16 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
     val caseInsensitiveParams = validateSinkOptions(parameters)
 
     val parsedConf = prepareConfForProducer(caseInsensitiveParams)
+    PulsarSinks.validateQuery(data.schema.toAttributes, parsedConf._3)
 
-    PulsarWriter.write(
+    PulsarSinks.write(
       sqlContext.sparkSession,
       data.queryExecution,
       parsedConf._1,
       parsedConf._2,
-      parsedConf._3)
+      parsedConf._3,
+      parsedConf._4
+      )
 
     /**
      * This method is suppose to return a relation the data that was written.
@@ -228,7 +252,8 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
       sqlContext,
       parsedConf._1,
       parsedConf._2,
-      parsedConf._3
+      parsedConf._3,
+      parsedConf._4
     )
   }
 
@@ -243,13 +268,14 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
     val caseInsensitiveParams = validateSinkOptions(parameters)
 
     val parsedConf = prepareConfForProducer(caseInsensitiveParams)
-    PulsarWriter.validateQuery(schema.toAttributes, parsedConf._3)
+    PulsarSinks.validateQuery(schema.toAttributes, parsedConf._3)
 
     new PulsarStreamWriter(
       schema,
       parsedConf._1,
       parsedConf._2,
-      parsedConf._3)
+      parsedConf._3,
+      parsedConf._4)
   }
 }
 
@@ -403,6 +429,10 @@ private[pulsar] object PulsarProvider extends Logging {
       throw new IllegalArgumentException(s"$SERVICE_URL_OPTION_KEY must be specified")
     }
 
+    if (!caseInsensitiveParams.contains(ADMIN_URL_OPTION_KEY)) {
+      throw new IllegalArgumentException(s"$ADMIN_URL_OPTION_KEY must be specified")
+    }
+
     val topicOptions = caseInsensitiveParams.filter { case (k, _) => TOPIC_OPTION_KEYS.contains(k)}.toSeq.toMap
     if (topicOptions.size > 1 || topicOptions.contains(TOPIC_MULTI) || topicOptions.contains(TOPIC_PATTERN)) {
       throw new IllegalArgumentException("Currently, we only support specify single topic through option, " +
@@ -431,9 +461,10 @@ private[pulsar] object PulsarProvider extends Logging {
   }
 
   private def prepareConfForProducer(parameters: Map[String, String]):
-      (ju.Map[String, Object], ju.Map[String, Object], Option[String]) = {
+      (ju.Map[String, Object], ju.Map[String, Object], Option[String], String) = {
 
     val serviceUrl = getServiceUrl(parameters)
+    val adminUrl = getAdminUrl(parameters)
 
     var clientParams = getClientParams(parameters)
     clientParams += (SERVICE_URL_OPTION_KEY -> serviceUrl)
@@ -444,7 +475,8 @@ private[pulsar] object PulsarProvider extends Logging {
     (
       paramsToPulsarConf("pulsar.client", clientParams),
       paramsToPulsarConf("pulsar.producer", producerParams),
-      topic
+      topic,
+      adminUrl
     )
   }
 }

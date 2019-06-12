@@ -14,8 +14,14 @@
 package org.apache.spark.sql.pulsar
 
 import java.nio.charset.StandardCharsets.UTF_8
-import java.util.Locale
+import java.text.SimpleDateFormat
+import java.util.{Date, Locale}
 
+import scala.reflect.ClassTag
+
+import org.apache.pulsar.client.api.Schema
+import org.apache.pulsar.common.schema.SchemaInfo
+import org.apache.spark.sql.{Encoder, Encoders}
 import org.apache.spark.sql.execution.streaming.StreamExecution
 
 abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
@@ -36,7 +42,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
 
     val pulsar = reader
       .load()
-      .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+      .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
 
@@ -202,15 +208,94 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
         s"Unexpected results: ${spark.table("pulsarColumnTypes").collectAsList()}")
     }
     val row = spark.table("pulsarColumnTypes").head()
-    assert(row.getAs[Array[Byte]]("key") === null, s"Unexpected results: $row")
+    assert(row.getAs[Array[Byte]]("__key") === null, s"Unexpected results: $row")
     assert(row.getAs[Array[Byte]]("value") === "1".getBytes(UTF_8), s"Unexpected results: $row")
-    assert(row.getAs[String]("topic") === topic, s"Unexpected results: $row")
-    assert(row.getAs[Array[Byte]]("messageId") === mid.toByteArray, s"Unexpected results: $row")
+    assert(row.getAs[String]("__topic") === topic, s"Unexpected results: $row")
+    assert(row.getAs[Array[Byte]]("__messageId") === mid.toByteArray, s"Unexpected results: $row")
     // We cannot check the exact timestamp as it's the time that messages were inserted by the
     // producer. So here we just use a low bound to make sure the internal conversion works.
-    assert(row.getAs[java.sql.Timestamp]("publishTime").getTime >= now, s"Unexpected results: $row")
-    assert(row.getAs[java.sql.Timestamp]("eventTime") === null, s"Unexpected results: $row")
+    assert(row.getAs[java.sql.Timestamp]("__publishTime").getTime >= now, s"Unexpected results: $row")
+    assert(row.getAs[java.sql.Timestamp]("__eventTime") === null, s"Unexpected results: $row")
     query.stop()
+  }
+
+  test("test atomic types in query") {
+    import SchemaData._
+
+    def check[T: ClassTag](schemaInfo: SchemaInfo, datas: Seq[T], encoder: Encoder[T], str: T => String) = {
+      val topic = newTopic()
+      createPulsarSchema(topic, schemaInfo)
+
+      val tpe = schemaInfo.getType
+
+      val reader = spark
+        .readStream
+        .format("pulsar")
+        .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
+        .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+        .option(ADMIN_URL_OPTION_KEY, adminUrl)
+        .option(FAIL_ON_DATA_LOSS_OPTION_KEY, true)
+        .option(TOPIC_SINGLE, topic)
+
+      if (str == null) {
+        val pulsar = reader.load()
+          .selectExpr("value")
+          .as[T](encoder)
+
+        testStream(pulsar)(
+          AddPulsarTypedData(Set(topic), tpe, datas),
+          CheckAnswer(datas: _*)(encoder)
+        )
+      } else {
+        val pulsar = reader.load()
+          .selectExpr("CAST(value as String)")
+          .as[String]
+        testStream(pulsar)(
+          AddPulsarTypedData(Set(topic), tpe, datas),
+          CheckAnswer(datas.map(str(_)): _*)
+        )
+      }
+    }
+
+    check[Boolean](Schema.BOOL.getSchemaInfo, booleanSeq, Encoders.scalaBoolean, null)
+    check[Int](Schema.INT32.getSchemaInfo, int32Seq, Encoders.scalaInt, null)
+    check[String](Schema.STRING.getSchemaInfo, stringSeq, Encoders.STRING, null)
+    check[Byte](Schema.INT8.getSchemaInfo, int8Seq, Encoders.scalaByte, null)
+    check[Double](Schema.DOUBLE.getSchemaInfo, doubleSeq, Encoders.scalaDouble, null)
+    check[Float](Schema.FLOAT.getSchemaInfo, floatSeq, Encoders.scalaFloat, null)
+    check[Short](Schema.INT16.getSchemaInfo, int16Seq, Encoders.scalaShort, null)
+    check[Long](Schema.INT64.getSchemaInfo, int64Seq, Encoders.scalaLong, null)
+
+    val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
+    check[Date](Schema.DATE.getSchemaInfo, dateSeq,
+      Encoders.bean(classOf[Date]), dateFormat.format(_))
+    val tsFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+    check[java.sql.Timestamp](Schema.TIMESTAMP.getSchemaInfo, timestampSeq,
+      Encoders.kryo(classOf[java.sql.Timestamp]), tsFormat.format(_))
+    check[Array[Byte]](Schema.BYTES.getSchemaInfo, bytesSeq,
+      Encoders.BINARY, new String(_))
+  }
+
+  test("test struct types in avro") {
+    import SchemaData._
+
+    val topic = newTopic()
+    val si = Schema.AVRO(classOf[Foo]).getSchemaInfo
+    createPulsarSchema(topic, si)
+    val reader = spark
+      .readStream
+      .format("pulsar")
+      .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
+      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(ADMIN_URL_OPTION_KEY, adminUrl)
+      .option(FAIL_ON_DATA_LOSS_OPTION_KEY, true)
+      .option(TOPIC_SINGLE, topic)
+
+    val pulsar = reader.load().selectExpr("i", "f", "bar")
+    testStream(pulsar)(
+      AddPulsarTypedData(Set(topic), si.getType, fooSeq),
+      CheckAnswer(fooSeq: _*)
+    )
   }
 
   private def testFromLatestOffsets(
@@ -232,7 +317,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
 
     options.foreach { case (k, v) => reader.option(k, v) }
     val pulsar = reader.load()
-      .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+      .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
 
@@ -275,7 +360,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       .option(FAIL_ON_DATA_LOSS_OPTION_KEY, failOnDataLoss.toString)
     options.foreach { case (k, v) => reader.option(k, v) }
     val pulsar = reader.load()
-      .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+      .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
 
@@ -317,7 +402,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       .option(FAIL_ON_DATA_LOSS_OPTION_KEY, failOnDataLoss.toString)
     options.foreach { case (k, v) => reader.option(k, v) }
     val pulsar = reader.load()
-      .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+      .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
     val mapped = pulsar.map(kv => kv._2.toInt)
 

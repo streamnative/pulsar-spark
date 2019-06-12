@@ -17,20 +17,21 @@ import java.util.UUID
 import java.{util => ju}
 
 import org.apache.pulsar.client.admin.PulsarAdmin
-import org.apache.pulsar.client.api.{Message, MessageId, SubscriptionType}
+import org.apache.pulsar.client.api.{Message, MessageId, Schema, SubscriptionType}
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
 
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.pulsar.PulsarSourceUtils._
-import org.apache.spark.util.NextIterator
+import org.apache.spark.util.{NextIterator, Utils}
 
 private[pulsar] case class PulsarSourceRDDPartition(
     index: Int, offsetRange: PulsarOffsetRange) extends Partition
 
 private[pulsar] abstract class PulsarSourceRDDBase(
     sc: SparkContext,
+    schemaInfo: SchemaInfoSerializable,
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
     offsetRanges: Seq[PulsarOffsetRange],
@@ -53,10 +54,11 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       context: TaskContext,
       startInclusive: Boolean): Iterator[InternalRow] = {
 
-    val converter = new PulsarMessageToUnsafeRowConverter
+    val deserializer = new PulsarDeserializer(schemaInfo.si)
+    val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
 
     lazy val consumer = CachedPulsarClient.getOrCreate(clientConf)
-      .newConsumer()
+      .newConsumer(schema)
       .topic(topic)
       .subscriptionName(s"$subscriptionNamePrefix-${UUID.randomUUID()}")
       .subscriptionType(SubscriptionType.Exclusive)
@@ -71,7 +73,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       private var isLast: Boolean = false
       private val enterEndFunc: (MessageId => Boolean) = enteredEnd(endOffset)
 
-      var currentMessage: Message[Array[Byte]] = _
+      var currentMessage: Message[_] = _
       var currentId: MessageId = _
 
       if (!startInclusive && startOffset != MessageId.earliest) {
@@ -118,7 +120,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
         if (inEnd) {
           isLast = isLastMessage(currentId)
         }
-        converter.toUnsafeRow(currentMessage)
+        deserializer.deserialize(currentMessage)
       }
 
       override protected def close(): Unit = {
@@ -131,13 +133,14 @@ private[pulsar] abstract class PulsarSourceRDDBase(
 
 private[pulsar] class PulsarSourceRDD(
     sc: SparkContext,
+    schemaInfo: SchemaInfoSerializable,
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
     offsetRanges: Seq[PulsarOffsetRange],
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String)
   extends PulsarSourceRDDBase(
-    sc, clientConf, consumerConf, offsetRanges, failOnDataLoss, subscriptionNamePrefix) {
+    sc, schemaInfo, clientConf, consumerConf, offsetRanges, failOnDataLoss, subscriptionNamePrefix) {
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
     val part = split.asInstanceOf[PulsarSourceRDDPartition]
@@ -163,6 +166,7 @@ private[pulsar] class PulsarSourceRDD(
 
 private[pulsar] class PulsarSourceRDD4Batch(
     sc: SparkContext,
+    schemaInfo: SchemaInfoSerializable,
     adminUrl: String,
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
@@ -170,7 +174,7 @@ private[pulsar] class PulsarSourceRDD4Batch(
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String)
   extends PulsarSourceRDDBase(
-    sc, clientConf, consumerConf, offsetRanges, failOnDataLoss, subscriptionNamePrefix) {
+    sc, schemaInfo, clientConf, consumerConf, offsetRanges, failOnDataLoss, subscriptionNamePrefix) {
 
   override def compute(
     split: Partition,
@@ -181,10 +185,9 @@ private[pulsar] class PulsarSourceRDD4Batch(
     val start = part.offsetRange.fromOffset
     val end = part.offsetRange.untilOffset match {
       case MessageId.latest =>
-        val admin = PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()
-        val id = PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp))
-        admin.close()
-        id
+        Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+          PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp))
+        }
       case id => id
     }
 

@@ -39,11 +39,12 @@ class PulsarStreamWriter(
     schema: StructType,
     clientConf: ju.Map[String, Object],
     producerConf: ju.Map[String, Object],
-    topic: Option[String])
+    topic: Option[String],
+    adminUrl: String)
   extends StreamWriter {
 
   override def createWriterFactory(): PulsarStreamWriterFactory =
-    PulsarStreamWriterFactory(schema, clientConf, producerConf, topic)
+    PulsarStreamWriterFactory(schema, clientConf, producerConf, topic, adminUrl)
 
   override def commit(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {}
   override def abort(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {}
@@ -61,7 +62,8 @@ case class PulsarStreamWriterFactory(
     schema: StructType,
     clientConf: ju.Map[String, Object],
     producerConf: ju.Map[String, Object],
-    topic: Option[String])
+    topic: Option[String],
+    adminUrl: String)
   extends DataWriterFactory[InternalRow] {
 
   override def createDataWriter(
@@ -72,8 +74,8 @@ case class PulsarStreamWriterFactory(
       schema.toAttributes,
       clientConf,
       producerConf,
-      topic
-    )
+      topic,
+      adminUrl)
   }
 }
 
@@ -90,8 +92,9 @@ class PulsarStreamDataWriter(
     inputSchema: Seq[Attribute],
     clientConf: ju.Map[String, Object],
     producerConf: ju.Map[String, Object],
-    topic: Option[String])
-  extends PulsarRowWriter(inputSchema, clientConf, producerConf, topic) with DataWriter[InternalRow] {
+    topic: Option[String],
+    adminUrl: String)
+  extends PulsarRowWriter(inputSchema, clientConf, producerConf, topic, adminUrl) with DataWriter[InternalRow] {
 
   def write(row: InternalRow): Unit = {
     checkForErrors()

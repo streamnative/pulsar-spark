@@ -21,6 +21,7 @@ import org.apache.spark.sql.execution.streaming.StreamingExecutionRelation
 import org.apache.spark.sql.functions.{count, window}
 import org.apache.spark.sql.pulsar.PulsarOptions.{ADMIN_URL_OPTION_KEY, SERVICE_URL_OPTION_KEY, TOPIC_PATTERN}
 import org.apache.spark.sql.streaming.ProcessingTime
+import org.apache.spark.util.Utils
 
 class PulsarMicroBatchV1SourceSuite extends PulsarMicroBatchSourceSuiteBase {
 
@@ -113,7 +114,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .load()
-      .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+      .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
 
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
@@ -144,8 +145,8 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       .load()
 
     val windowedAggregation = pulsar
-      .withWatermark("publishTime", "10 seconds")
-      .groupBy(window($"publishTime", "5 seconds") as 'window)
+      .withWatermark("__publishTime", "10 seconds")
+      .groupBy(window($"__publishTime", "5 seconds") as 'window)
       .agg(count("*") as 'count)
       .select($"window".getField("start") as 'window, $"count")
 
@@ -185,7 +186,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
       .option("failOnDataLoss", "false")
     val pulsar = reader.load()
-      .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+      .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
     // The following ForeachWriter will delete the topic before fetching data from Pulsar
     // in executors.
@@ -193,9 +194,9 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     val adminu: String = adminUrl
     val query = pulsar.map(kv => kv._2.toInt).writeStream.foreach(new ForeachWriter[Int] {
       override def open(partitionId: Long, version: Long): Boolean = {
-        val admin = PulsarAdmin.builder().serviceHttpUrl(adminu).build()
-        admin.topics().delete(topic)
-        admin.close()
+        Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminu).build()) { admin =>
+          admin.topics().delete(topic)
+        }
         true
       }
 

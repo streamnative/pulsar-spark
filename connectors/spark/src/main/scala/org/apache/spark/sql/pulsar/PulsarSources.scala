@@ -27,6 +27,7 @@ import org.apache.spark.scheduler.ExecutorCacheTaskLocation
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.execution.streaming.{HDFSMetadataLog, SerializedOffset}
 import org.apache.spark.storage.BlockManager
+import org.apache.spark.util.Utils
 
 private[pulsar] object PulsarSourceUtils extends Logging {
   import PulsarOptions._
@@ -120,16 +121,16 @@ private[pulsar] object PulsarSourceUtils extends Logging {
 
   // for test purpose
   def deleteTopic(topic: String, adminUrl: String): Unit = {
-    val admin = PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()
-    admin.topics().delete(topic)
-    admin.close()
+    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+      admin.topics().delete(topic)
+    }
   }
 
   // for test purpose
   def createTopic(topic: String, adminUrl: String): Unit = {
-    val admin = PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()
-    admin.topics().createNonPartitionedTopic(topic)
-    admin.close()
+    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+      admin.topics().createNonPartitionedTopic(topic)
+    }
   }
 }
 

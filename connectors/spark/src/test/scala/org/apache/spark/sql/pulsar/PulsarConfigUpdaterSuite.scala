@@ -18,7 +18,6 @@ import org.junit.runner.RunWith
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.junit.JUnitRunner
 
-@RunWith(classOf[JUnitRunner])
 class PulsarConfigUpdaterSuite extends SparkFunSuite with BeforeAndAfterEach {
   private val testModule = "testModule"
   private val testKey = "testKey"

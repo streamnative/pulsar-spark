@@ -65,8 +65,17 @@ private[pulsar] object PulsarOptions {
     SERVICE_URL_OPTION_KEY,
     TOPIC_SCHEMA_CLASS_OPTION_KEY)
 
-  val TOPIC_ATTRIBUTE_NAME: String = "topic"
-  val KEY_ATTRIBUTE_NAME: String = "key"
-  val VALUE_ATTRIBUTE_NAME: String = "value"
+  val TOPIC_ATTRIBUTE_NAME: String = "__topic"
+  val KEY_ATTRIBUTE_NAME: String = "__key"
+  val MESSAGE_ID_NAME: String = "__messageId"
+  val PUBLISH_TIME_NAME: String = "__publishTime"
+  val EVENT_TIME_NAME: String = "__eventTime"
 
+  val META_FIELD_NAMES = Set(
+    TOPIC_ATTRIBUTE_NAME,
+    KEY_ATTRIBUTE_NAME,
+    MESSAGE_ID_NAME,
+    PUBLISH_TIME_NAME,
+    EVENT_TIME_NAME
+  )
 }

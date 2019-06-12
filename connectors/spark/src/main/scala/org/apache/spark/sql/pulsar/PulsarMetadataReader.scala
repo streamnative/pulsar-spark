@@ -13,16 +13,21 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.util.UUID
+import java.io.Closeable
+import java.util.{Optional, UUID}
 import java.util.regex.Pattern
 import java.{util => ju}
 
-import org.apache.pulsar.client.admin.PulsarAdmin
+import org.apache.commons.lang.exception.ExceptionUtils
+import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.{MessageId, PulsarClient, SubscriptionType}
+import org.apache.pulsar.client.impl.schema.BytesSchema
 import org.apache.pulsar.common.naming.TopicName
+import org.apache.pulsar.common.schema.SchemaInfo
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.pulsar.PulsarOptions.TOPIC_OPTION_KEYS
+import org.apache.spark.sql.types.StructType
 
 /**
   * A Helper class that responsible for:
@@ -34,18 +39,17 @@ private[pulsar] case class PulsarMetadataReader(
     adminUrl: String,
     clientConf: ju.Map[String, Object],
     driverGroupIdPrefix: String,
-    caseInsensitiveParameters: Map[String, String]) extends Logging {
+    caseInsensitiveParameters: Map[String, String]) extends Closeable with Logging {
 
   import scala.collection.JavaConverters._
 
   protected val admin: PulsarAdmin =
     PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()
-  protected lazy val client: PulsarClient =
-    PulsarClient.builder().serviceUrl(serviceUrl).build()
+  protected var client: PulsarClient = null
 
   private var topics: Seq[String] = _
 
-  def stop(): Unit = {
+  override def close(): Unit = {
     admin.close()
     if (client != null) {
       client.close()
@@ -68,6 +72,54 @@ private[pulsar] case class PulsarMetadataReader(
     getTopics()
     topics.foreach { tp =>
       admin.topics().deleteSubscription(tp, s"$driverGroupIdPrefix-$tp")
+    }
+  }
+
+  def getAndCheckCompatible(schema: Option[StructType]): StructType = {
+    val inferredSchema = getSchema()
+    require(schema.isEmpty || inferredSchema == schema.get,
+      "The Schema of Pulsar source and provided doesn't match")
+    inferredSchema
+  }
+
+  def getAndCheckCompatible(schema: Optional[StructType]): StructType = {
+    val inferredSchema = getSchema()
+    require(!schema.isPresent || inferredSchema == schema.get,
+      "The Schema of Pulsar source and provided doesn't match")
+    inferredSchema
+  }
+
+  def getSchema(): StructType = {
+    val si = getPulsarSchema()
+    SchemaUtils.pulsarSourceSchema(si)
+  }
+
+  def getPulsarSchema(): SchemaInfo = {
+    getTopics()
+    if (topics.size > 0) {
+      val schemas = topics.map { tp =>
+        getPulsarSchema(tp)
+      }
+      val sset = schemas.toSet
+      if (sset.size != 1){
+        throw new IllegalArgumentException(s"Topics to read must share identical schema, " +
+          s"however we got ${sset.size} distinct schemas:[${sset.mkString(", ")}]")
+      }
+      sset.head
+    } else { // if no topic exists, and we are getting schema, then auto created topic has schema of None
+      SchemaUtils.emptySchemaInfo()
+    }
+  }
+
+  def getPulsarSchema(topic: String): SchemaInfo = {
+    try {
+      admin.schemas().getSchemaInfo(TopicName.get(topic).toString)
+    } catch {
+      case e: PulsarAdminException if e.getStatusCode == 404 =>
+        return BytesSchema.of().getSchemaInfo
+      case e: Throwable => throw new RuntimeException(
+        s"Failed to get schema information for ${TopicName.get(topic).toString}: " +
+          ExceptionUtils.getRootCause(e).getLocalizedMessage, e)
     }
   }
 
@@ -147,6 +199,9 @@ private[pulsar] case class PulsarMetadataReader(
         case MessageId.latest =>
           PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp))
         case _ =>
+          if (client == null) {
+            client = PulsarClient.builder().serviceUrl(serviceUrl).build()
+          }
           val consumer = client.newConsumer()
             .topic(tp)
             .subscriptionName(s"spark-pulsar-${UUID.randomUUID()}")

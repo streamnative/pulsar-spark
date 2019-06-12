@@ -18,16 +18,19 @@ import java.{util => ju}
 
 import scala.collection.mutable
 
+import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.{MessageId, Producer}
+
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Cast, Literal, UnsafeProjection}
-import org.apache.spark.sql.types.{BinaryType, StringType}
+import org.apache.spark.sql.types.{BinaryType, StringType, StructType}
 
 private[pulsar] class PulsarWriteTask(
     clientConf: ju.Map[String, Object],
     producerConf: ju.Map[String, Object],
     topic: Option[String],
-    inputSchema: Seq[Attribute]) extends PulsarRowWriter(inputSchema, clientConf, producerConf, topic) {
+    inputSchema: Seq[Attribute],
+    adminUrl: String) extends PulsarRowWriter(inputSchema, clientConf, producerConf, topic, adminUrl) {
 
   /**
     * Writes key value data out to topics.
@@ -51,33 +54,88 @@ private[pulsar] abstract class PulsarRowWriter(
     inputSchema: Seq[Attribute],
     clientConf: ju.Map[String, Object],
     producerConf: ju.Map[String, Object],
-    topic: Option[String]) {
+    topic: Option[String],
+    adminUrl: String) {
   
   import PulsarOptions._
 
+  protected lazy val admin = PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()
+
+  private def createProjections = {
+    val topicExpression = topic.map(Literal(_)).orElse {
+      inputSchema.find(_.name == TOPIC_ATTRIBUTE_NAME)
+    }.getOrElse {
+      throw new IllegalStateException(s"topic option required when no " +
+        s"'$TOPIC_ATTRIBUTE_NAME' attribute is present")
+    }
+    topicExpression.dataType match {
+      case StringType => // good
+      case t =>
+        throw new IllegalStateException(TOPIC_ATTRIBUTE_NAME +
+          s"attribute unsupported type $t. $TOPIC_ATTRIBUTE_NAME " +
+          s"must be a ${StringType.catalogString}")
+    }
+
+    val keyExpression = inputSchema.find(_.name == KEY_ATTRIBUTE_NAME)
+      .getOrElse(Literal(null, BinaryType))
+    keyExpression.dataType match {
+      case StringType | BinaryType => // good
+      case t =>
+        throw new IllegalStateException(KEY_ATTRIBUTE_NAME +
+          s"attribute unsupported type ${t.catalogString}")
+    }
+
+    val metaProj = UnsafeProjection.create(Seq(
+      topicExpression,
+      Cast(keyExpression, BinaryType)), inputSchema)
+
+    val valuesExpression =
+      inputSchema.filter(n => !PulsarOptions.META_FIELD_NAMES.contains(n.name))
+
+    val valueProj = UnsafeProjection.create(valuesExpression, inputSchema)
+
+    val isStruct = if (valuesExpression.length == 1) {
+      valuesExpression.head.dataType match {
+        case st: StructType => true
+        case _ => false
+      }
+    } else true
+
+    (valuesExpression, metaProj, valueProj, isStruct)
+  }
+
   // used to synchronize with Pulsar callbacks
   @volatile protected var failedWrite: Throwable = _
-  protected val projection = createProjection
+
+  protected val (valueSchema, metaProj, valueProj, valIsStruct) = createProjections
+
+  protected lazy val dataType =
+    if (valIsStruct) PulsarSinks.toStructType(valueSchema) else valueSchema.head.dataType
+
+  protected lazy val pulsarSchema = SchemaUtils.sqlType2PSchema(dataType)
+  protected lazy val serializer = new PulsarSerializer(dataType, false)
 
   // reuse producer through the executor
   protected lazy val singleProducer =
     if (topic.isDefined) {
-      CachedPulsarProducer.getOrCreate((clientConf, producerConf, topic.get))
+      SchemaUtils.uploadPulsarSchema(admin, topic.get, pulsarSchema.getSchemaInfo)
+      PulsarSinks.createProducer(clientConf, producerConf, topic.get, pulsarSchema)
     } else null
-  protected val topic2Producer: mutable.Map[String, Producer[Array[Byte]]] = mutable.Map.empty
+  protected val topic2Producer: mutable.Map[String, Producer[_]] = mutable.Map.empty
 
-  def getProducer(tp: String): Producer[Array[Byte]] = {
+  def getProducer[T](tp: String): Producer[T] = {
     if (null != singleProducer) {
-      return singleProducer
+      return singleProducer.asInstanceOf[Producer[T]]
     }
 
     if (topic2Producer.contains(tp)) {
-      topic2Producer(tp)
+      topic2Producer(tp).asInstanceOf[Producer[T]]
     } else {
+      SchemaUtils.uploadPulsarSchema(admin, tp, pulsarSchema.getSchemaInfo)
       val p =
-        CachedPulsarProducer.getOrCreate((clientConf, producerConf, tp))
+        PulsarSinks.createProducer(clientConf, producerConf, tp, pulsarSchema)
       topic2Producer.put(tp, p)
-      p
+      p.asInstanceOf[Producer[T]]
     }
   }
 
@@ -95,10 +153,12 @@ private[pulsar] abstract class PulsarRowWriter(
     * assuming the row is in Pulsar.
     */
   protected def sendRow(row: InternalRow): Unit = {
-    val projectedRow = projection(row)
-    val topic = projectedRow.getUTF8String(0)
-    val key = projectedRow.getBinary(1)
-    val value = projectedRow.getBinary(2)
+    val metaRow = metaProj(row)
+    val valueRow = valueProj(row)
+    val value = serializer.serialize(valueRow)
+
+    val topic = metaRow.getUTF8String(0)
+    val key = metaRow.getBinary(1)
 
     if (topic == null) {
       throw new NullPointerException(s"null topic present in the data. Use the " +
@@ -129,46 +189,6 @@ private[pulsar] abstract class PulsarRowWriter(
   protected def producerClose(): Unit = {
     producerFlush()
     topic2Producer.clear()
-  }
-
-  private def createProjection = {
-    val topicExpression = topic.map(Literal(_)).orElse {
-      inputSchema.find(_.name == TOPIC_ATTRIBUTE_NAME)
-    }.getOrElse {
-      throw new IllegalStateException(s"topic option required when no " +
-        s"'$TOPIC_ATTRIBUTE_NAME' attribute is present")
-    }
-    topicExpression.dataType match {
-      case StringType => // good
-      case t =>
-        throw new IllegalStateException(TOPIC_ATTRIBUTE_NAME +
-          s"attribute unsupported type $t. $TOPIC_ATTRIBUTE_NAME " +
-          s"must be a ${StringType.catalogString}")
-    }
-
-    val keyExpression = inputSchema.find(_.name == KEY_ATTRIBUTE_NAME)
-      .getOrElse(Literal(null, BinaryType))
-    keyExpression.dataType match {
-      case StringType | BinaryType => // good
-      case t =>
-        throw new IllegalStateException(KEY_ATTRIBUTE_NAME +
-          s"attribute unsupported type ${t.catalogString}")
-    }
-    val valueExpression = inputSchema
-      .find(_.name == VALUE_ATTRIBUTE_NAME).getOrElse(
-      throw new IllegalStateException("Required attribute " +
-        s"'$VALUE_ATTRIBUTE_NAME' not found")
-    )
-    valueExpression.dataType match {
-      case StringType | BinaryType => // good
-      case t =>
-        throw new IllegalStateException(VALUE_ATTRIBUTE_NAME +
-          s"attribute unsupported type ${t.catalogString}")
-    }
-    UnsafeProjection.create(
-      Seq(
-        topicExpression,
-        Cast(keyExpression, BinaryType),
-        Cast(valueExpression, BinaryType)), inputSchema)
+    admin.close()
   }
 }
