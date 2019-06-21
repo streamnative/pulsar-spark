@@ -389,6 +389,21 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     }
     assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
       "key attribute type must be a string or binary"))
+
+    try {
+      ex = intercept[StreamingQueryException] {
+        /* eventTime field wrong type */
+        writer = createPulsarWriter(input.toDF(), withTopic = Some(topic))(
+          withSelectExpr = s"'$topic' as topic", "value as __eventTime", "value"
+        )
+        input.addData("1", "2", "3", "4", "5")
+        writer.processAllAvailable()
+      }
+    } finally {
+      writer.stop()
+    }
+    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
+      "__eventtime attribute type must be a bigint or timestamp"))
   }
 
   ignore("generic - write big data with small producer buffer") {

@@ -23,7 +23,7 @@ import org.apache.pulsar.client.api.{MessageId, Producer}
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Cast, Literal, UnsafeProjection}
-import org.apache.spark.sql.types.{BinaryType, StringType, StructType}
+import org.apache.spark.sql.types.{BinaryType, LongType, StringType, StructType, TimestampType}
 
 private[pulsar] class PulsarWriteTask(
     clientConf: ju.Map[String, Object],
@@ -85,9 +85,18 @@ private[pulsar] abstract class PulsarRowWriter(
           s"attribute unsupported type ${t.catalogString}")
     }
 
+    val eventTimeExpression = inputSchema.find(_.name == EVENT_TIME_NAME)
+      .getOrElse(Literal(null, LongType))
+    eventTimeExpression.dataType match {
+      case LongType | TimestampType => // good
+      case t => throw new IllegalStateException(EVENT_TIME_NAME +
+        s"attribute unsupported type ${t.catalogString}")
+    }
+
     val metaProj = UnsafeProjection.create(Seq(
       topicExpression,
-      Cast(keyExpression, BinaryType)), inputSchema)
+      Cast(keyExpression, BinaryType),
+      eventTimeExpression), inputSchema)
 
     val valuesExpression =
       inputSchema.filter(n => !PulsarOptions.META_FIELD_NAMES.contains(n.name))
@@ -169,6 +178,14 @@ private[pulsar] abstract class PulsarRowWriter(
     if (null != key) {
       mb.keyBytes(key)
     }
+
+    if (!metaRow.isNullAt(2)) {
+      val eventTime = metaRow.getLong(2)
+      if (eventTime > 0) {
+        mb.eventTime(eventTime)
+      }
+    }
+
     mb.sendAsync().whenComplete(sendCallback)
   }
 

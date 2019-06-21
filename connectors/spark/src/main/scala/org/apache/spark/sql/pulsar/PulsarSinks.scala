@@ -99,6 +99,15 @@ private[pulsar] object PulsarSinks extends Logging {
           s"must be a ${StringType.catalogString} or ${BinaryType.catalogString}")
     }
 
+    schema.find(_.name == PulsarOptions.EVENT_TIME_NAME).getOrElse(
+      Literal(null, LongType)
+    ).dataType match {
+      case LongType | TimestampType=> // good
+      case _ =>
+        throw new AnalysisException(s"${PulsarOptions.EVENT_TIME_NAME} attribute type " +
+          s"must be a ${LongType.catalogString} or ${TimestampType.catalogString}")
+    }
+
     schema.find(a =>
       a.name == PulsarOptions.MESSAGE_ID_NAME ||
       a.name == PulsarOptions.PUBLISH_TIME_NAME).map(a =>

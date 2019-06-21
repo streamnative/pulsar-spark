@@ -406,6 +406,22 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     }
     assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
       "key attribute type must be a string or binary"))
+
+    try {
+      /* eventTime field wrong type */
+      writer = createPulsarWriter(input.toDF())(
+        withSelectExpr = s"'$topic' as __topic", "value as __eventTime", "value"
+      )
+      sendMessages(inputTopic, Array("1", "2", "3", "4", "5"))
+      eventually(timeout(streamingTimeout)) {
+        assert(writer.exception.isDefined)
+        ex = writer.exception.get
+      }
+    } finally {
+      writer.stop()
+    }
+    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
+      "__eventtime attribute type must be a bigint or timestamp"))
   }
 
   ignore("generic - write big data with small producer buffer") {
