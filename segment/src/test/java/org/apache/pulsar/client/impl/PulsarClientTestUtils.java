@@ -21,15 +21,19 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.api.BatcherBuilder;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Schema;
-import org.apache.pulsar.common.api.Commands;
 import org.apache.pulsar.common.api.proto.PulsarApi.CompressionType;
 import org.apache.pulsar.common.api.proto.PulsarApi.MessageMetadata;
 import org.apache.pulsar.common.compression.CompressionCodec;
+import org.apache.pulsar.common.compression.CompressionCodecProvider;
+import org.apache.pulsar.common.protocol.Commands;
 import org.apache.pulsar.common.util.protobuf.ByteBufCodedOutputStream;
 
 /**
@@ -98,14 +102,14 @@ public class PulsarClientTestUtils {
         return command;
     }
 
+    @SuppressWarnings("unchecked")
     public static ByteBuf serializeBatchedMessage(int numMessages,
                                                   CompressionType compressionType,
                                                   String topicName,
                                                   String producerName,
                                                   String payloadPrefix,
                                                   MessageMetadata.Builder metadataBuilder) {
-        BatchMessageContainer container = new BatchMessageContainer(
-            numMessages, compressionType, topicName, producerName);
+        BatchMessageContainerImpl container = (BatchMessageContainerImpl) BatcherBuilder.DEFAULT.build();
 
         for (int i = 0; i < numMessages; i++) {
             MessageImpl<byte[]> msg = MessageImpl.create(
@@ -141,12 +145,43 @@ public class PulsarClientTestUtils {
             });
         }
 
-        // build the batched message buffer
-        ByteBuf compressedPayload = container.getCompressedBatchMetadataAndPayload();
+        try {
+            Class c = container.getClass();
+            Method m = c.getDeclaredMethod("getCompressedBatchMetadataAndPayload");
+            m.setAccessible(true);
 
-        // set batch
-        MessageMetadata metadata = container.setBatchAndBuild();
-        return serializeMessage(metadata, compressedPayload);
+            Field fMessageMetadata = c.getDeclaredField("messageMetadata");
+            Field fTopicName = c.getSuperclass().getDeclaredField("topicName");
+            Field fProducerName = c.getSuperclass().getDeclaredField("producerName");
+            Field fCompressionType = c.getSuperclass().getDeclaredField("compressionType");
+            Field fCompressor = c.getSuperclass().getDeclaredField("compressor");
+            Field fMaxNumMessagesInBatch = c.getSuperclass().getDeclaredField("maxNumMessagesInBatch");
+
+            fMessageMetadata.setAccessible(true);
+            fTopicName.setAccessible(true);
+            fProducerName.setAccessible(true);
+            fCompressionType.setAccessible(true);
+            fCompressor.setAccessible(true);
+            fMaxNumMessagesInBatch.setAccessible(true);
+
+            fTopicName.set(container, topicName);
+            fProducerName.set(container, producerName);
+            fCompressionType.set(container, compressionType);
+            fCompressor.set(container, CompressionCodecProvider.getCompressionCodec(compressionType));
+            fMaxNumMessagesInBatch.set(container, numMessages);
+
+            // build the batched message buffer
+            ByteBuf compressedPayload = (ByteBuf) m.invoke(container);
+
+            // set batch
+            MessageMetadata.Builder mb = ((MessageMetadata.Builder) fMessageMetadata.get(container));
+            mb.setNumMessagesInBatch(numMessages);
+            MessageMetadata metadata = mb.build();
+
+            return serializeMessage(metadata, compressedPayload);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
 }

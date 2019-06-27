@@ -29,7 +29,8 @@ import org.apache.pulsar.client.api.{Schema => PSchema}
 import org.apache.pulsar.client.impl.schema._
 import org.apache.pulsar.client.impl.schema.generic.GenericSchemaImpl
 import org.apache.pulsar.common.naming.TopicName
-import org.apache.pulsar.common.schema.{PostSchemaPayload, SchemaInfo, SchemaType}
+import org.apache.pulsar.common.protocol.schema.PostSchemaPayload
+import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
 import org.apache.spark.sql.types._
 
 class IncompatibleSchemaException(msg: String, ex: Throwable = null) extends Exception(msg, ex)
@@ -131,7 +132,7 @@ private[pulsar] object SchemaUtils {
     case SchemaType.INT64 =>
       LongSchema.of()
     case SchemaType.STRING =>
-      StringSchema.utf8()
+      PSchema.STRING
     case SchemaType.FLOAT =>
       FloatSchema.of()
     case SchemaType.DOUBLE =>
@@ -254,7 +255,7 @@ private[pulsar] object SchemaUtils {
       case BooleanType => BooleanSchema.of()
       case BinaryType => BytesSchema.of()
       case DateType => DateSchema.of()
-      case StringType => StringSchema.utf8()
+      case StringType => PSchema.STRING
       case TimestampType => TimestampSchema.of()
       case ByteType => ByteSchema.of()
       case DoubleType => DoubleSchema.of()

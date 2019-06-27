@@ -20,16 +20,15 @@ import java.util.{Map => JMap}
 
 import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
-
 import com.google.common.collect.Sets
 import io.streamnative.tests.pulsar.service.{PulsarService, PulsarServiceFactory, PulsarServiceSpec}
 import org.apache.commons.lang.exception.ExceptionUtils
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.{MessageId, Producer, PulsarClient, Schema}
 import org.apache.pulsar.common.naming.TopicName
-import org.apache.pulsar.common.schema.{PostSchemaPayload, SchemaInfo, SchemaType}
+import org.apache.pulsar.common.protocol.schema.PostSchemaPayload
+import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
 import org.scalatest.BeforeAndAfterAll
-
 import org.apache.spark.SparkFunSuite
 import org.apache.spark.util.Utils
 

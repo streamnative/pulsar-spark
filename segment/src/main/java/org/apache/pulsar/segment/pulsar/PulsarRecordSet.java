@@ -25,11 +25,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.client.api.LedgerEntry;
 import org.apache.pulsar.api.segment.Record;
 import org.apache.pulsar.api.segment.RecordSet;
-import org.apache.pulsar.client.impl.MessageParser;
-import org.apache.pulsar.common.api.Commands;
-import org.apache.pulsar.common.api.proto.PulsarApi.MessageIdData;
 import org.apache.pulsar.common.api.proto.PulsarApi.MessageMetadata;
 import org.apache.pulsar.common.api.proto.PulsarApi.SingleMessageMetadata;
+import org.apache.pulsar.common.api.raw.MessageParser;
+import org.apache.pulsar.common.naming.TopicName;
+import org.apache.pulsar.common.protocol.Commands;
 
 /**
  * A pulsar {@link RecordSet}.

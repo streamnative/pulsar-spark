@@ -76,8 +76,8 @@ public class PulsarServiceResource extends ExternalResource {
         webServicePort = PortManager.nextFreePort();
 
         ServiceConfiguration serviceConf = new ServiceConfiguration();
-        serviceConf.setBrokerServicePort(brokerServicePort);
-        serviceConf.setWebServicePort(webServicePort);
+        serviceConf.setBrokerServicePort(Optional.of(brokerServicePort));
+        serviceConf.setWebServicePort(Optional.of(webServicePort));
         serviceConf.setAdvertisedAddress("127.0.0.1");
         serviceConf.setClusterName("standalone");
         serviceConf.setZookeeperServers("127.0.0.1:" + zkPort);
