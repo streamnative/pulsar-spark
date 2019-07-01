@@ -1,24 +1,24 @@
-# PSegment
+# pulsar-spark
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Version](https://img.shields.io/github/release/streamnative/psegment.svg)](https://github.com/streamnative/psegment/releases)
 
-Segment based anlaytical library for elastic data processing on Apache Pulsar
+Unified data processing with [Apache Pulsar](https://pulsar.apache.org) and [Apache Spark](https://spark.apache.org).
 
 ## Prerequisites
 
 - Java 8+
 
-## Building PSegment
+## Building Spark Pulsar Connectors
 
 Checkout the source code:
 
 ```bash
-git clone https://github.com/streamnative/psegment.git
-cd psegment
+git clone https://github.com/streamnative/pulsar-spark.git
+cd pulsar-spark
 ```
 
-> PSegment is using [testcontainers](https://www.testcontainers.org/) for
+> pulsar-spark is using [testcontainers](https://www.testcontainers.org/) for
 > integration tests. In order to run the integration tests, make sure you
 > have installed [docker](https://docs.docker.com/docker-for-mac/install/)
 
@@ -36,7 +36,7 @@ mvn clean install
 
 ## Setting up your IDE
 
-Similar as [Apache Pulsar](http://pulsar.apache.org), *psegment* is using
+Similar as [Apache Pulsar](http://pulsar.apache.org), *pulsar-spark* is using
 [lombok](https://projectlombok.org/). You have to ensure your IDE setup
 required plugins. Intellij is recommended.
 
@@ -63,8 +63,6 @@ To configure annotation processing in IntelliJ:
 Follow the instructions [here](https://howtodoinjava.com/automation/lombok-eclipse-installation-examples/)
 to configure your Eclipse setup.
 
-## Available Connectors
-
-### Spark Pulsar Integration
+## Spark Pulsar Integration
 
 See docs at [here](docs/spark-integration.md).

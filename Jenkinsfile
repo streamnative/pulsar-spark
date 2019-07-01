@@ -11,11 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/**
- * The pipeline will build a docker image for the website.
- */
-
-def label = "jenkins-psegment"
+def label = "jenkins-pulsar-spark"
 
 podTemplate(label: label, yaml: """
 apiVersion: v1
@@ -40,7 +36,7 @@ spec:
     stage('Checkout Git Repo') {
       checkout scm
     }
-    stage('Build and Test PSegment') {
+    stage('Build and Test pulsar-spark') {
       container('imagebuilder') {
         sh """
 export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
