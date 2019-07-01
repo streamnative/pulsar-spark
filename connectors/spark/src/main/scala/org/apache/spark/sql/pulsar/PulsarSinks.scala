@@ -64,10 +64,7 @@ private[pulsar] object PulsarSinks extends Logging {
     valuesDT.map { dt =>
       dt match {
         case CalendarIntervalType => throw new AnalysisException("CalendarIntervalType not supported by pulsar sink yet")
-        case m: MapType => throw new AnalysisException(s"$m not supported by pulsar sink yet")
-        case a: ArrayType => throw new AnalysisException(s"$a not supported by pulsar sink yet")
         case u: UserDefinedType[_] => throw new AnalysisException(s"$u not supported by pulsar sink yet")
-        case d: DecimalType => throw new AnalysisException("Decimal not supported by pulsar sink yet")
         case o: ObjectType => throw new AnalysisException(s"$o not supported by pulsar sink yet")
         case st: StructType => checkForUnsupportedType(st.fields.map(_.dataType).toSeq)
         case _ => // spark types we are able to handle right now

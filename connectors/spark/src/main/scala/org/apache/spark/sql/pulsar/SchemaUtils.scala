@@ -19,9 +19,11 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
-import org.apache.avro.{LogicalTypes, SchemaBuilder, Schema => ASchema}
-import org.apache.avro.Schema.Type
-import org.apache.avro.LogicalTypes.{Date, TimestampMicros, TimestampMillis}
+
+import org.apache.pulsar.shade.org.apache.avro.{LogicalTypes, SchemaBuilder, Schema => ASchema}
+import org.apache.pulsar.shade.org.apache.avro.LogicalTypes.{Date, Decimal, TimestampMicros, TimestampMillis}
+import org.apache.pulsar.shade.org.apache.avro.Schema.Type._
+
 import org.apache.commons.lang.exception.ExceptionUtils
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.schema.{GenericRecord, GenericSchema}
@@ -31,6 +33,7 @@ import org.apache.pulsar.client.impl.schema.generic.GenericSchemaImpl
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.protocol.schema.PostSchemaPayload
 import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
+import org.apache.spark.sql.types.Decimal.minBytesForPrecision
 import org.apache.spark.sql.types._
 
 class IncompatibleSchemaException(msg: String, ex: Throwable = null) extends Exception(msg, ex)
@@ -108,10 +111,10 @@ private[pulsar] object SchemaUtils {
   }
 
   def compatibleSchema(x: SchemaInfo, y: SchemaInfo): Boolean = {
-    (x.getType.getValue, y.getType.getValue) match {
+    (x.getType, y.getType) match {
       // None and bytes are compatible
-      case (0, -1) => true
-      case (-1, 0) => true
+      case (SchemaType.NONE, SchemaType.BYTES) => true
+      case (SchemaType.BYTES, SchemaType.NONE) => true
       case _ => false
     }
   }
@@ -154,35 +157,37 @@ private[pulsar] object SchemaUtils {
         schemaInfo.getType + "' is not supported yet")
   }
 
+  case class TypeNullable(dataType: DataType, nullable: Boolean)
+
   def pulsarSourceSchema(si: SchemaInfo): StructType = {
     var mainSchema: ListBuffer[StructField] = ListBuffer.empty
-    val sqlType = si2SqlType(si)
-    sqlType match {
+    val typeNullable = si2SqlType(si)
+    typeNullable.dataType match {
       case st: StructType =>
         mainSchema ++=  st.fields
       case t =>
-        mainSchema += StructField("value", t)
+        mainSchema += StructField("value", t, nullable = typeNullable.nullable)
     }
     mainSchema ++= metaDataFields
     StructType(mainSchema)
   }
 
-  def si2SqlType(si: SchemaInfo): DataType = {
+  def si2SqlType(si: SchemaInfo): TypeNullable = {
     si.getType match {
-      case SchemaType.NONE => BinaryType
-      case SchemaType.BOOLEAN => BooleanType
-      case SchemaType.BYTES => BinaryType
-      case SchemaType.DATE => DateType
-      case SchemaType.STRING => StringType
-      case SchemaType.TIMESTAMP => TimestampType
-      case SchemaType.INT8 => ByteType
-      case SchemaType.DOUBLE => DoubleType
-      case SchemaType.FLOAT => FloatType
-      case SchemaType.INT32 => IntegerType
-      case SchemaType.INT64 => LongType
-      case SchemaType.INT16 => ShortType
+      case SchemaType.NONE => TypeNullable(BinaryType, nullable = false)
+      case SchemaType.BOOLEAN => TypeNullable(BooleanType, nullable = false)
+      case SchemaType.BYTES => TypeNullable(BinaryType, nullable = false)
+      case SchemaType.DATE => TypeNullable(DateType, nullable = false)
+      case SchemaType.STRING => TypeNullable(StringType, nullable = false)
+      case SchemaType.TIMESTAMP => TypeNullable(TimestampType, nullable = false)
+      case SchemaType.INT8 => TypeNullable(ByteType, nullable = false)
+      case SchemaType.DOUBLE => TypeNullable(DoubleType, nullable = false)
+      case SchemaType.FLOAT => TypeNullable(FloatType, nullable = false)
+      case SchemaType.INT32 => TypeNullable(IntegerType, nullable = false)
+      case SchemaType.INT64 => TypeNullable(LongType, nullable = false)
+      case SchemaType.INT16 => TypeNullable(ShortType, nullable = false)
       case SchemaType.AVRO =>
-        val avroSchema: ASchema = new org.apache.avro.Schema.Parser().parse(
+        val avroSchema: ASchema = new ASchema.Parser().parse(
           new String(si.getSchema, StandardCharsets.UTF_8))
         avro2SqlType(avroSchema, Set.empty)
       case si =>
@@ -190,50 +195,87 @@ private[pulsar] object SchemaUtils {
     }
   }
 
-  def avro2SqlType(as: ASchema, existingRecordNames: Set[String]): DataType = {
-    as.getType match {
-      case Type.BOOLEAN => BooleanType
-      case Type.BYTES => BinaryType
-      case Type.STRING => StringType
-      case Type.DOUBLE => DoubleType
-      case Type.FLOAT => FloatType
-      case Type.INT => as.getLogicalType match {
-        case _: Date => DateType
-        case _ => IntegerType
+  def avro2SqlType(avroSchema: ASchema, existingRecordNames: Set[String]): TypeNullable = {
+    avroSchema.getType match {
+      case INT => avroSchema.getLogicalType match {
+        case _: Date => TypeNullable(DateType, nullable = false)
+        case _ => TypeNullable(IntegerType, nullable = false)
       }
-      case Type.LONG => as.getLogicalType match {
-        case _: TimestampMillis | _: TimestampMicros => TimestampType
-        case _ => LongType
+      case STRING => TypeNullable(StringType, nullable = false)
+      case BOOLEAN => TypeNullable(BooleanType, nullable = false)
+      case BYTES | FIXED => avroSchema.getLogicalType match {
+        // For FIXED type, if the precision requires more bytes than fixed size, the logical
+        // type will be null, which is handled by Avro library.
+        case d: Decimal => TypeNullable(DecimalType(d.getPrecision, d.getScale), nullable = false)
+        case _ => TypeNullable(BinaryType, nullable = false)
       }
-      case Type.RECORD =>
-        if (existingRecordNames.contains(as.getFullName)) {
+
+      case DOUBLE => TypeNullable(DoubleType, nullable = false)
+      case FLOAT => TypeNullable(FloatType, nullable = false)
+      case LONG => avroSchema.getLogicalType match {
+        case _: TimestampMillis | _: TimestampMicros => TypeNullable(TimestampType, nullable = false)
+        case _ => TypeNullable(LongType, nullable = false)
+      }
+
+      case ENUM => TypeNullable(StringType, nullable = false)
+
+      case RECORD =>
+        if (existingRecordNames.contains(avroSchema.getFullName)) {
           throw new IncompatibleSchemaException(s"""
             |Found recursive reference in Avro schema, which can not be processed by Spark:
-            |${as.toString(true)}
+            |${avroSchema.toString(true)}
           """.stripMargin)
         }
-        // avro will skip java built-in classes
-        // org.apache.avro.reflect.ReflectData.getFields#730 ----- skip java built-in classes
-        if (as.getFields.size() == 0) {
-          throw new NotImplementedError(s"${as.getFullName} is not supported yet")
-        } else {
-          val newRecordNames = existingRecordNames + as.getFullName
-          val fields = as.getFields.asScala.map { f =>
-            val schemaType = avro2SqlType(f.schema(), newRecordNames)
-            StructField(f.name, schemaType)
-          }
-          StructType(fields.toArray)
+        val newRecordNames = existingRecordNames + avroSchema.getFullName
+        val fields = avroSchema.getFields.asScala.map { f =>
+          val typeNullable = avro2SqlType(f.schema(), newRecordNames)
+          StructField(f.name, typeNullable.dataType, typeNullable.nullable)
         }
-      case Type.UNION =>
-        if (as.getTypes.asScala.exists(_.getType == Type.NULL)) {
+
+        TypeNullable(StructType(fields), nullable = false)
+
+      case ARRAY =>
+        val typeNullable: TypeNullable = avro2SqlType(avroSchema.getElementType, existingRecordNames)
+        TypeNullable(
+          ArrayType(typeNullable.dataType, containsNull = typeNullable.nullable),
+          nullable = false)
+
+      case MAP =>
+        val typeNullable = avro2SqlType(avroSchema.getValueType, existingRecordNames)
+        TypeNullable(
+          MapType(StringType, typeNullable.dataType, valueContainsNull = typeNullable.nullable),
+          nullable = false)
+
+      case UNION =>
+        if (avroSchema.getTypes.asScala.exists(_.getType == NULL)) {
           // In case of a union with null, eliminate it and make a recursive call
-          val remainingUnionTypes = as.getTypes.asScala.filterNot(_.getType == Type.NULL)
+          val remainingUnionTypes = avroSchema.getTypes.asScala.filterNot(_.getType == NULL)
           if (remainingUnionTypes.size == 1) {
-            avro2SqlType(remainingUnionTypes.head, existingRecordNames)
+            avro2SqlType(remainingUnionTypes.head, existingRecordNames).copy(nullable = true)
           } else {
-            throw new IncompatibleSchemaException(s"Unsupported type $as")
+            avro2SqlType(ASchema.createUnion(remainingUnionTypes.asJava), existingRecordNames)
+              .copy(nullable = true)
           }
-        } else null
+        } else avroSchema.getTypes.asScala.map(_.getType) match {
+          case Seq(t1) =>
+            avro2SqlType(avroSchema.getTypes.get(0), existingRecordNames)
+          case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
+            TypeNullable(LongType, nullable = false)
+          case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
+            TypeNullable(DoubleType, nullable = false)
+          case _ =>
+            // Convert complex unions to struct types where field names are member0, member1, etc.
+            // This is consistent with the behavior when converting between Avro and Parquet.
+            val fields = avroSchema.getTypes.asScala.zipWithIndex.map {
+              case (s, i) =>
+                val TypeNullable = avro2SqlType(s, existingRecordNames)
+                // All fields are nullable because only one of them is set at a time
+                StructField(s"member$i", TypeNullable.dataType, nullable = true)
+            }
+
+            TypeNullable(StructType(fields), nullable = false)
+        }
+
       case other => throw new IncompatibleSchemaException(s"Unsupported type $other")
     }
   }
@@ -264,6 +306,7 @@ private[pulsar] object SchemaUtils {
       case LongType => LongSchema.of()
       case ShortType => ShortSchema.of()
       case st: StructType => ASchema2PSchema(sqlType2ASchema(catalystType))
+      case _ => throw new RuntimeException(s"$catalystType is not supported yet")
     }
   }
 
@@ -289,6 +332,24 @@ private[pulsar] object SchemaUtils {
       case StringType => builder.stringType()
       case BinaryType => builder.bytesType()
 
+      case d: DecimalType =>
+        val avroType = LogicalTypes.decimal(d.precision, d.scale)
+        val fixedSize = minBytesForPrecision(d.precision)
+        // Need to avoid naming conflict for the fixed fields
+        val name = nameSpace match {
+          case "" => s"$recordName.fixed"
+          case _ => s"$nameSpace.$recordName.fixed"
+        }
+        avroType.addToSchema(SchemaBuilder.fixed(name).size(fixedSize))
+
+      case ArrayType(et, containsNull) =>
+        builder.array()
+          .items(sqlType2ASchema(et, containsNull, recordName, nameSpace))
+
+      case MapType(StringType, vt, valueContainsNull) =>
+        builder.map()
+          .values(sqlType2ASchema(vt, valueContainsNull, recordName, nameSpace))
+
       case st: StructType =>
         val childNameSpace = if (nameSpace != "") s"$nameSpace.$recordName" else recordName
         val fieldsAssembler = builder.record(recordName).namespace(nameSpace).fields()
@@ -298,13 +359,6 @@ private[pulsar] object SchemaUtils {
           fieldsAssembler.name(f.name).`type`(fieldAvroType).noDefault()
         }
         fieldsAssembler.endRecord()
-
-      case d: DecimalType =>
-        throw new IllegalStateException("DecimalType not supported yet")
-      case ArrayType(et, containsNull) =>
-        throw new IllegalStateException("ArrayType not supported yet")
-      case MapType(StringType, vt, valueContainsNull) =>
-        throw new IllegalStateException("MapType not supported yet")
 
       // This should never happen.
       case other => throw new IncompatibleSchemaException(s"Unexpected type $other.")
