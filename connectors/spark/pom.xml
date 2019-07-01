@@ -45,8 +45,8 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>org.apache.pulsar.segment</groupId>
-      <artifactId>psegment-test-pulsar-common</artifactId>
+      <groupId>io.streamnative.connectors</groupId>
+      <artifactId>pulsar-spark-test-pulsar-common</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>

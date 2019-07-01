@@ -1,7 +1,7 @@
 # pulsar-spark
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Version](https://img.shields.io/github/release/streamnative/psegment.svg)](https://github.com/streamnative/psegment/releases)
+[![Version](https://img.shields.io/github/release/streamnative/pulsar-spark.svg)](https://github.com/streamnative/pulsar-spark/releases)
 
 Unified data processing with [Apache Pulsar](https://pulsar.apache.org) and [Apache Spark](https://spark.apache.org).
 

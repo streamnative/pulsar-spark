@@ -48,8 +48,8 @@
   </issueManagement>
   <modules>
     <module>buildtools</module>
-    <module>connectors</module>
     <module>test</module>
+    <module>connectors</module>
   </modules>
   <developers>
     <developer>
