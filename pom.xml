@@ -48,7 +48,6 @@
   </issueManagement>
   <modules>
     <module>buildtools</module>
-    <module>segment</module>
     <module>shaded</module>
     <module>connectors</module>
     <module>test</module>
@@ -70,7 +69,6 @@
     <!-- dependencies -->
     <bookkeeper.version>4.9.0</bookkeeper.version>
     <commons-lang3.version>3.6</commons-lang3.version>
-    <flink.version>1.6.2</flink.version>
     <google.code.version>3.0.2</google.code.version>
     <google.errorprone.version>2.1.2</google.errorprone.version>
     <grpc.version>1.18.0</grpc.version>
@@ -389,19 +387,6 @@
         <version>${bookkeeper.version}</version>
       </dependency>
 
-      <!-- flink dependencies -->
-
-      <dependency>
-        <groupId>org.apache.flink</groupId>
-        <artifactId>flink-core</artifactId>
-        <version>${flink.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.flink</groupId>
-        <artifactId>flink-table_${scala.binary.version}</artifactId>
-        <version>${flink.version}</version>
-      </dependency>
-
       <!-- scala dependencies -->
 
       <dependency>
@@ -455,23 +440,6 @@
         <artifactId>spark-tags_${scala.binary.version}</artifactId>
         <version>${spark.version}</version>
         <classifier>tests</classifier>
-      </dependency>
-
-      <!-- hive dependencies -->
-      <dependency>
-        <groupId>org.apache.hive</groupId>
-        <artifactId>hive-metastore</artifactId>
-        <version>${hive.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.hive</groupId>
-        <artifactId>hive-exec</artifactId>
-        <version>${hive.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.hadoop</groupId>
-        <artifactId>hadoop-mapreduce-client-core</artifactId>
-        <version>${hadoop.version}</version>
       </dependency>
 
       <!-- test dependencies -->
