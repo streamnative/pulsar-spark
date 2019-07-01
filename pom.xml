@@ -90,7 +90,7 @@
     <powermock.version>2.0.0-beta.5</powermock.version>
     <protobuf3.version>3.5.1</protobuf3.version>
     <!-- latest version from apache pulsar master -->
-    <pulsar.version>2.5.0-9db3a786b</pulsar.version>
+    <pulsar.version>2.5.0-cc022f169</pulsar.version>
     <scala.version>2.11.12</scala.version>
     <scala.binary.version>2.11</scala.binary.version>
     <scalacheck.version>1.14.0</scalacheck.version>
@@ -98,7 +98,7 @@
     <slf4j.version>1.7.25</slf4j.version>
     <spark.version>2.4.2</spark.version>
     <spotbugs-annotations.version>3.1.8</spotbugs-annotations.version>
-    <streamnative-tests.version>0.0.12</streamnative-tests.version>
+    <streamnative-tests.version>0.0.13</streamnative-tests.version>
     <testcontainers.version>1.10.6</testcontainers.version>
     <!-- plugin dependencies -->
     <license-maven-plugin.version>3.0.rc1</license-maven-plugin.version>

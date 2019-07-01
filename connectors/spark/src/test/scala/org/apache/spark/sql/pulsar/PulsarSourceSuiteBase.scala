@@ -28,6 +28,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
   import testImplicits._
   import PulsarOptions._
   import PulsarProvider._
+  import SchemaData._
 
   test("cannot stop Pulsar stream") {
     val topic = newTopic()
@@ -219,61 +220,88 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     query.stop()
   }
 
-  test("test atomic types in query") {
-    import SchemaData._
+  private def check[T: ClassTag](schemaInfo: SchemaInfo, datas: Seq[T], encoder: Encoder[T], str: T => String) = {
+    val topic = newTopic()
+    createPulsarSchema(topic, schemaInfo)
 
-    def check[T: ClassTag](schemaInfo: SchemaInfo, datas: Seq[T], encoder: Encoder[T], str: T => String) = {
-      val topic = newTopic()
-      createPulsarSchema(topic, schemaInfo)
+    val tpe = schemaInfo.getType
 
-      val tpe = schemaInfo.getType
+    val reader = spark
+      .readStream
+      .format("pulsar")
+      .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
+      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(ADMIN_URL_OPTION_KEY, adminUrl)
+      .option(FAIL_ON_DATA_LOSS_OPTION_KEY, true)
+      .option(TOPIC_SINGLE, topic)
 
-      val reader = spark
-        .readStream
-        .format("pulsar")
-        .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
-        .option(SERVICE_URL_OPTION_KEY, serviceUrl)
-        .option(ADMIN_URL_OPTION_KEY, adminUrl)
-        .option(FAIL_ON_DATA_LOSS_OPTION_KEY, true)
-        .option(TOPIC_SINGLE, topic)
+    if (str == null) {
+      val pulsar = reader.load()
+        .selectExpr("value")
+        .as[T](encoder)
 
-      if (str == null) {
-        val pulsar = reader.load()
-          .selectExpr("value")
-          .as[T](encoder)
-
-        testStream(pulsar)(
-          AddPulsarTypedData(Set(topic), tpe, datas),
-          CheckAnswer(datas: _*)(encoder)
-        )
-      } else {
-        val pulsar = reader.load()
-          .selectExpr("CAST(value as String)")
-          .as[String]
-        testStream(pulsar)(
-          AddPulsarTypedData(Set(topic), tpe, datas),
-          CheckAnswer(datas.map(str(_)): _*)
-        )
-      }
+      testStream(pulsar)(
+        AddPulsarTypedData(Set(topic), tpe, datas),
+        CheckAnswer(datas: _*)(encoder)
+      )
+    } else {
+      val pulsar = reader.load()
+        .selectExpr("CAST(value as String)")
+        .as[String]
+      testStream(pulsar)(
+        AddPulsarTypedData(Set(topic), tpe, datas),
+        CheckAnswer(datas.map(str(_)): _*)
+      )
     }
+  }
 
+  test("test boolean stream") {
     check[Boolean](Schema.BOOL.getSchemaInfo, booleanSeq, Encoders.scalaBoolean, null)
-    check[Int](Schema.INT32.getSchemaInfo, int32Seq, Encoders.scalaInt, null)
-    check[String](Schema.STRING.getSchemaInfo, stringSeq, Encoders.STRING, null)
-    check[Byte](Schema.INT8.getSchemaInfo, int8Seq, Encoders.scalaByte, null)
-    check[Double](Schema.DOUBLE.getSchemaInfo, doubleSeq, Encoders.scalaDouble, null)
-    check[Float](Schema.FLOAT.getSchemaInfo, floatSeq, Encoders.scalaFloat, null)
-    check[Short](Schema.INT16.getSchemaInfo, int16Seq, Encoders.scalaShort, null)
-    check[Long](Schema.INT64.getSchemaInfo, int64Seq, Encoders.scalaLong, null)
+  }
 
+  test("test int stream") {
+    check[Int](Schema.INT32.getSchemaInfo, int32Seq, Encoders.scalaInt, null)
+  }
+
+  test("test string stream") {
+    check[String](Schema.STRING.getSchemaInfo, stringSeq, Encoders.STRING, null)
+  }
+
+  test("test byte stream") {
+    check[Byte](Schema.INT8.getSchemaInfo, int8Seq, Encoders.scalaByte, null)
+  }
+
+  test("test double stream") {
+    check[Double](Schema.DOUBLE.getSchemaInfo, doubleSeq, Encoders.scalaDouble, null)
+  }
+
+  test("test float stream") {
+    check[Float](Schema.FLOAT.getSchemaInfo, floatSeq, Encoders.scalaFloat, null)
+  }
+
+  test("test short stream") {
+    check[Short](Schema.INT16.getSchemaInfo, int16Seq, Encoders.scalaShort, null)
+  }
+
+  test("test long stream") {
+    check[Long](Schema.INT64.getSchemaInfo, int64Seq, Encoders.scalaLong, null)
+  }
+
+  test("test byte array stream") {
+    check[Array[Byte]](Schema.BYTES.getSchemaInfo, bytesSeq,
+      Encoders.BINARY, new String(_))
+  }
+
+  test("test date stream") {
     val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
     check[Date](Schema.DATE.getSchemaInfo, dateSeq,
       Encoders.bean(classOf[Date]), dateFormat.format(_))
+  }
+
+  test("test timestamp stream") {
     val tsFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
     check[java.sql.Timestamp](Schema.TIMESTAMP.getSchemaInfo, timestampSeq,
       Encoders.kryo(classOf[java.sql.Timestamp]), tsFormat.format(_))
-    check[Array[Byte]](Schema.BYTES.getSchemaInfo, bytesSeq,
-      Encoders.BINARY, new String(_))
   }
 
   test("test struct types in avro") {

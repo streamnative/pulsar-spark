@@ -13,6 +13,8 @@
  */
 package org.apache.spark.sql.pulsar
 
+import org.apache.pulsar.common.naming.TopicName
+
 // All options should be lowercase to simplify parameter matching
 private[pulsar] object PulsarOptions {
 
@@ -28,6 +30,8 @@ private[pulsar] object PulsarOptions {
   val TOPIC_MULTI = "topics"
   val TOPIC_PATTERN = "topicspattern"
 
+  val PARTITION_SUFFIX = TopicName.PARTITIONED_TOPIC_SUFFIX
+
   val TOPIC_OPTION_KEYS = Set(
     TOPIC_SINGLE,
     TOPIC_MULTI,
@@ -39,6 +43,7 @@ private[pulsar] object PulsarOptions {
   val STARTING_OFFSETS_OPTION_KEY = "startingoffsets"
   val ENDING_OFFSETS_OPTION_KEY = "endingoffsets"
 
+  val POLL_TIMEOUT_MS = "polltimeoutms"
   val FAIL_ON_DATA_LOSS_OPTION_KEY = "failondataloss"
 
   val INSTRUCTION_FOR_FAIL_ON_DATA_LOSS_FALSE =

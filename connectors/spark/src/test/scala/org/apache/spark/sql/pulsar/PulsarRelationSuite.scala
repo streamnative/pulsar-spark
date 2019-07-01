@@ -28,6 +28,7 @@ import scala.reflect.ClassTag
 class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTest {
   import testImplicits._
   import PulsarOptions._
+  import SchemaData._
 
   private val topicId = new AtomicInteger(0)
   private def newTopic(): String = TopicName.get(s"topic-${topicId.getAndIncrement()}").toString
@@ -50,9 +51,10 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
 
   test("explicit earliest to latest offsets") {
     val topic = newTopic()
-    sendMessages(topic, (0 to 9).map(_.toString).toArray, None)
-    sendMessages(topic, (10 to 19).map(_.toString).toArray, None)
-    sendMessages(topic, Array("20"), None)
+    createTopic(topic, partitions = 3)
+    sendMessages(topic, (0 to 9).map(_.toString).toArray, Some(0))
+    sendMessages(topic, (10 to 19).map(_.toString).toArray, Some(1))
+    sendMessages(topic, Array("20"), Some(2))
 
     // Specify explicit earliest and latest offset values
     val df = createDF(topic,
@@ -60,15 +62,16 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
     checkAnswer(df, (0 to 20).map(_.toString).toDF)
 
     // "latest" should late bind to the current (latest) offset in the df
-    sendMessages(topic, (21 to 29).map(_.toString).toArray, None)
+    sendMessages(topic, (21 to 29).map(_.toString).toArray, Some(2))
     checkAnswer(df, (0 to 29).map(_.toString).toDF)
   }
 
   test("default starting and ending offsets") {
     val topic = newTopic()
-    sendMessages(topic, (0 to 9).map(_.toString).toArray, None)
-    sendMessages(topic, (10 to 19).map(_.toString).toArray, None)
-    sendMessages(topic, Array("20"), None)
+    createTopic(topic, partitions = 3)
+    sendMessages(topic, (0 to 9).map(_.toString).toArray, Some(0))
+    sendMessages(topic, (10 to 19).map(_.toString).toArray, Some(1))
+    sendMessages(topic, Array("20"), Some(2))
 
     // Implicit offset values, should default to earliest and latest
     val df = createDF(topic)
@@ -121,40 +124,67 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
     checkAnswer(df.union(df), ((0 to 10) ++ (0 to 10)).map(_.toString).toDF)
   }
 
-  test("test atomic types in query") {
-    import SchemaData._
+  private def check[T: ClassTag](schemaType: SchemaType, datas: Seq[T], encoder: Encoder[T], str: T => String): (DataFrame, DataFrame) = {
+    val topic = newTopic()
+    sendTypedMessages[T](topic, schemaType, datas, None)
 
-    def check[T: ClassTag](schemaType: SchemaType, datas: Seq[T], encoder: Encoder[T], str: T => String): (DataFrame, DataFrame) = {
-      val topic = newTopic()
-      sendTypedMessages[T](topic, schemaType, datas, None)
+    val df = createDF(topic,
+      withOptions = Map("startingOffsets" -> "earliest", "endingOffsets" -> "latest"))
 
-      val df = createDF(topic,
-        withOptions = Map("startingOffsets" -> "earliest", "endingOffsets" -> "latest"))
-
-      val df2 = if (str == null) {
-        spark.createDataset(datas)(encoder).toDF().selectExpr("CAST(value as String)")
-      } else {
-        spark.createDataset(datas.map(str))(Encoders.STRING).toDF()
-      }
-      checkAnswer(df, df2)
-      (df, df2)
+    val df2 = if (str == null) {
+      spark.createDataset(datas)(encoder).toDF().selectExpr("CAST(value as String)")
+    } else {
+      spark.createDataset(datas.map(str))(Encoders.STRING).toDF()
     }
+    checkAnswer(df, df2)
+    (df, df2)
+  }
 
+  test("test boolean") {
     check[Boolean](SchemaType.BOOLEAN, booleanSeq, Encoders.scalaBoolean, null)
-    check[Int](SchemaType.INT32, int32Seq, Encoders.scalaInt, null)
-    check[String](SchemaType.STRING, stringSeq, Encoders.STRING, null)
-    check[Byte](SchemaType.INT8, int8Seq, Encoders.scalaByte, null)
-    check[Double](SchemaType.DOUBLE, doubleSeq, Encoders.scalaDouble, null)
-    check[Float](SchemaType.FLOAT, floatSeq, Encoders.scalaFloat, null)
-    check[Short](SchemaType.INT16, int16Seq, Encoders.scalaShort, null)
-    check[Long](SchemaType.INT64, int64Seq, Encoders.scalaLong, null)
+  }
 
+  test("test int") {
+    check[Int](SchemaType.INT32, int32Seq, Encoders.scalaInt, null)
+  }
+
+  test("test string") {
+    check[String](SchemaType.STRING, stringSeq, Encoders.STRING, null)
+  }
+
+  test("test byte") {
+    check[Byte](SchemaType.INT8, int8Seq, Encoders.scalaByte, null)
+  }
+
+  test("test double") {
+    check[Double](SchemaType.DOUBLE, doubleSeq, Encoders.scalaDouble, null)
+  }
+
+  test("test float") {
+    check[Float](SchemaType.FLOAT, floatSeq, Encoders.scalaFloat, null)
+  }
+
+  test("test short") {
+    check[Short](SchemaType.INT16, int16Seq, Encoders.scalaShort, null)
+  }
+
+  test("test long") {
+    check[Long](SchemaType.INT64, int64Seq, Encoders.scalaLong, null)
+  }
+
+  test("test byte array") {
     // compare string, encoders are just placeholders, not actually used
     check[Array[Byte]](SchemaType.BYTES, bytesSeq,
       Encoders.BINARY, new String(_))
+  }
+
+  test("test date") {
     val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
     check[Date](SchemaType.DATE, dateSeq,
       Encoders.bean(classOf[Date]), dateFormat.format(_))
+  }
+
+  test("test timestamp") {
     val tsFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
     check[java.sql.Timestamp](SchemaType.TIMESTAMP, timestampSeq,
       Encoders.kryo(classOf[java.sql.Timestamp]), tsFormat.format(_))

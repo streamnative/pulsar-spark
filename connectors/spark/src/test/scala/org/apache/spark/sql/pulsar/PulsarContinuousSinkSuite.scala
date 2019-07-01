@@ -164,65 +164,94 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     }
   }
 
-  test("streaming - atomic types") {
-    def check[T: ClassTag](schemaInfo: SchemaInfo, data: Seq[T], encoder: Encoder[T], str: T => String) = {
-      val inputTopic = newTopic()
-      val topic = newTopic()
-      createPulsarSchema(inputTopic, schemaInfo)
-      createPulsarSchema(topic, schemaInfo)
+  private def check[T: ClassTag](schemaInfo: SchemaInfo, data: Seq[T], encoder: Encoder[T], str: T => String) = {
+    val inputTopic = newTopic()
+    val topic = newTopic()
+    createPulsarSchema(inputTopic, schemaInfo)
+    createPulsarSchema(topic, schemaInfo)
 
-      val input = spark
-        .readStream
-        .format("pulsar")
-        .option(SERVICE_URL_OPTION_KEY, serviceUrl)
-        .option(ADMIN_URL_OPTION_KEY, adminUrl)
-        .option(TOPIC_SINGLE, inputTopic)
-        .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
-        .load()
+    val input = spark
+      .readStream
+      .format("pulsar")
+      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(ADMIN_URL_OPTION_KEY, adminUrl)
+      .option(TOPIC_SINGLE, inputTopic)
+      .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
+      .load()
 
-      val writer = createPulsarWriter(
-        input.toDF(),
-        withTopic = Some(topic),
-        withOutputMode = Some(OutputMode.Append))(
-        withSelectExpr = s"'$topic' as __topic", "value")
+    val writer = createPulsarWriter(
+      input.toDF(),
+      withTopic = Some(topic),
+      withOutputMode = Some(OutputMode.Append))(
+      withSelectExpr = s"'$topic' as __topic", "value")
 
-      try {
-        sendTypedMessages[T](inputTopic, schemaInfo.getType, data, None)
-        Thread.sleep(2000)
+    try {
+      sendTypedMessages[T](inputTopic, schemaInfo.getType, data, None)
+      Thread.sleep(2000)
 
-        val reader = createPulsarReader(topic)
-          .selectExpr("CAST(value AS STRING)")
-          .as[String]
+      val reader = createPulsarReader(topic)
+        .selectExpr("CAST(value AS STRING)")
+        .as[String]
 
-        eventually(timeout(streamingTimeout)) {
-          if (str == null) {
-            checkDatasetUnorderly[String](reader, data.map(_.toString) : _*)
-          } else {
-            checkDatasetUnorderly[String](reader, data.map(str(_)): _*)
-          }
+      eventually(timeout(streamingTimeout)) {
+        if (str == null) {
+          checkDatasetUnorderly[String](reader, data.map(_.toString) : _*)
+        } else {
+          checkDatasetUnorderly[String](reader, data.map(str(_)): _*)
         }
-      } finally {
-        writer.stop()
       }
+    } finally {
+      writer.stop()
     }
+  }
 
+  test("streaming - boolean") {
     check[Boolean](Schema.BOOL.getSchemaInfo, booleanSeq, Encoders.scalaBoolean, null)
-    check[Int](Schema.INT32.getSchemaInfo, int32Seq, Encoders.scalaInt, null)
-    check[String](Schema.STRING.getSchemaInfo, stringSeq, Encoders.STRING, null)
-    check[Byte](Schema.INT8.getSchemaInfo, int8Seq, Encoders.scalaByte, null)
-    check[Double](Schema.DOUBLE.getSchemaInfo, doubleSeq, Encoders.scalaDouble, null)
-    check[Float](Schema.FLOAT.getSchemaInfo, floatSeq, Encoders.scalaFloat, null)
-    check[Short](Schema.INT16.getSchemaInfo, int16Seq, Encoders.scalaShort, null)
-    check[Long](Schema.INT64.getSchemaInfo, int64Seq, Encoders.scalaLong, null)
+  }
 
+  test("streaming - int") {
+    check[Int](Schema.INT32.getSchemaInfo, int32Seq, Encoders.scalaInt, null)
+  }
+
+  test("streaming - string") {
+    check[String](Schema.STRING.getSchemaInfo, stringSeq, Encoders.STRING, null)
+  }
+
+  test("streaming - byte") {
+    check[Byte](Schema.INT8.getSchemaInfo, int8Seq, Encoders.scalaByte, null)
+  }
+
+  test("streaming - double") {
+    check[Double](Schema.DOUBLE.getSchemaInfo, doubleSeq, Encoders.scalaDouble, null)
+  }
+
+  test("streaming - float") {
+    check[Float](Schema.FLOAT.getSchemaInfo, floatSeq, Encoders.scalaFloat, null)
+  }
+
+  test("streaming - short") {
+    check[Short](Schema.INT16.getSchemaInfo, int16Seq, Encoders.scalaShort, null)
+  }
+
+  test("streaming - long") {
+    check[Long](Schema.INT64.getSchemaInfo, int64Seq, Encoders.scalaLong, null)
+  }
+
+  test("streaming - byte array") {
+    check[Array[Byte]](Schema.BYTES.getSchemaInfo, bytesSeq,
+      Encoders.BINARY, new String(_))
+  }
+
+  test("streaming - date") {
     val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
     check[Date](Schema.DATE.getSchemaInfo, dateSeq,
       Encoders.bean(classOf[Date]), dateFormat.format(_))
+  }
+
+  test("streaming - timestamp") {
     val tsFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
     check[java.sql.Timestamp](Schema.TIMESTAMP.getSchemaInfo, timestampSeq,
       Encoders.kryo(classOf[java.sql.Timestamp]), tsFormat.format(_))
-    check[Array[Byte]](Schema.BYTES.getSchemaInfo, bytesSeq,
-      Encoders.BINARY, new String(_))
   }
 
   test("streaming - struct type") {

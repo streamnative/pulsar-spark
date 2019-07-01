@@ -18,7 +18,8 @@ import java.util.UUID
 import java.{util => ju}
 
 import org.apache.pulsar.client.api.{Message, MessageId, Schema, SubscriptionType}
-import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
+import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl, TopicMessageIdImpl}
+import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
 
 import org.apache.spark.internal.Logging
@@ -40,6 +41,7 @@ class PulsarContinuousReader(
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
     initialOffset: SpecificPulsarOffset,
+    pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String) extends ContinuousReader with Logging {
 
@@ -58,7 +60,7 @@ class PulsarContinuousReader(
   override def setStartOffset(start: ju.Optional[Offset]): Unit = {
     offset = start.orElse {
       val actualOffsets = SpecificPulsarOffset(
-        metadataReader.fetchCurrentOffsets(initialOffset, reportDataLoss))
+        metadataReader.fetchCurrentOffsets(initialOffset, None, reportDataLoss))
       logInfo(s"Initial Offsets: $actualOffsets")
       actualOffsets
     }
@@ -72,14 +74,24 @@ class PulsarContinuousReader(
   override def planInputPartitions(): ju.List[InputPartition[InternalRow]] = {
     import scala.collection.JavaConverters._
 
-    val topicOffsets = SpecificPulsarOffset.getTopicOffsets(offset)
-    knownTopics = topicOffsets.keySet
+    val oldStartPartitionOffsets = SpecificPulsarOffset.getTopicOffsets(offset)
+    val currentPartitionSet = metadataReader.fetchLatestOffsets().topicOffsets.keySet
+    val newPartitions = currentPartitionSet.diff(oldStartPartitionOffsets.keySet)
+    val newPartitionOffsets = metadataReader.fetchEarliestOffsets(newPartitions.toSeq)
+    val deletedPartitions = oldStartPartitionOffsets.keySet.diff(currentPartitionSet)
+    if (deletedPartitions.nonEmpty) {
+      reportDataLoss(s"Some topics were deleted: $deletedPartitions")
+    }
 
-    topicOffsets.toSeq.map {
+    val startOffsets = newPartitionOffsets ++
+      oldStartPartitionOffsets.filterKeys(!deletedPartitions.contains(_))
+    knownTopics = startOffsets.keySet
+
+    startOffsets.toSeq.map {
       case (topic, start) => {
         new PulsarContinuousTopic(
           topic, new SchemaInfoSerializable(pulsarSchema), start, clientConf, consumerConf,
-          failOnDataLoss, subscriptionNamePrefix
+          pollTimeoutMs, failOnDataLoss, subscriptionNamePrefix
         ): InputPartition[InternalRow]
       }
     }.asJava
@@ -93,8 +105,7 @@ class PulsarContinuousReader(
   }
 
   override def needsReconfiguration(): Boolean = {
-    // TODO: support reconfiguration in future
-    false
+    knownTopics != null && metadataReader.fetchLatestOffsets().topicOffsets.keySet != knownTopics
   }
 
   override def toString: String = s"PulsarSource[$offset]"
@@ -116,10 +127,11 @@ private[pulsar] class PulsarContinuousTopic(
     var startingOffsets: MessageId,
     var clientConf: ju.Map[String, Object],
     var consumerConf: ju.Map[String, Object],
+    var pollTimeoutMs: Int,
     var failOnDataLoss: Boolean,
     var subscriptionNamePrefix: String) extends ContinuousInputPartition[InternalRow] with Externalizable {
 
-  def this() = this(null, null, null, null, null, false, null) // For deserialization only
+  def this() = this(null, null, null, null, null, 0, false, null) // For deserialization only
 
   override def createContinuousReader(
       offset: PartitionOffset): InputPartitionReader[InternalRow] = {
@@ -132,6 +144,7 @@ private[pulsar] class PulsarContinuousTopic(
       pulsarOffset.messageId,
       clientConf,
       consumerConf,
+      pollTimeoutMs,
       failOnDataLoss,
       subscriptionNamePrefix)
   }
@@ -143,6 +156,7 @@ private[pulsar] class PulsarContinuousTopic(
       startingOffsets,
       clientConf,
       consumerConf,
+      pollTimeoutMs,
       failOnDataLoss,
       subscriptionNamePrefix)
   }
@@ -152,6 +166,7 @@ private[pulsar] class PulsarContinuousTopic(
     out.writeObject(schemaInfo)
     out.writeObject(clientConf)
     out.writeObject(consumerConf)
+    out.writeInt(pollTimeoutMs)
     out.writeBoolean(failOnDataLoss)
     out.writeUTF(subscriptionNamePrefix)
 
@@ -166,6 +181,7 @@ private[pulsar] class PulsarContinuousTopic(
     clientConf = in.readObject().asInstanceOf[ju.Map[String, Object]]
     consumerConf = in.readObject().asInstanceOf[ju.Map[String, Object]]
     failOnDataLoss = in.readBoolean()
+    pollTimeoutMs = in.readInt()
     subscriptionNamePrefix = in.readUTF()
 
     val length = in.readInt()
@@ -190,8 +206,11 @@ class PulsarContinuousTopicReader(
     startingOffsets: MessageId,
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
+    pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String) extends ContinuousInputPartitionReader[InternalRow] {
+
+  val reportDataLoss = reportDataLossFunc(failOnDataLoss)
 
   private val deserializer = new PulsarDeserializer(schemaInfo.si)
   private val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
@@ -202,9 +221,13 @@ class PulsarContinuousTopicReader(
     .subscriptionType(SubscriptionType.Exclusive)
     .loadConf(consumerConf)
     .subscribe()
-  consumer.seek(startingOffsets)
 
-  val reportDataLoss = reportDataLossFunc(failOnDataLoss)
+  try {
+    consumer.seek(startingOffsets)
+  } catch {
+    case e: Throwable =>
+      reportDataLoss(s"Failed to seek to previous $startingOffsets, data loss occurs")
+  }
 
   var currentMessage: Message[_] = _
   var currentId: MessageId = _

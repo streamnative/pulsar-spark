@@ -28,15 +28,17 @@ import org.apache.pulsar.client.api.{MessageId, Producer, PulsarClient, Schema}
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.protocol.schema.PostSchemaPayload
 import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
-import org.scalatest.BeforeAndAfterAll
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.apache.spark.SparkFunSuite
 import org.apache.spark.util.Utils
+import org.scalatest.concurrent.Eventually.{eventually, timeout}
 
 /**
  * A trait to clean cached Pulsar producers in `afterAll`
  */
-trait PulsarTest extends BeforeAndAfterAll {
+trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
   self: SparkFunSuite =>
+  import PulsarOptions._
 
   var pulsarService : PulsarService = _
   var serviceUrl: String = _
@@ -75,6 +77,20 @@ trait PulsarTest extends BeforeAndAfterAll {
     }
   }
 
+  protected override def afterEach(): Unit = {
+    super.afterEach()
+
+    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+      admin.topics().getPartitionedTopicList("public/default").asScala.foreach { tp =>
+        admin.topics().deletePartitionedTopic(tp, true)
+      }
+
+      admin.topics().getList("public/default").asScala.foreach { tp =>
+        admin.topics().delete(tp, true)
+      }
+    }
+  }
+
   def getAllTopicsSize(): Seq[(String, MessageId)] = {
     Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
       val tps = admin.namespaces().getTopics("public/default").asScala
@@ -106,11 +122,13 @@ trait PulsarTest extends BeforeAndAfterAll {
       messages: Array[String],
       partition: Option[Int]): Seq[(String, MessageId)] = {
 
+    val topicName = if (partition.isEmpty) topic else s"$topic$PARTITION_SUFFIX${partition.get}"
+
     val client = PulsarClient.builder()
       .serviceUrl(serviceUrl)
       .build()
 
-    val producer = client.newProducer().topic(topic).create()
+    val producer = client.newProducer().topic(topicName).create()
 
     val offsets = try {
       messages.map { m =>
@@ -132,25 +150,27 @@ trait PulsarTest extends BeforeAndAfterAll {
       messages: Seq[T],
       partition: Option[Int]): Seq[MessageId] = {
 
+    val topicName = if (partition.isEmpty) topic else s"$topic$PARTITION_SUFFIX${partition.get}"
+
     val client = PulsarClient.builder()
       .serviceUrl(serviceUrl)
       .build()
 
     val producer: Producer[T] = tpe match {
-      case SchemaType.BOOLEAN   => client.newProducer(Schema.BOOL).topic(topic).create().asInstanceOf[Producer[T]]
-      case SchemaType.BYTES     => client.newProducer(Schema.BYTES).topic(topic).create().asInstanceOf[Producer[T]]
-      case SchemaType.DATE      => client.newProducer(Schema.DATE).topic(topic).create().asInstanceOf[Producer[T]]
-      case SchemaType.STRING    => client.newProducer(Schema.STRING).topic(topic).create().asInstanceOf[Producer[T]]
-      case SchemaType.TIMESTAMP => client.newProducer(Schema.TIMESTAMP).topic(topic).create().asInstanceOf[Producer[T]]
-      case SchemaType.INT8      => client.newProducer(Schema.INT8).topic(topic).create().asInstanceOf[Producer[T]]
-      case SchemaType.DOUBLE    => client.newProducer(Schema.DOUBLE).topic(topic).create().asInstanceOf[Producer[T]]
-      case SchemaType.FLOAT     => client.newProducer(Schema.FLOAT).topic(topic).create().asInstanceOf[Producer[T]]
-      case SchemaType.INT32     => client.newProducer(Schema.INT32).topic(topic).create().asInstanceOf[Producer[T]]
-      case SchemaType.INT64     => client.newProducer(Schema.INT64).topic(topic).create().asInstanceOf[Producer[T]]
-      case SchemaType.INT16     => client.newProducer(Schema.INT16).topic(topic).create().asInstanceOf[Producer[T]]
+      case SchemaType.BOOLEAN   => client.newProducer(Schema.BOOL).topic(topicName).create().asInstanceOf[Producer[T]]
+      case SchemaType.BYTES     => client.newProducer(Schema.BYTES).topic(topicName).create().asInstanceOf[Producer[T]]
+      case SchemaType.DATE      => client.newProducer(Schema.DATE).topic(topicName).create().asInstanceOf[Producer[T]]
+      case SchemaType.STRING    => client.newProducer(Schema.STRING).topic(topicName).create().asInstanceOf[Producer[T]]
+      case SchemaType.TIMESTAMP => client.newProducer(Schema.TIMESTAMP).topic(topicName).create().asInstanceOf[Producer[T]]
+      case SchemaType.INT8      => client.newProducer(Schema.INT8).topic(topicName).create().asInstanceOf[Producer[T]]
+      case SchemaType.DOUBLE    => client.newProducer(Schema.DOUBLE).topic(topicName).create().asInstanceOf[Producer[T]]
+      case SchemaType.FLOAT     => client.newProducer(Schema.FLOAT).topic(topicName).create().asInstanceOf[Producer[T]]
+      case SchemaType.INT32     => client.newProducer(Schema.INT32).topic(topicName).create().asInstanceOf[Producer[T]]
+      case SchemaType.INT64     => client.newProducer(Schema.INT64).topic(topicName).create().asInstanceOf[Producer[T]]
+      case SchemaType.INT16     => client.newProducer(Schema.INT16).topic(topicName).create().asInstanceOf[Producer[T]]
       case SchemaType.AVRO      =>
         val cls = implicitly[ClassTag[T]].runtimeClass
-        client.newProducer(Schema.AVRO(cls)).topic(topic).create().asInstanceOf[Producer[T]]
+        client.newProducer(Schema.AVRO(cls)).topic(topicName).create().asInstanceOf[Producer[T]]
       case _ => throw new NotImplementedError(s"not supported type $tpe")
     }
 
@@ -184,9 +204,58 @@ trait PulsarTest extends BeforeAndAfterAll {
 
   def getLatestOffsets(topics: Set[String]): Map[String, MessageId] = {
     Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
-      topics.map { tp =>
-        (tp, PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp)))
+      topics.flatMap { tp =>
+        val partNum = admin.topics().getPartitionedTopicMetadata(tp).partitions
+        if (partNum > 1) {
+          (0 until partNum).map {
+            pn => (s"$tp$PARTITION_SUFFIX$pn", PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(s"$tp$PARTITION_SUFFIX$pn")))
+          }
+        } else {
+          (tp, PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp))) :: Nil
+        }
       }.toMap
+    }
+  }
+
+  def addPartitions(topic: String, partitions: Int): Unit = {
+    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+      admin.topics().updatePartitionedTopic(topic, partitions)
+    }
+  }
+
+  def createNonPartitionedTopic(topic: String): Unit = {
+    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+      admin.topics().createNonPartitionedTopic(topic)
+    }
+  }
+
+  def createTopic(topic: String, partitions: Int): Unit = {
+    assert(partitions > 1)
+    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+      admin.topics().createPartitionedTopic(topic, partitions)
+    }
+  }
+
+  def deleteTopic(topic: String): Unit = {
+    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+      val partitions = admin.topics().getPartitionedTopicMetadata(topic).partitions
+      if (partitions > 0) {
+        admin.topics().deletePartitionedTopic(topic, true)
+      } else {
+        admin.topics().delete(topic, true)
+      }
+    }
+  }
+
+  /**
+    * Wait until the latest offset of the given `topic` is not less than `offset`.
+    */
+  def waitUntilOffsetAppears(topic: String, offset: MessageId): Unit = {
+    import org.scalatest.time.SpanSugar._
+
+    eventually(timeout(60.seconds)) {
+      val currentOffset = getLatestOffsets(Set(topic)).get(topic)
+      assert(currentOffset.nonEmpty && currentOffset.get.compareTo(offset) >= 0)
     }
   }
 

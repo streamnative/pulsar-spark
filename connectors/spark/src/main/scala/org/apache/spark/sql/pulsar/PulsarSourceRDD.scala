@@ -14,6 +14,7 @@
 package org.apache.spark.sql.pulsar
 
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import java.{util => ju}
 
 import org.apache.pulsar.client.admin.PulsarAdmin
@@ -35,6 +36,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
     offsetRanges: Seq[PulsarOffsetRange],
+    pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String)
   extends RDD[InternalRow](sc, Nil) {
@@ -66,7 +68,12 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       .subscribe()
 
     new NextIterator[InternalRow] {
-      consumer.seek(startOffset)
+      try {
+        consumer.seek(startOffset)
+      } catch {
+        case e: Throwable =>
+          reportDataLoss(s"Failed to seek to previous $startOffset, data loss occurs")
+      }
 
       private var isFirst: Boolean = true
       private var inEnd: Boolean = false
@@ -77,23 +84,28 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       var currentId: MessageId = _
 
       if (!startInclusive && startOffset != MessageId.earliest) {
-        currentMessage = consumer.receive()
-        currentId = currentMessage.getMessageId
-        if (startOffset != MessageId.earliest && !messageIdRoughEquals(currentId, startOffset)) {
-          reportDataLoss(s"Potential Data Loss: intended to start at $startOffset, " +
-            s"actually we get $currentId")
-        }
+        currentMessage = consumer.receive(pollTimeoutMs, TimeUnit.MILLISECONDS)
+        if (currentMessage == null) {
+          isLast = true
+          reportDataLoss(s"cannot read data at $startOffset from topic $topic")
+        } else {
+          currentId = currentMessage.getMessageId
+          if (startOffset != MessageId.earliest && !messageIdRoughEquals(currentId, startOffset)) {
+            reportDataLoss(s"Potential Data Loss: intended to start at $startOffset, " +
+              s"actually we get $currentId")
+          }
 
-        (startOffset, currentId) match {
-          case (_: BatchMessageIdImpl, _: BatchMessageIdImpl) =>
+          (startOffset, currentId) match {
+            case (_: BatchMessageIdImpl, _: BatchMessageIdImpl) =>
             // we seek using a batch message id, we can read next directly in `getNext()`
-          case (_: MessageIdImpl, cbmid: BatchMessageIdImpl) =>
-            // we seek using a message id, this is supposed to be read by previous task since it's
-            // inclusive for the last batch (start, end], so we skip this batch
-            val newStart = new MessageIdImpl(cbmid.getLedgerId, cbmid.getEntryId + 1, cbmid.getPartitionIndex)
-            consumer.seek(newStart)
-          case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
+            case (_: MessageIdImpl, cbmid: BatchMessageIdImpl) =>
+              // we seek using a message id, this is supposed to be read by previous task since it's
+              // inclusive for the last batch (start, end], so we skip this batch
+              val newStart = new MessageIdImpl(cbmid.getLedgerId, cbmid.getEntryId + 1, cbmid.getPartitionIndex)
+              consumer.seek(newStart)
+            case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
             // current entry is a non-batch entry, we can read next directly in `getNext()`
+          }
         }
       }
 
@@ -102,8 +114,13 @@ private[pulsar] abstract class PulsarSourceRDDBase(
           finished = true
           return null
         }
+        currentMessage = consumer.receive(pollTimeoutMs, TimeUnit.MILLISECONDS)
+        if (currentMessage == null) {
+          reportDataLoss(s"We didn't get enough message as promised from topic $topic, data loss occurs")
+          finished = true
+          return null
+        }
 
-        currentMessage = consumer.receive()
         currentId = currentMessage.getMessageId
 
         if (startInclusive && isFirst) {
@@ -137,10 +154,11 @@ private[pulsar] class PulsarSourceRDD(
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
     offsetRanges: Seq[PulsarOffsetRange],
+    pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String)
   extends PulsarSourceRDDBase(
-    sc, schemaInfo, clientConf, consumerConf, offsetRanges, failOnDataLoss, subscriptionNamePrefix) {
+    sc, schemaInfo, clientConf, consumerConf, offsetRanges, pollTimeoutMs, failOnDataLoss, subscriptionNamePrefix) {
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
     val part = split.asInstanceOf[PulsarSourceRDDPartition]
@@ -171,10 +189,11 @@ private[pulsar] class PulsarSourceRDD4Batch(
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
     offsetRanges: Seq[PulsarOffsetRange],
+    pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String)
   extends PulsarSourceRDDBase(
-    sc, schemaInfo, clientConf, consumerConf, offsetRanges, failOnDataLoss, subscriptionNamePrefix) {
+    sc, schemaInfo, clientConf, consumerConf, offsetRanges, pollTimeoutMs, failOnDataLoss, subscriptionNamePrefix) {
 
   override def compute(
     split: Partition,

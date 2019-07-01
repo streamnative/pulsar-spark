@@ -14,13 +14,14 @@
 package org.apache.spark.sql.pulsar
 
 import java.io.Closeable
+import java.util.concurrent.TimeUnit
 import java.util.{Optional, UUID}
 import java.util.regex.Pattern
 import java.{util => ju}
 
 import org.apache.commons.lang.exception.ExceptionUtils
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
-import org.apache.pulsar.client.api.{MessageId, PulsarClient, SubscriptionType}
+import org.apache.pulsar.client.api.{Message, MessageId, PulsarClient, SubscriptionType}
 import org.apache.pulsar.client.impl.schema.BytesSchema
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
@@ -48,6 +49,7 @@ private[pulsar] case class PulsarMetadataReader(
   protected var client: PulsarClient = null
 
   private var topics: Seq[String] = _
+  private var topicPartitions: Seq[String] = _
 
   override def close(): Unit = {
     admin.close()
@@ -58,20 +60,42 @@ private[pulsar] case class PulsarMetadataReader(
 
   def setupCursor(offset: SpecificPulsarOffset): Unit = {
     offset.topicOffsets.foreach { case (tp, mid) =>
-      admin.topics().createSubscription(tp, s"$driverGroupIdPrefix-$tp", mid)
+      try {
+        admin.topics().createSubscription(tp, s"$driverGroupIdPrefix-$tp", mid)
+      } catch {
+        case e: Throwable =>
+          throw new RuntimeException(s"Failed to create schema for ${TopicName.get(tp).toString}: " +
+            ExceptionUtils.getRootCause(e).getLocalizedMessage, e)
+      }
     }
   }
 
   def commitCursorToOffset(offset: Map[String, MessageId]): Unit = {
     offset.foreach { case (tp, mid) =>
-      admin.topics().resetCursor(tp, s"$driverGroupIdPrefix-$tp", mid)
+      try {
+        admin.topics().resetCursor(tp, s"$driverGroupIdPrefix-$tp", mid)
+      } catch {
+        case e: PulsarAdminException if e.getStatusCode == 404 || e.getStatusCode == 412 =>
+          logInfo(s"Cannot commit cursor since the topic $tp has been deleted during execution.")
+        case e: Throwable =>
+          throw new RuntimeException(s"Failed to commit cursor for ${TopicName.get(tp).toString}: " +
+            ExceptionUtils.getRootCause(e).getLocalizedMessage, e)
+      }
     }
   }
 
   def removeCursor(): Unit = {
     getTopics()
     topics.foreach { tp =>
-      admin.topics().deleteSubscription(tp, s"$driverGroupIdPrefix-$tp")
+      try {
+        admin.topics().deleteSubscription(tp, s"$driverGroupIdPrefix-$tp")
+      } catch {
+        case e: PulsarAdminException if e.getStatusCode == 404 =>
+          logInfo(s"Cannot remove cursor since the topic $tp has been deleted during execution.")
+        case e: Throwable =>
+          throw new RuntimeException(s"Failed to remove cursor for ${TopicName.get(tp).toString}: " +
+            ExceptionUtils.getRootCause(e).getLocalizedMessage, e)
+      }
     }
   }
 
@@ -124,15 +148,41 @@ private[pulsar] case class PulsarMetadataReader(
   }
 
   def fetchLatestOffsets(): SpecificPulsarOffset = {
-    getTopics()
+    getTopicPartitions()
     SpecificPulsarOffset(
-      topics.map { tp =>
-        (tp -> PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp)))
+      topicPartitions.map { tp =>
+        (tp -> PulsarSourceUtils.seekableLatestMid(
+          try {
+            admin.topics().getLastMessageId(tp)
+          } catch {
+            case e: PulsarAdminException if e.getStatusCode == 404 =>
+              MessageId.earliest
+            case e: Throwable => throw new RuntimeException(
+              s"Failed to get last messageId for ${TopicName.get(tp).toString}: " +
+                ExceptionUtils.getRootCause(e).getLocalizedMessage, e)
+          }
+        ))
       }.toMap)
   }
 
   def fetchLatestOffsetForTopic(topic: String): MessageId = {
-    PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(topic))
+    PulsarSourceUtils.seekableLatestMid(try {
+      admin.topics().getLastMessageId(topic)
+    } catch {
+      case e: PulsarAdminException if e.getStatusCode == 404 =>
+        MessageId.earliest
+      case e: Throwable => throw new RuntimeException(
+        s"Failed to get last messageId for ${TopicName.get(topic).toString}: " +
+          ExceptionUtils.getRootCause(e).getLocalizedMessage, e)
+    })
+  }
+
+  def fetchEarliestOffsets(topics: Seq[String]): Map[String, MessageId] = {
+    if (topics.isEmpty) {
+      Map.empty[String, MessageId]
+    } else {
+      topics.map(p => p -> MessageId.earliest).toMap
+    }
   }
 
   private def getTopics(): Seq[String] = {
@@ -147,10 +197,29 @@ private[pulsar] case class PulsarMetadataReader(
     topics
   }
 
+  private def getTopicPartitions(): Seq[String] = {
+    getTopics()
+    topicPartitions = topics.flatMap { tp =>
+      val partNum = admin.topics().getPartitionedTopicMetadata(tp).partitions
+      if (partNum == 0) {
+        tp :: Nil
+      } else {
+        (0 until partNum).map(tp + PulsarOptions.PARTITION_SUFFIX + _)
+      }
+    }
+    topicPartitions
+  }
+
   private def getTopics(topicsPattern: String): Seq[String] = {
     val dest = TopicName.get(topicsPattern)
-    val allTopics: ju.List[String] = admin.topics().getList(dest.getNamespace)
-    topicsPatternFilter(allTopics, dest.toString)
+    val allNonPartitionedTopics: ju.List[String] =
+      admin.topics().getList(dest.getNamespace).asScala
+        .filter(t => !TopicName.get(t).isPartitioned).asJava
+    val nonPartitionedMatch = topicsPatternFilter(allNonPartitionedTopics, dest.toString)
+
+    val allPartitionedTopics: ju.List[String] = admin.topics().getPartitionedTopicList(dest.getNamespace)
+    val partitionedMatch = topicsPatternFilter(allPartitionedTopics, dest.toString)
+    nonPartitionedMatch ++ partitionedMatch
   }
 
   private def topicsPatternFilter(allTopics: ju.List[String], topicsPattern: String): Seq[String] = {
@@ -165,19 +234,19 @@ private[pulsar] case class PulsarMetadataReader(
       offsetOptionKey: String,
       defaultOffsets: PulsarOffset): SpecificPulsarOffset = {
 
-    getTopics()
+    getTopicPartitions()
     val offset = PulsarProvider.getPulsarOffset(params, offsetOptionKey, defaultOffsets)
     offset match {
       case LatestOffset =>
-        SpecificPulsarOffset(topics.map(tp => (tp, MessageId.latest)).toMap)
+        SpecificPulsarOffset(topicPartitions.map(tp => (tp, MessageId.latest)).toMap)
       case EarliestOffset =>
-        SpecificPulsarOffset(topics.map(tp => (tp, MessageId.earliest)).toMap)
+        SpecificPulsarOffset(topicPartitions.map(tp => (tp, MessageId.earliest)).toMap)
       case so: SpecificPulsarOffset =>
         val specified: Map[String, MessageId] = so.topicOffsets
-        assert(specified.keySet.subsetOf(topics.toSet),
+        assert(specified.keySet.subsetOf(topicPartitions.toSet),
           s"topics designated in startingOffsets/endingOffsets should all appear in $TOPIC_OPTION_KEYS .\n" +
-            s"topics: $topics, topics in offsets: ${specified.keySet}")
-        val nonSpecifiedTopics = topics.toSet -- specified.keySet
+            s"topics: $topicPartitions, topics in offsets: ${specified.keySet}")
+        val nonSpecifiedTopics = topicPartitions.toSet -- specified.keySet
         val nonSpecified = nonSpecifiedTopics.map { tp =>
           defaultOffsets match {
             case LatestOffset => (tp, MessageId.latest)
@@ -190,7 +259,7 @@ private[pulsar] case class PulsarMetadataReader(
   }
 
   def fetchCurrentOffsets(
-      offset: SpecificPulsarOffset, reportDataLoss: String => Unit): Map[String, MessageId] = {
+      offset: SpecificPulsarOffset, poolTimeoutMs: Option[Int], reportDataLoss: String => Unit): Map[String, MessageId] = {
 
     offset.topicOffsets.map { case (tp, off) =>
       val actualOffset = off match {
@@ -208,9 +277,18 @@ private[pulsar] case class PulsarMetadataReader(
             .subscriptionType(SubscriptionType.Exclusive)
             .subscribe()
           consumer.seek(off)
-          val msg = consumer.receive()
+          var msg: Message[Array[Byte]] = null
+          if (poolTimeoutMs.isDefined) {
+            msg = consumer.receive(poolTimeoutMs.get, TimeUnit.MILLISECONDS)
+          } else {
+            msg = consumer.receive()
+          }
           consumer.close()
-          PulsarSourceUtils.mid2Impl(msg.getMessageId)
+          if (msg == null) {
+            MessageId.earliest
+          } else {
+            PulsarSourceUtils.mid2Impl(msg.getMessageId)
+          }
       }
       (tp, actualOffset)
     }

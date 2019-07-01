@@ -31,6 +31,7 @@ private[pulsar] class PulsarSource(
     consumerConf: ju.Map[String, Object],
     metadataPath: String,
     startingOffsets: SpecificPulsarOffset,
+    pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String)
   extends Source with Logging {
@@ -43,7 +44,7 @@ private[pulsar] class PulsarSource(
 
   private lazy val initialTopicOffsets: SpecificPulsarOffset = {
     val metadataLog = new PulsarSourceInitialOffsetWriter(sqlContext.sparkSession, metadataPath)
-    metadataLog.getInitialOffset(metadataReader, startingOffsets, reportDataLoss)
+    metadataLog.getInitialOffset(metadataReader, startingOffsets, Some(pollTimeoutMs), reportDataLoss)
   }
 
   private var currentTopicOffsets: Option[Map[String, MessageId]] = None
@@ -87,11 +88,20 @@ private[pulsar] class PulsarSource(
     val sortedExecutors = getSortedExecutorList(sc)
     val numExecutors = sortedExecutors.length
 
+    val newTopics = endTopicOffsets.keySet.diff(fromTopicOffsets.keySet)
+    val newTopicOffsets = metadataReader.fetchEarliestOffsets(newTopics.toSeq)
+
+    val deletedPartitions = fromTopicOffsets.keySet.diff(endTopicOffsets.keySet)
+    if (deletedPartitions.nonEmpty) {
+      reportDataLoss(s"$deletedPartitions are gone. Some data may have been missed")
+    }
+
+    val newFromTopicOffsets = fromTopicOffsets ++ newTopicOffsets
+
     val offsetRanges = endTopicOffsets.keySet.map { tp =>
-      val fromOffset = fromTopicOffsets.getOrElse(tp, {
-        // TODO: discover partition add and delete (for PartitionedTopic)
-        // This should only happens when a new partition is added to a partitioned topic
-        throw new IllegalStateException(s"A new topic $tp is added, it's not supported currently")
+      val fromOffset = newFromTopicOffsets.getOrElse(tp, {
+        // This should never happen
+        throw new IllegalStateException(s"$tp doesn't have a from offset")
       })
       val untilOffset = endTopicOffsets(tp)
       val preferredLoc = if (numExecutors > 0) {
@@ -113,7 +123,7 @@ private[pulsar] class PulsarSource(
 
     val rdd = new PulsarSourceRDD(
       sc, new SchemaInfoSerializable(pulsarSchema),
-      clientConf, consumerConf, offsetRanges, failOnDataLoss, subscriptionNamePrefix)
+      clientConf, consumerConf, offsetRanges, pollTimeoutMs, failOnDataLoss, subscriptionNamePrefix)
 
     logInfo("GetBatch generating RDD of offset range: " +
       offsetRanges.sortBy(_.topic).mkString(", "))

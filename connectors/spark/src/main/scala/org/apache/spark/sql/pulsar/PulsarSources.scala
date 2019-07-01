@@ -17,7 +17,6 @@ import java.io.{BufferedWriter, Externalizable, InputStream, InputStreamReader, 
 import java.nio.charset.StandardCharsets
 
 import org.apache.commons.io.IOUtils
-import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl, TopicMessageIdImpl}
 
@@ -27,7 +26,6 @@ import org.apache.spark.scheduler.ExecutorCacheTaskLocation
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.execution.streaming.{HDFSMetadataLog, SerializedOffset}
 import org.apache.spark.storage.BlockManager
-import org.apache.spark.util.Utils
 
 private[pulsar] object PulsarSourceUtils extends Logging {
   import PulsarOptions._
@@ -118,20 +116,6 @@ private[pulsar] object PulsarSourceUtils extends Logging {
   def seekableLatestMid(mid: MessageId): MessageId = {
     if (messageExists(mid)) mid else MessageId.earliest
   }
-
-  // for test purpose
-  def deleteTopic(topic: String, adminUrl: String): Unit = {
-    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
-      admin.topics().delete(topic)
-    }
-  }
-
-  // for test purpose
-  def createTopic(topic: String, adminUrl: String): Unit = {
-    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
-      admin.topics().createNonPartitionedTopic(topic)
-    }
-  }
 }
 
 class PulsarSourceInitialOffsetWriter(sparkSession: SparkSession, metadataPath: String)
@@ -169,10 +153,11 @@ class PulsarSourceInitialOffsetWriter(sparkSession: SparkSession, metadataPath: 
   def getInitialOffset(
       metadataReader: PulsarMetadataReader,
       startingOffsets: SpecificPulsarOffset,
+      poolTimeoutMs: Option[Int],
       reportDataLoss: String => Unit): SpecificPulsarOffset = {
     get(0).getOrElse {
       val actualOffsets = SpecificPulsarOffset(
-        metadataReader.fetchCurrentOffsets(startingOffsets, reportDataLoss))
+        metadataReader.fetchCurrentOffsets(startingOffsets, poolTimeoutMs, reportDataLoss))
       add(0, actualOffsets)
       logInfo(s"Initial Offsets: $actualOffsets")
       actualOffsets

@@ -20,7 +20,7 @@ import scala.collection.JavaConverters._
 
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.common.naming.TopicName
-
+import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SaveMode}
 import org.apache.spark.sql.execution.streaming.{Sink, Source}
@@ -97,6 +97,7 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
       confs._2,
       metadataPath,
       offset,
+      pollTimeoutMs(caseInsensitiveParams),
       failOnDataLoss(caseInsensitiveParams),
       subscriptionNamePrefix)
   }
@@ -126,6 +127,7 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
       confs._2,
       metadataPath,
       offset,
+      pollTimeoutMs(caseInsensitiveParams),
       failOnDataLoss(caseInsensitiveParams),
       subscriptionNamePrefix)
   }
@@ -153,6 +155,7 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
       confs._1,
       confs._2,
       offset,
+      pollTimeoutMs(caseInsensitiveParams),
       failOnDataLoss(caseInsensitiveParams),
       subscriptionNamePrefix)
   }
@@ -188,6 +191,7 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
       confs._2,
       start,
       end,
+      pollTimeoutMs(caseInsensitiveParams),
       failOnDataLoss(caseInsensitiveParams),
       subscriptionNamePrefix)
   }
@@ -341,8 +345,13 @@ private[pulsar] object PulsarProvider extends Logging {
     parameters.get(ADMIN_URL_OPTION_KEY).get
   }
 
-  private def failOnDataLoss(caseInsensitiveParams: Map[String, String]) =
+  private def failOnDataLoss(caseInsensitiveParams: Map[String, String]): Boolean =
     caseInsensitiveParams.getOrElse(FAIL_ON_DATA_LOSS_OPTION_KEY, "false").toBoolean
+
+  private def pollTimeoutMs(caseInsensitiveParams: Map[String, String]): Int =
+    caseInsensitiveParams.getOrElse(
+      PulsarOptions.POLL_TIMEOUT_MS,
+      (SparkEnv.get.conf.getTimeAsSeconds("spark.network.timeout", "120s") * 1000).toString).toInt
 
   private def validateGeneralOptions(caseInsensitiveParams: Map[String, String]): Map[String, String] = {
     if (!caseInsensitiveParams.contains(SERVICE_URL_OPTION_KEY)) {

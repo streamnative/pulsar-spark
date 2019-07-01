@@ -16,19 +16,18 @@ package org.apache.spark.sql.pulsar
 import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.atomic.AtomicInteger
 
+import org.apache.pulsar.client.admin.PulsarAdminException
+
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.Random
 import scala.util.control.NonFatal
-
 import org.scalatest.time.SpanSugar._
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
-
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaType
-
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.{Dataset, QueryTest}
 import org.apache.spark.sql.catalyst.plans.physical.AllTuples
@@ -119,11 +118,9 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
       val pulsarSource = sources.head
       val topic = topics.toSeq(Random.nextInt(topics.size))
 
-      val offsets: Seq[(String, MessageId)] = sendMessages(topic, data.map { _.toString }.toArray)
-
-      val midLast = PulsarSourceUtils.mid2Impl(offsets.last._2)
-
-      val offset = SpecificPulsarOffset((topic, midLast))
+      sendMessages(topic, data.map { _.toString }.toArray)
+      val sizes = getLatestOffsets(topics).toSeq
+      val offset = SpecificPulsarOffset(sizes: _*)
       logInfo(s"Added data, expected offset $offset")
       (pulsarSource, offset)
     }
@@ -473,13 +470,25 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
               s"query.exception() is not empty after clean stop: " +
                 currentStream.exception.map(_.toString()).getOrElse(""))
           } catch {
-            case _: InterruptedException =>
-            // TODO: check for PulsarAdminException here when it contains InterruptException
             case e: org.scalatest.exceptions.TestFailedDueToTimeoutException =>
               failTest(
                 "Timed out while stopping and waiting for microbatchthread to terminate.", e)
             case thr: Throwable =>
-              failTest("Error while stopping stream", thr)
+              def causedByInterruptedException(e: Throwable): Boolean = {
+                if (e.isInstanceOf[InterruptedException]) {
+                  true
+                } else {
+                  if (e.getCause == null) {
+                    return false
+                  }
+                  causedByInterruptedException(e.getCause)
+                }
+              }
+              if (currentStream.exception.isDefined) {
+                if (!causedByInterruptedException(currentStream.exception.get)) {
+                  failTest("Error while stopping stream", thr)
+                }
+              }
           } finally {
             lastStream = currentStream
             currentStream = null

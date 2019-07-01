@@ -16,6 +16,7 @@ package org.apache.spark.sql.pulsar
 import java.util.concurrent.ConcurrentLinkedQueue
 
 import org.apache.pulsar.client.admin.PulsarAdmin
+import org.apache.spark.SparkException
 import org.apache.spark.sql.ForeachWriter
 import org.apache.spark.sql.execution.streaming.StreamingExecutionRelation
 import org.apache.spark.sql.functions.{count, window}
@@ -86,7 +87,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
 
   test("(de)serialization of initial offsets") {
     val topic = newTopic()
-    createTopic(topic, adminUrl)
+    createNonPartitionedTopic(topic)
 
     val reader = spark
       .readStream
@@ -98,8 +99,8 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     testStream(reader.load)(
       makeSureGetOffsetCalled,
       StopStream,
-      StartStream())
-      // StopStream) interrupt exception would swallow by pulsar and throws a PulsarAdminException instead, fix in pulsar first
+      StartStream(),
+      StopStream)
   }
 
   test("input row metrics") {
@@ -128,6 +129,93 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
         recordsRead == 3
       }
     )
+  }
+
+  test("subscribing topic by pattern with topic deletions") {
+    val topicPrefix = newTopic()
+    val topic = topicPrefix + "-seems"
+    val topic2 = topicPrefix + "-bad"
+    createTopic(topic, partitions = 5)
+    sendMessages(topic, Array("-1"))
+    require(getLatestOffsets(Set(topic)).size === 5)
+
+    val reader = spark
+      .readStream
+      .format("pulsar")
+      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(ADMIN_URL_OPTION_KEY, adminUrl)
+      .option(TOPIC_PATTERN, s"$topicPrefix-.*")
+      .option("failOnDataLoss", "false")
+
+    val pulsar = reader.load()
+      .selectExpr("CAST(value AS STRING)")
+      .as[String]
+    val mapped = pulsar.map(v => v.toInt + 1)
+
+    testStream(mapped)(
+      makeSureGetOffsetCalled,
+      AddPulsarData(Set(topic), 1, 2, 3),
+      CheckAnswer(2, 3, 4),
+      Assert {
+        deleteTopic(topic)
+        createTopic(topic2, partitions = 5)
+        true
+      },
+      AddPulsarData(Set(topic2), 4, 5, 6),
+      CheckAnswer(2, 3, 4, 5, 6, 7)
+    )
+  }
+
+  test("subscribe topic by pattern with topic recreation between batches") {
+    val topicPrefix = newTopic()
+    val topic = topicPrefix + "-good"
+    val topic2 = topicPrefix + "-bad"
+    createNonPartitionedTopic(topic)
+    sendMessages(topic, Array("1", "3"))
+    createNonPartitionedTopic(topic2)
+    sendMessages(topic2, Array("2", "4"))
+
+    val reader = spark
+      .readStream
+      .format("pulsar")
+      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(ADMIN_URL_OPTION_KEY, adminUrl)
+      .option(TOPIC_PATTERN, s"$topicPrefix-.*")
+      .option("failOnDataLoss", "true")
+      .option("startingOffsets", "earliest")
+
+    val ds = reader.load()
+      .selectExpr("CAST(value AS STRING)")
+      .as[String]
+      .map(v => v.toInt)
+
+    testStream(ds)(
+      StartStream(),
+      AssertOnQuery { q =>
+        q.processAllAvailable()
+        true
+      },
+      CheckAnswer(1, 2, 3, 4),
+      // Restart the stream in this test to make the test stable. When recreating a topic when a
+      // consumer is alive, it may not be able to see the recreated topic even if a fresh consumer
+      // has seen it.
+      StopStream,
+      // Recreate `topic2` and wait until it's available
+      WithOffsetSync(topic2),
+      StartStream(),
+      ExpectFailure[SparkException](e => {
+        assert(e.getMessage.contains("Failed to seek to previous"))
+      })
+    )
+  }
+
+  case class WithOffsetSync(topic2: String) extends ExternalAction {
+    override def runAction(): Unit = {
+      deleteTopic(topic2)
+      createNonPartitionedTopic(topic2)
+      val mid = sendMessages(topic2, Array("6")).head._2
+      waitUntilOffsetAppears(topic2, mid)
+    }
   }
 
   test("PulsarSource with watermark") {
@@ -170,8 +258,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     query.stop()
   }
 
-  // TODO: enable this when we are able to handle topic discovery and deletion
-  ignore("delete a topic when a Spark job is running") {
+  test("delete a topic when a Spark job is running") {
     PulsarSourceSuite.collectedData.clear()
 
     val topic = newTopic()
@@ -184,6 +271,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(TOPIC_SINGLE, topic)
       .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
+      .option(POLL_TIMEOUT_MS, "1000")
       .option("failOnDataLoss", "false")
     val pulsar = reader.load()
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
@@ -195,7 +283,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     val query = pulsar.map(kv => kv._2.toInt).writeStream.foreach(new ForeachWriter[Int] {
       override def open(partitionId: Long, version: Long): Boolean = {
         Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminu).build()) { admin =>
-          admin.topics().delete(topic)
+          admin.topics().delete(topic, true)
         }
         true
       }

@@ -33,6 +33,7 @@ private[pulsar] class PulsarRelation(
     consumerConf: ju.Map[String, Object],
     startingOffset: SpecificPulsarOffset,
     endingOffset: SpecificPulsarOffset,
+    pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String)
   extends BaseRelation with TableScan with Logging {
@@ -45,11 +46,18 @@ private[pulsar] class PulsarRelation(
     val fromTopicOffsets = startingOffset.topicOffsets
     val endTopicOffsets = endingOffset.topicOffsets
 
+    if (fromTopicOffsets.keySet != endTopicOffsets.keySet) {
+      val fromTopics = fromTopicOffsets.keySet.toList.sorted.mkString(",")
+      val endTopics = endTopicOffsets.keySet.toList.sorted.mkString(",")
+      throw new IllegalStateException("different topics " +
+        s"for starting offsets topics[${fromTopics}] and " +
+        s"ending offsets topics[${endTopics}]")
+    }
+
     val offsetRanges = endTopicOffsets.keySet.map { tp =>
       val fromOffset = fromTopicOffsets.getOrElse(tp, {
-        // TODO: discover partition add and delete (for PartitionedTopic)
-        // This should only happens when a new partition is added to a partitioned topic
-        throw new IllegalStateException(s"A new topic $tp is added, it's not supported currently")
+        // this shouldn't happen since we had checked it
+        throw new IllegalStateException(s"$tp doesn't have a from offset")
       })
       val untilOffset = endTopicOffsets(tp)
       PulsarOffsetRange(tp, fromOffset, untilOffset, None)
@@ -71,6 +79,7 @@ private[pulsar] class PulsarRelation(
       clientConf,
       consumerConf,
       offsetRanges,
+      pollTimeoutMs,
       failOnDataLoss,
       subscriptionNamePrefix
     )
