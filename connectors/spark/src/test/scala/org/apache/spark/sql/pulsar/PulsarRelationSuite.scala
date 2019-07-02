@@ -210,6 +210,26 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
     checkAnswer(result, fooSeq.toDF())
   }
 
+  test("test struct types in json") {
+    import SchemaData._
+
+    val topic = newTopic()
+
+    sendTypedMessages[F1](topic, SchemaType.JSON, f1Seq, None)
+
+    val result = spark
+      .read
+      .format("pulsar")
+      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(ADMIN_URL_OPTION_KEY, adminUrl)
+      .option(TOPIC_MULTI, topic)
+      .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
+      .option(ENDING_OFFSETS_OPTION_KEY, "latest")
+      .load().selectExpr("baz.f", "baz.d", "baz.mp", "baz.arr")
+
+    checkAnswer(result, f1Results.toDF())
+  }
+
   test("bad batch query options") {
     def testBadOptions(options: (String, String)*)(expectedMsgs: String*): Unit = {
       val ex = intercept[IllegalArgumentException] {

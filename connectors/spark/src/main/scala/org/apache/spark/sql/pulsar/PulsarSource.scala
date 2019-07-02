@@ -20,6 +20,7 @@ import org.apache.pulsar.common.schema.SchemaInfo
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
 import org.apache.spark.sql.types.StructType
@@ -33,7 +34,8 @@ private[pulsar] class PulsarSource(
     startingOffsets: SpecificPulsarOffset,
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
-    subscriptionNamePrefix: String)
+    subscriptionNamePrefix: String,
+    jsonOptions: JSONOptionsInRead)
   extends Source with Logging {
 
   import PulsarSourceUtils._
@@ -123,7 +125,7 @@ private[pulsar] class PulsarSource(
 
     val rdd = new PulsarSourceRDD(
       sc, new SchemaInfoSerializable(pulsarSchema),
-      clientConf, consumerConf, offsetRanges, pollTimeoutMs, failOnDataLoss, subscriptionNamePrefix)
+      clientConf, consumerConf, offsetRanges, pollTimeoutMs, failOnDataLoss, subscriptionNamePrefix, jsonOptions)
 
     logInfo("GetBatch generating RDD of offset range: " +
       offsetRanges.sortBy(_.topic).mkString(", "))

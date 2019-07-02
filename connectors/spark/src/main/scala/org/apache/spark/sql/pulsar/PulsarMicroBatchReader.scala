@@ -25,6 +25,7 @@ import org.apache.pulsar.common.schema.SchemaInfo
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.pulsar.PulsarSourceUtils.messageExists
 import org.apache.spark.sql.sources.v2.reader.{InputPartition, InputPartitionReader}
 import org.apache.spark.sql.sources.v2.reader.streaming.{MicroBatchReader, Offset}
@@ -38,7 +39,8 @@ private[pulsar] class PulsarMicroBatchReader(
     startingOffsets: SpecificPulsarOffset,
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
-    subscriptionNamePrefix: String)
+    subscriptionNamePrefix: String,
+    jsonOptions: JSONOptionsInRead)
   extends MicroBatchReader with Logging {
 
   import PulsarSourceUtils._
@@ -124,7 +126,7 @@ private[pulsar] class PulsarMicroBatchReader(
     offsetRanges.map { range =>
       new PulsarMicroBatchInputPartition(
         range, new SchemaInfoSerializable(pulsarSchema), clientConf, consumerConf,
-        pollTimeoutMs, failOnDataLoss, subscriptionNamePrefix): InputPartition[InternalRow]
+        pollTimeoutMs, failOnDataLoss, subscriptionNamePrefix, jsonOptions): InputPartition[InternalRow]
     }.asJava
   }
 
@@ -141,7 +143,8 @@ case class PulsarMicroBatchInputPartition(
     consumerConf: ju.Map[String, Object],
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
-    subscriptionNamePrefix: String) extends InputPartition[InternalRow] {
+    subscriptionNamePrefix: String,
+    jsonOptions: JSONOptionsInRead) extends InputPartition[InternalRow] {
   override def preferredLocations(): Array[String] = range.preferredLoc.toArray
 
   override def createPartitionReader(): InputPartitionReader[InternalRow] = {
@@ -153,7 +156,8 @@ case class PulsarMicroBatchInputPartition(
       return PulsarMicroBatchEmptyInputPartitionReader
     }
     new PulsarMicroBatchInputPartitionReader(
-      range, pulsarSchema, clientConf, consumerConf, pollTimeoutMs, failOnDataLoss, subscriptionNamePrefix)
+      range, pulsarSchema, clientConf, consumerConf, pollTimeoutMs,
+      failOnDataLoss, subscriptionNamePrefix, jsonOptions)
   }
 }
 
@@ -172,7 +176,8 @@ case class PulsarMicroBatchInputPartitionReader(
     consumerConf: ju.Map[String, Object],
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
-    subscriptionNamePrefix: String) extends InputPartitionReader[InternalRow] with Logging {
+    subscriptionNamePrefix: String,
+    jsonOptions: JSONOptionsInRead) extends InputPartitionReader[InternalRow] with Logging {
 
   import PulsarSourceUtils._
 
@@ -182,7 +187,7 @@ case class PulsarMicroBatchInputPartitionReader(
 
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
 
-  private val deserializer = new PulsarDeserializer(pulsarSchema.si)
+  private val deserializer = new PulsarDeserializer(pulsarSchema.si, jsonOptions)
   private val schema: Schema[_] = SchemaUtils.getPSchema(pulsarSchema.si)
   val consumer = CachedPulsarClient.getOrCreate(clientConf)
     .newConsumer(schema)

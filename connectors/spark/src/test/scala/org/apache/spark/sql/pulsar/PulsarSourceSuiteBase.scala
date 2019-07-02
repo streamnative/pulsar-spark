@@ -326,6 +326,29 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     )
   }
 
+  test("test struct types in json") {
+    import SchemaData._
+
+    val topic = newTopic()
+    val si = Schema.JSON(classOf[F1]).getSchemaInfo
+    createPulsarSchema(topic, si)
+    val reader = spark
+      .readStream
+      .format("pulsar")
+      .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
+      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(ADMIN_URL_OPTION_KEY, adminUrl)
+      .option(FAIL_ON_DATA_LOSS_OPTION_KEY, true)
+      .option(TOPIC_SINGLE, topic)
+
+    val pulsar = reader.load().selectExpr("baz.f", "baz.d", "baz.mp", "baz.arr")
+
+    testStream(pulsar)(
+      AddPulsarTypedData(Set(topic), si.getType, f1Seq),
+      CheckAnswer(f1Results: _*)
+    )
+  }
+
   private def testFromLatestOffsets(
       topic: String,
       addPartitions: Boolean,

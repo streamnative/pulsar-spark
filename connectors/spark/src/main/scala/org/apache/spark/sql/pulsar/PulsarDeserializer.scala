@@ -21,8 +21,7 @@ import java.util.Date
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
-
-import org.apache.pulsar.shade.org.apache.avro.{SchemaBuilder, Schema}
+import org.apache.pulsar.shade.org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.pulsar.shade.org.apache.avro.Schema.Type._
 import org.apache.pulsar.shade.org.apache.avro.LogicalTypes.{TimestampMicros, TimestampMillis}
 import org.apache.pulsar.shade.org.apache.avro.Conversions.DecimalConversion
@@ -36,11 +35,15 @@ import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{SpecificInternalRow, UnsafeArrayData}
-import org.apache.spark.sql.types._
 import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, ArrayData, DateTimeUtils, GenericArrayData}
+import org.apache.spark.sql.catalyst.json.{CreateJacksonParser, JSONOptionsInRead}
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.unsafe.types.UTF8String
 
-class PulsarDeserializer(schemaInfo: SchemaInfo) {
+
+class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRead) {
+
   private lazy val decimalConversions = new DecimalConversion()
 
   val rootDataType: DataType = SchemaUtils.si2SqlType(schemaInfo).dataType
@@ -65,6 +68,23 @@ class PulsarDeserializer(schemaInfo: SchemaInfo) {
           writeMetadataFields(msg, resultRow)
           resultRow
         }
+
+      case SchemaType.JSON =>
+        val st = rootDataType.asInstanceOf[StructType]
+        val resultRow = new SpecificInternalRow(st.map(_.dataType) ++ metaDataFields.map(_.dataType))
+        val createParser = CreateJacksonParser.string _
+        val rawParser = new JacksonRecordParser(rootDataType, parsedOptions)
+        val parser = new FailureSafeRecordParser[String](
+          (input, record) => rawParser.parse(input, createParser, UTF8String.fromString, record),
+          parsedOptions.parseMode,
+          st)
+        (msg: Message[_]) => {
+          val value = msg.getData
+          parser.parse(new String(value, java.nio.charset.StandardCharsets.UTF_8), resultRow)
+          writeMetadataFields(msg, resultRow)
+          resultRow
+        }
+
       case _ => // AtomicTypes
         val tmpRow = new SpecificInternalRow(Seq(rootDataType) ++ metaDataFields.map(_.dataType))
         val fieldUpdater = new RowUpdater(tmpRow)

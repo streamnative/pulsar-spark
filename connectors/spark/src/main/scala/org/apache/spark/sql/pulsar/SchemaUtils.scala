@@ -150,7 +150,7 @@ private[pulsar] object SchemaUtils {
       TimestampSchema.of()
     case SchemaType.NONE =>
       BytesSchema.of()
-    case SchemaType.AVRO =>
+    case SchemaType.AVRO | SchemaType.JSON =>
       GenericSchemaImpl.of(schemaInfo)
     case _ =>
       throw new IllegalArgumentException("Retrieve schema instance from schema info for type '" +
@@ -186,7 +186,7 @@ private[pulsar] object SchemaUtils {
       case SchemaType.INT32 => TypeNullable(IntegerType, nullable = false)
       case SchemaType.INT64 => TypeNullable(LongType, nullable = false)
       case SchemaType.INT16 => TypeNullable(ShortType, nullable = false)
-      case SchemaType.AVRO =>
+      case SchemaType.AVRO | SchemaType.JSON =>
         val avroSchema: ASchema = new ASchema.Parser().parse(
           new String(si.getSchema, StandardCharsets.UTF_8))
         avro2SqlType(avroSchema, Set.empty)

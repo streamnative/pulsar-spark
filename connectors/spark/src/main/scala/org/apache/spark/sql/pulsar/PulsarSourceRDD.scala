@@ -24,6 +24,7 @@ import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.pulsar.PulsarSourceUtils._
 import org.apache.spark.util.{NextIterator, Utils}
 
@@ -38,7 +39,8 @@ private[pulsar] abstract class PulsarSourceRDDBase(
     offsetRanges: Seq[PulsarOffsetRange],
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
-    subscriptionNamePrefix: String)
+    subscriptionNamePrefix: String,
+    jsonOptions: JSONOptionsInRead)
   extends RDD[InternalRow](sc, Nil) {
 
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
@@ -56,7 +58,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       context: TaskContext,
       startInclusive: Boolean): Iterator[InternalRow] = {
 
-    val deserializer = new PulsarDeserializer(schemaInfo.si)
+    val deserializer = new PulsarDeserializer(schemaInfo.si, jsonOptions)
     val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
 
     lazy val consumer = CachedPulsarClient.getOrCreate(clientConf)
@@ -156,9 +158,11 @@ private[pulsar] class PulsarSourceRDD(
     offsetRanges: Seq[PulsarOffsetRange],
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
-    subscriptionNamePrefix: String)
+    subscriptionNamePrefix: String,
+    jsonOptions: JSONOptionsInRead)
   extends PulsarSourceRDDBase(
-    sc, schemaInfo, clientConf, consumerConf, offsetRanges, pollTimeoutMs, failOnDataLoss, subscriptionNamePrefix) {
+    sc, schemaInfo, clientConf, consumerConf, offsetRanges, pollTimeoutMs,
+    failOnDataLoss, subscriptionNamePrefix, jsonOptions) {
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
     val part = split.asInstanceOf[PulsarSourceRDDPartition]
@@ -191,9 +195,11 @@ private[pulsar] class PulsarSourceRDD4Batch(
     offsetRanges: Seq[PulsarOffsetRange],
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
-    subscriptionNamePrefix: String)
+    subscriptionNamePrefix: String,
+    jsonOptions: JSONOptionsInRead)
   extends PulsarSourceRDDBase(
-    sc, schemaInfo, clientConf, consumerConf, offsetRanges, pollTimeoutMs, failOnDataLoss, subscriptionNamePrefix) {
+    sc, schemaInfo, clientConf, consumerConf, offsetRanges, pollTimeoutMs,
+    failOnDataLoss, subscriptionNamePrefix, jsonOptions) {
 
   override def compute(
     split: Partition,

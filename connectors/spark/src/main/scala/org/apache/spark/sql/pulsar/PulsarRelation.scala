@@ -17,6 +17,7 @@ import java.{util => ju}
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources.{BaseRelation, TableScan}
 import org.apache.spark.sql.types.StructType
@@ -35,7 +36,8 @@ private[pulsar] class PulsarRelation(
     endingOffset: SpecificPulsarOffset,
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
-    subscriptionNamePrefix: String)
+    subscriptionNamePrefix: String,
+    jsonOptions: JSONOptionsInRead)
   extends BaseRelation with TableScan with Logging {
 
   import PulsarSourceUtils._
@@ -81,7 +83,8 @@ private[pulsar] class PulsarRelation(
       offsetRanges,
       pollTimeoutMs,
       failOnDataLoss,
-      subscriptionNamePrefix
+      subscriptionNamePrefix,
+      jsonOptions
     )
     sqlContext.internalCreateDataFrame(rdd.setName("pulsar"), schema).rdd
   }

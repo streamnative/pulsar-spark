@@ -171,6 +171,9 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
       case SchemaType.AVRO      =>
         val cls = implicitly[ClassTag[T]].runtimeClass
         client.newProducer(Schema.AVRO(cls)).topic(topicName).create().asInstanceOf[Producer[T]]
+      case SchemaType.JSON      =>
+        val cls = implicitly[ClassTag[T]].runtimeClass
+        client.newProducer(Schema.JSON(cls)).topic(topicName).create().asInstanceOf[Producer[T]]
       case _ => throw new NotImplementedError(s"not supported type $tpe")
     }
 

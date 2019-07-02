@@ -22,7 +22,9 @@ import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SaveMode}
+import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
+import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
+import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SaveMode, SparkSession}
 import org.apache.spark.sql.execution.streaming.{Sink, Source}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.sources.v2.reader.streaming.MicroBatchReader
@@ -99,7 +101,8 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
       offset,
       pollTimeoutMs(caseInsensitiveParams),
       failOnDataLoss(caseInsensitiveParams),
-      subscriptionNamePrefix)
+      subscriptionNamePrefix,
+      jsonOptions)
   }
 
   override def createMicroBatchReader(
@@ -129,7 +132,8 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
       offset,
       pollTimeoutMs(caseInsensitiveParams),
       failOnDataLoss(caseInsensitiveParams),
-      subscriptionNamePrefix)
+      subscriptionNamePrefix,
+      jsonOptions)
   }
 
   override def createContinuousReader(
@@ -157,7 +161,8 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
       offset,
       pollTimeoutMs(caseInsensitiveParams),
       failOnDataLoss(caseInsensitiveParams),
-      subscriptionNamePrefix)
+      subscriptionNamePrefix,
+      jsonOptions)
   }
 
   override def createRelation(
@@ -193,7 +198,8 @@ private[pulsar] class PulsarProvider extends DataSourceRegister
       end,
       pollTimeoutMs(caseInsensitiveParams),
       failOnDataLoss(caseInsensitiveParams),
-      subscriptionNamePrefix)
+      subscriptionNamePrefix,
+      jsonOptions)
   }
 
   override def createRelation(
@@ -487,5 +493,13 @@ private[pulsar] object PulsarProvider extends Logging {
       topic,
       adminUrl
     )
+  }
+
+  private def jsonOptions: JSONOptionsInRead = {
+    val spark = SparkSession.getActiveSession.get
+    new JSONOptionsInRead(
+      CaseInsensitiveMap(Map.empty),
+      spark.sessionState.conf.sessionLocalTimeZone,
+      spark.sessionState.conf.columnNameOfCorruptRecord)
   }
 }

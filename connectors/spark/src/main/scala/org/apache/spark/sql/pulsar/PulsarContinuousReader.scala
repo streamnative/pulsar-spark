@@ -24,6 +24,7 @@ import org.apache.pulsar.common.schema.SchemaInfo
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.pulsar.PulsarSourceUtils.{messageIdRoughEquals, reportDataLossFunc}
 import org.apache.spark.sql.sources.v2.reader.{ContinuousInputPartition, InputPartition, InputPartitionReader}
 import org.apache.spark.sql.sources.v2.reader.streaming.{ContinuousInputPartitionReader, ContinuousReader, Offset, PartitionOffset}
@@ -43,7 +44,8 @@ class PulsarContinuousReader(
     initialOffset: SpecificPulsarOffset,
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
-    subscriptionNamePrefix: String) extends ContinuousReader with Logging {
+    subscriptionNamePrefix: String,
+    jsonOptions: JSONOptionsInRead) extends ContinuousReader with Logging {
 
   // Initialized when creating reader factories. If this diverges from the partitions at the latest
   // offsets, we need to reconfigure.
@@ -91,7 +93,7 @@ class PulsarContinuousReader(
       case (topic, start) => {
         new PulsarContinuousTopic(
           topic, new SchemaInfoSerializable(pulsarSchema), start, clientConf, consumerConf,
-          pollTimeoutMs, failOnDataLoss, subscriptionNamePrefix
+          pollTimeoutMs, failOnDataLoss, subscriptionNamePrefix, jsonOptions
         ): InputPartition[InternalRow]
       }
     }.asJava
@@ -129,9 +131,10 @@ private[pulsar] class PulsarContinuousTopic(
     var consumerConf: ju.Map[String, Object],
     var pollTimeoutMs: Int,
     var failOnDataLoss: Boolean,
-    var subscriptionNamePrefix: String) extends ContinuousInputPartition[InternalRow] with Externalizable {
+    var subscriptionNamePrefix: String,
+    var jsonOptions: JSONOptionsInRead) extends ContinuousInputPartition[InternalRow] with Externalizable {
 
-  def this() = this(null, null, null, null, null, 0, false, null) // For deserialization only
+  def this() = this(null, null, null, null, null, 0, false, null, null) // For deserialization only
 
   override def createContinuousReader(
       offset: PartitionOffset): InputPartitionReader[InternalRow] = {
@@ -146,7 +149,8 @@ private[pulsar] class PulsarContinuousTopic(
       consumerConf,
       pollTimeoutMs,
       failOnDataLoss,
-      subscriptionNamePrefix)
+      subscriptionNamePrefix,
+      jsonOptions)
   }
 
   override def createPartitionReader(): InputPartitionReader[InternalRow] = {
@@ -158,7 +162,8 @@ private[pulsar] class PulsarContinuousTopic(
       consumerConf,
       pollTimeoutMs,
       failOnDataLoss,
-      subscriptionNamePrefix)
+      subscriptionNamePrefix,
+      jsonOptions)
   }
 
   override def writeExternal(out: ObjectOutput): Unit = {
@@ -173,6 +178,7 @@ private[pulsar] class PulsarContinuousTopic(
     val bytes = startingOffsets.toByteArray
     out.writeInt(bytes.length)
     out.write(bytes)
+    out.writeObject(jsonOptions)
   }
 
   override def readExternal(in: ObjectInput): Unit = {
@@ -189,6 +195,7 @@ private[pulsar] class PulsarContinuousTopic(
     in.read(bytes)
 
     startingOffsets = MessageId.fromByteArray(bytes)
+    jsonOptions = in.readObject().asInstanceOf[JSONOptionsInRead]
   }
 }
 
@@ -208,11 +215,12 @@ class PulsarContinuousTopicReader(
     consumerConf: ju.Map[String, Object],
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
-    subscriptionNamePrefix: String) extends ContinuousInputPartitionReader[InternalRow] {
+    subscriptionNamePrefix: String,
+    jsonOptions: JSONOptionsInRead) extends ContinuousInputPartitionReader[InternalRow] {
 
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
 
-  private val deserializer = new PulsarDeserializer(schemaInfo.si)
+  private val deserializer = new PulsarDeserializer(schemaInfo.si, jsonOptions)
   private val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
   private val consumer = CachedPulsarClient.getOrCreate(clientConf)
     .newConsumer(schema)
