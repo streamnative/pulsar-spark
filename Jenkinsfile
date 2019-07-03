@@ -44,7 +44,7 @@ export PATH=/usr/lib/jvm/java-1.8.0-openjdk-amd64/bin:$PATH
 javac -version
 java -version
 df -h
-./.jenkins/precommit.sh
+./.jenkins/build.sh
 """
       }
     }
