@@ -21,26 +21,24 @@ import java.util.Date
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
-import org.apache.pulsar.shade.org.apache.avro.{Schema, SchemaBuilder}
-import org.apache.pulsar.shade.org.apache.avro.Schema.Type._
-import org.apache.pulsar.shade.org.apache.avro.LogicalTypes.{TimestampMicros, TimestampMillis}
-import org.apache.pulsar.shade.org.apache.avro.Conversions.DecimalConversion
-import org.apache.pulsar.shade.org.apache.avro.LogicalTypes
-import org.apache.pulsar.shade.org.apache.avro.generic.{GenericData, GenericFixed, GenericRecord}
-import org.apache.pulsar.shade.org.apache.avro.util.Utf8
 
 import org.apache.pulsar.client.api.Message
 import org.apache.pulsar.client.impl.schema.generic.GenericAvroRecord
 import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
 
+import org.apache.pulsar.shade.org.apache.avro.Conversions.DecimalConversion
+import org.apache.pulsar.shade.org.apache.avro.LogicalTypes.{TimestampMicros, TimestampMillis}
+import org.apache.pulsar.shade.org.apache.avro.Schema.Type._
+import org.apache.pulsar.shade.org.apache.avro.generic.{GenericData, GenericFixed, GenericRecord}
+import org.apache.pulsar.shade.org.apache.avro.util.Utf8
+import org.apache.pulsar.shade.org.apache.avro.{LogicalTypes, Schema, SchemaBuilder}
+
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{SpecificInternalRow, UnsafeArrayData}
-import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, ArrayData, DateTimeUtils, GenericArrayData}
 import org.apache.spark.sql.catalyst.json.{CreateJacksonParser, JSONOptionsInRead}
+import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, ArrayData, DateTimeUtils, GenericArrayData}
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.unsafe.types.UTF8String
-
 
 class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRead) {
 

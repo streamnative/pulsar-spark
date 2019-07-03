@@ -16,11 +16,10 @@ package org.apache.spark.sql.pulsar
 import java.util.concurrent.ConcurrentMap
 import java.{util => ju}
 
+import org.scalatest.PrivateMethodTester
+
 import org.apache.pulsar.client.api.PulsarClient
 import org.apache.spark.sql.test.SharedSQLContext
-import org.junit.runner.RunWith
-import org.scalatest.PrivateMethodTester
-import org.scalatest.junit.JUnitRunner
 
 class CachedPulsarClientSuite extends SharedSQLContext with PrivateMethodTester with PulsarTest {
 

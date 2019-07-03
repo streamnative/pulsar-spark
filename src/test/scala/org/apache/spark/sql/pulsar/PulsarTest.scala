@@ -18,20 +18,23 @@ import java.nio.charset.StandardCharsets
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.{Map => JMap}
 
-import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
-import com.google.common.collect.Sets
+import scala.reflect.ClassTag
+
+import org.scalatest.concurrent.Eventually.{eventually, timeout}
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import io.streamnative.tests.pulsar.service.{PulsarService, PulsarServiceFactory, PulsarServiceSpec}
-import org.apache.commons.lang.exception.ExceptionUtils
+
+import com.google.common.collect.Sets
+
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.{MessageId, Producer, PulsarClient, Schema}
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.protocol.schema.PostSchemaPayload
 import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
+
 import org.apache.spark.SparkFunSuite
 import org.apache.spark.util.Utils
-import org.scalatest.concurrent.Eventually.{eventually, timeout}
 
 /**
  * A trait to clean cached Pulsar producers in `afterAll`
@@ -275,8 +278,7 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
         case e: PulsarAdminException if e.getStatusCode == 404 =>
           logError(s"Create schema for ${TopicName.get(topic).toString} got 404")
         case e: Throwable => throw new RuntimeException(
-          s"Failed to create schema for ${TopicName.get(topic).toString}: " +
-            ExceptionUtils.getRootCause(e).getLocalizedMessage, e)
+          s"Failed to create schema for ${TopicName.get(topic).toString}", e)
       }
     }
   }

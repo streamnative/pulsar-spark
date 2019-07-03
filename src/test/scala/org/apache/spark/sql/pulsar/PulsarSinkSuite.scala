@@ -14,26 +14,28 @@
 package org.apache.spark.sql.pulsar
 
 import java.text.SimpleDateFormat
-import java.util.{Date, Locale}
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.{Date, Locale}
 
 import scala.reflect.ClassTag
+
+import org.scalatest.time.SpanSugar._
+
 import org.apache.pulsar.client.api.Schema
 import org.apache.pulsar.common.naming.TopicName
-import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
-import org.scalatest.time.SpanSugar._
+import org.apache.pulsar.common.schema.SchemaInfo
 
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, SpecificInternalRow, UnsafeProjection}
 import org.apache.spark.sql.execution.streaming.MemoryStream
-import org.apache.spark.sql.{AnalysisException, DataFrame, Encoder, Encoders, Row, SaveMode}
-import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, StreamTest, StreamingQuery, StreamingQueryException}
+import org.apache.spark.sql.streaming._
 import org.apache.spark.sql.test.SharedSQLContext
 import org.apache.spark.sql.types.{BinaryType, DataType}
+import org.apache.spark.sql._
 
 class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
-  import testImplicits._
   import PulsarOptions._
   import SchemaData._
+  import testImplicits._
 
   override val streamingTimeout = 30.seconds
 

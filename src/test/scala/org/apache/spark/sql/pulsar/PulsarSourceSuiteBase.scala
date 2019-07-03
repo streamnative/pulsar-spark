@@ -21,14 +21,14 @@ import scala.reflect.ClassTag
 
 import org.apache.pulsar.client.api.Schema
 import org.apache.pulsar.common.schema.SchemaInfo
-import org.apache.spark.sql.{Encoder, Encoders}
 import org.apache.spark.sql.execution.streaming.StreamExecution
+import org.apache.spark.sql.{Encoder, Encoders}
 
 abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
-  import testImplicits._
   import PulsarOptions._
   import PulsarProvider._
   import SchemaData._
+  import testImplicits._
 
   test("cannot stop Pulsar stream") {
     val topic = newTopic()

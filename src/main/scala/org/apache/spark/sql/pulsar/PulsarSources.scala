@@ -13,19 +13,20 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.io.{BufferedWriter, Externalizable, InputStream, InputStreamReader, ObjectInput, ObjectOutput, OutputStream, OutputStreamWriter}
+import java.io._
 import java.nio.charset.StandardCharsets
 
 import org.apache.commons.io.IOUtils
+
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl, TopicMessageIdImpl}
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.{SparkContext, SparkEnv}
 import org.apache.spark.scheduler.ExecutorCacheTaskLocation
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.execution.streaming.{HDFSMetadataLog, SerializedOffset}
 import org.apache.spark.storage.BlockManager
+import org.apache.spark.{SparkContext, SparkEnv}
 
 private[pulsar] object PulsarSourceUtils extends Logging {
   import PulsarOptions._

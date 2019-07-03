@@ -16,29 +16,30 @@ package org.apache.spark.sql.pulsar
 import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.atomic.AtomicInteger
 
-import org.apache.pulsar.client.admin.PulsarAdminException
-
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.Random
 import scala.util.control.NonFatal
-import org.scalatest.time.SpanSugar._
+
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
+import org.scalatest.time.SpanSugar._
+
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaType
+
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.{Dataset, QueryTest}
 import org.apache.spark.sql.catalyst.plans.physical.AllTuples
 import org.apache.spark.sql.catalyst.util.stackTraceToString
 import org.apache.spark.sql.execution.datasources.v2.StreamingDataSourceV2Relation
-import org.apache.spark.sql.execution.streaming.{BaseStreamingSource, MemorySink, MicroBatchExecution, Offset, StatefulOperator, StreamExecution, StreamingExecutionRelation, StreamingQueryWrapper}
 import org.apache.spark.sql.execution.streaming.continuous.ContinuousExecution
 import org.apache.spark.sql.execution.streaming.sources.MemorySinkV2
+import org.apache.spark.sql.execution.streaming._
 import org.apache.spark.sql.streaming.StreamingQueryListener.{QueryProgressEvent, QueryStartedEvent, QueryTerminatedEvent}
 import org.apache.spark.sql.streaming.{OutputMode, StreamTest, StreamingQueryException, StreamingQueryListener}
 import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.{Dataset, QueryTest}
 import org.apache.spark.util.{SystemClock, Utils}
 
 class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest {
