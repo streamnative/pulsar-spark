@@ -23,9 +23,9 @@ cd pulsar-spark
 
 > pulsar-spark is using [testcontainers](https://www.testcontainers.org/) for
 > integration tests. In order to run the integration tests, make sure you
-> have installed [docker](https://docs.docker.com/docker-for-mac/install/)
+> have installed [docker](https://docs.docker.com/docker-for-mac/install/).
 
-Choose scala version:
+Choose a scala version:
 > change `scala.version` and `scala.binary.version` in `pom.xml` 
 > (_scala version should be consistent with the scala version of Spark you use_)
 
@@ -40,7 +40,7 @@ Run the tests:
 ```bash
 mvn clean install
 ```
-Once finished, this is a fat jar generated under your local maven repo as well as `target` dir.
+Once finished, there is a fat jar generated under your local maven repo as well as `target` dir.
 
 ### Linking
 For Scala/Java applications using SBT/Maven project definitions, link your application with the following artifact:
@@ -247,7 +247,7 @@ The following configurations are optional:
 
 #### Schema of Pulsar Source
 For topics without schema or with primitive schema in Pulsar, messages' `value()`
-will be loaded to a field named `value`, with corresponding type with Pulsar schema.
+will be loaded to a field named `value`, with the corresponding type with Pulsar schema.
 
 For topics with Avro or JSON schema, their field names and field types are kept in the result row.
 
@@ -315,7 +315,7 @@ The DataFrame being written to Pulsar can have arbitrary schema, since each reco
 producer.newMessage().key(__key).value(avro_encoded_fields).eventTime(__eventTime)
 ```
 
-### Creating a Pulsar Sink for Streaming Queries
+#### Creating a Pulsar Sink for Streaming Queries
 
 ```scala
 
@@ -337,7 +337,7 @@ val ds = df
   .start()
 ```
 
-### Writing the output of Batch Queries to Pulsar
+#### Writing the output of Batch Queries to Pulsar
 
 ```scala
 
@@ -357,9 +357,9 @@ df.selectExpr("__topic", "CAST(__key AS STRING)", "CAST(value AS STRING)")
   .save()
 ```
 
-### Limitations
+#### Limitations
 
-Currently we provide at least once write semantics. Consequently, when writing --- either Streaming Queries
+Currently, we provide at least once write semantics. Consequently, when writing --- either Streaming Queries
 or Batch Queries --- to Pulsar, some records may be duplicated.
 If writing the query is successful, then you can assume that the query output was written at least once. A possible
 solution to remove duplicates when reading the written data could be to introduce a primary (unique) key 
@@ -370,5 +370,5 @@ that can be used to perform de-duplication when reading.
 
 Pulsar's client/producer/consumer configurations can be set via `DataStreamReader.option` 
 with `pulsar.client.`/`pulsar.producer.`/`pulsar.consumer.` prefix, e.g, 
-`stream.option("pulsar.consumer.ackTimeoutMillis", "10000")`. For possible Pulsar parameters, see 
+`stream.option("pulsar.consumer.ackTimeoutMillis", "10000")`. For possible Pulsar parameters, check docs at 
 [Pulsar client libraries](https://pulsar.apache.org/docs/en/client-libraries/).
