@@ -23,10 +23,9 @@
   </parent>
 
   <groupId>io.streamnative.connectors</groupId>
-  <artifactId>pulsar-spark-parent</artifactId>
+  <artifactId>pulsar-spark-connector</artifactId>
   <version>0.0.1.6-SNAPSHOT</version>
-  <packaging>pom</packaging>
-  <name>StreamNative :: Pulsar Connectors :: Spark</name>
+  <name>StreamNative :: Pulsar Spark Connector</name>
   <url>http://pulsar.apache.org</url>
   <inceptionYear>2019</inceptionYear>
   <licenses>
@@ -46,10 +45,6 @@
     <system>Github</system>
     <url>https://github.com/streamnative/pulsar-spark/issues</url>
   </issueManagement>
-  <modules>
-    <module>spark</module>
-    <module>spark-all</module>
-  </modules>
   <developers>
     <developer>
       <organization>StreamNative developers</organization>
@@ -257,6 +252,117 @@
       <artifactId>powermock-module-junit4</artifactId>
       <scope>test</scope>
     </dependency>
+
+    <!-- pulsar dependency -->
+    <dependency>
+      <groupId>org.apache.pulsar</groupId>
+      <artifactId>pulsar-client-all</artifactId>
+      <version>${pulsar.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-all</artifactId>
+      <version>${netty.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- spark dependency -->
+
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-sql_${scala.binary.version}</artifactId>
+      <scope>provided</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>io.netty</groupId>
+          <artifactId>netty-all</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-tags_${scala.binary.version}</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-unsafe_${scala.binary.version}</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.streamnative.tests</groupId>
+      <artifactId>framework-common</artifactId>
+      <version>${streamnative-tests.version}</version>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>io.netty</groupId>
+          <artifactId>netty-common</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>io.streamnative.tests</groupId>
+      <artifactId>framework-pulsar</artifactId>
+      <version>${streamnative-tests.version}</version>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.pulsar</groupId>
+          <artifactId>pulsar-client-original</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.apache.pulsar</groupId>
+          <artifactId>pulsar-client-admin-original</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-catalyst_${scala.binary.version}</artifactId>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-core_${scala.binary.version}</artifactId>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>io.netty</groupId>
+          <artifactId>netty-all</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-sql_${scala.binary.version}</artifactId>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>io.netty</groupId>
+          <artifactId>netty-all</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-tags_${scala.binary.version}</artifactId>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.scalacheck</groupId>
+      <artifactId>scalacheck_${scala.binary.version}</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.scalatest</groupId>
+      <artifactId>scalatest_${scala.binary.version}</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -308,6 +414,7 @@
         <version>${spotbugs-maven-plugin.version}</version>
         <configuration>
           <excludeFilterFile>${session.executionRootDirectory}/src/resources/streamnative/findbugsExclude.xml</excludeFilterFile>
+          <skip>true</skip>
         </configuration>
       </plugin>
       <plugin>
@@ -323,18 +430,6 @@
             <!-- https://issues.apache.org/jira/browse/MCOMPILER-205 -->
             <compilerArg>-Xpkginfo:always</compilerArg>
 	      </compilerArgs>
-        </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <version>${maven-surefire-plugin.version}</version>
-        <configuration>
-          <argLine>-Xmx2G -Djava.net.preferIPv4Stack=true -Dio.netty.leakDetection.level=paranoid</argLine>
-          <redirectTestOutputToFile>${redirectTestOutputToFile}</redirectTestOutputToFile>
-          <reuseForks>false</reuseForks>
-          <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
-          <rerunFailingTestsCount>${testRetryCount}</rerunFailingTestsCount>
         </configuration>
       </plugin>
       <!-- disable source plugin
@@ -441,8 +536,78 @@
         <configuration>
           <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
           <junitxml>.</junitxml>
-          <filereports>scalatest.txt</filereports>
+          <filereports>WDF TestSuite.txt</filereports>
+          <systemProperties>
+            <log4j.configuration>${project.basedir}/src/test/resources/log4j.properties</log4j.configuration>
+          </systemProperties>
         </configuration>
+        <executions>
+          <execution>
+            <id>test</id>
+            <goals>
+              <goal>test</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <!-- Shade all the dependencies to avoid conflicts -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>${maven-shade-plugin.version}</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <createDependencyReducedPom>true</createDependencyReducedPom>
+              <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
+              <minimizeJar>false</minimizeJar>
+
+              <artifactSet>
+                <includes>
+                  <include>com.github.luben:*</include>
+                  <include>javax.*:*</include>
+                  <include>org.apache.pulsar*:*</include>
+                  <include>org.bouncycastle*:*</include>
+                  <include>org.lz4*:*</include>
+                </includes>
+              </artifactSet>
+              <filters>
+                <filter>
+                  <artifact>io.streamnative.connectors:pulsar-spark-connector_${scala.binary.version}</artifact>
+                  <includes>
+                    <include>**</include>
+                  </includes>
+                </filter>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+              <relocations>
+                <relocation>
+                  <pattern>com.google</pattern>
+                  <shadedPattern>org.apache.pulsar.shade.com.google</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.commons</pattern>
+                  <shadedPattern>org.apache.pulsar.shade.org.apache.commons</shadedPattern>
+                </relocation>
+              </relocations>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                <transformer implementation="org.apache.maven.plugins.shade.resource.PluginXmlResourceTransformer" />
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
