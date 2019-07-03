@@ -29,7 +29,7 @@ cd pulsar-spark
 
 3. Set a Scala version.
 > Change `scala.version` and `scala.binary.version` in `pom.xml`.
-#### Note
+> #### Note
 > Scala version should be consistent with the Scala version of Spark you use.
 
 4. Build the project.
@@ -48,9 +48,11 @@ Once the installation is finished, there is a fat jar generated under both local
 ### Link
 * For Scala/Java applications using SBT/Maven project definitions, link your application with the following artifact:
 
+```
     groupId = io.streamnative.connectors
     artifactId = pulsar-spark-connector_{{SCALA_BINARY_VERSION}}
     version = {{PULSAR_SPARK_VERSION}}
+```
 
 * For Python applications, you need to add this above library and its dependencies when deploying your
 application. For more information, see [Deploy](#deploy) subsection below.
@@ -171,33 +173,33 @@ for both batch and streaming queries.
 <table class="table">
 <tr><th>Option</th><th>Value</th><th>Description</th></tr>
 <tr>
-  <td>topic</td>
+  <td>`topic`</td>
   <td>A topic name string</td>
   <td>The topic to be consumed.
   Only one of `topic`, `topics` or `topicsPattern`
   options can be specified for Pulsar source.</td>
 </tr>
 <tr>
-  <td>topics</td>
+  <td>`topics`</td>
   <td>A comma-separated list of topics</td>
   <td>The topic list to be consumed.
   Only one of `topic`, `topics` or `topicsPattern`
   options can be specified for Pulsar source.</td>
 </tr>
 <tr>
-  <td>topicsPattern</td>
+  <td>`topicsPattern`</td>
   <td>A Java regex string</td>
   <td>The pattern used to subscribe to topic(s).
   Only one of `topic`, `topics` or `topicsPattern`
   options can be specified for Pulsar source.</td>
 </tr>
 <tr>
-  <td>service.url</td>
+  <td>`service.url`</td>
   <td>A service URL of your Pulsar cluster</td>
   <td>The Pulsar `serviceUrl` configuration.</td>
 </tr>
 <tr>
-  <td>admin.url</td>
+  <td>`admin.url`</td>
   <td>A service HTTP URL of your Pulsar cluster</td>
   <td>The Pulsar `serviceHttpUrl` configuration.</td>
 </tr>
