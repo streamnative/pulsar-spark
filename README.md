@@ -7,54 +7,57 @@ Unified data processing with [Apache Pulsar](https://pulsar.apache.org) and [Apa
 
 ## Prerequisites
 
-- Java 8+
-- Spark 2.4.0+
-- Pulsar 2.4.0+
+- Java 8 or later
+- Spark 2.4.0 or later
+- Pulsar 2.4.0 or later
 
 ## Preparations
-### Building Spark Pulsar Connector By Yourself
+### Build Spark Pulsar Connector
 
-Checkout the source code:
+1. Checkout the source code.
 
 ```bash
 git clone https://github.com/streamnative/pulsar-spark.git
 cd pulsar-spark
 ```
 
-> pulsar-spark is using [testcontainers](https://www.testcontainers.org/) for
+2. Install Docker.
+
+> Pulsar-spark connector is using [testcontainers](https://www.testcontainers.org/) for
 > integration tests. In order to run the integration tests, make sure you
 > have installed [docker](https://docs.docker.com/docker-for-mac/install/).
 
-Choose a scala version:
-> change `scala.version` and `scala.binary.version` in `pom.xml` 
-> (_scala version should be consistent with the scala version of Spark you use_)
+3. Set a Scala version.
+> Change `scala.version` and `scala.binary.version` in `pom.xml`.
+#### Note
+> Scala version should be consistent with the Scala version of Spark you use.
 
-Build the project:
+4. Build the project.
 
 ```bash
 mvn clean install -DskipTests
 ```
 
-Run the tests:
+5. Run the tests.
 
 ```bash
 mvn clean install
 ```
-Once finished, there is a fat jar generated under your local maven repo as well as `target` dir.
+Once the installation is finished, there is a fat jar generated under both local maven repo and `target` directory.
 
-### Linking
-For Scala/Java applications using SBT/Maven project definitions, link your application with the following artifact:
+### Link
+* For Scala/Java applications using SBT/Maven project definitions, link your application with the following artifact:
 
     groupId = io.streamnative.connectors
     artifactId = pulsar-spark-connector_{{SCALA_BINARY_VERSION}}
     version = {{PULSAR_SPARK_VERSION}}
 
-For Python applications, you need to add this above library and its dependencies when deploying your
-application. See the [Deploying](#deploying) subsection below.
+* For Python applications, you need to add this above library and its dependencies when deploying your
+application. For more information, see [Deploy](#deploy) subsection below.
 
 For experimenting on `spark-shell`, you need to add this above library and its dependencies too when invoking `spark-shell`. Also, see the [Deploying](#deploying) subsection below.
 
-### Deploying
+### Deploy
 
 As with any Spark applications, `spark-submit` is used to launch your application. `pulsar-spark-connector_{{SCALA_BINARY_VERSION}}`
 and its dependencies can be directly added to `spark-submit` using `--packages`, such as,
@@ -68,14 +71,13 @@ For experimenting on `spark-shell`, you can also use `--packages` to add `pulsar
 A little more information: `--packages` option will search the local maven repo, then maven central and any additional remote
 repositories given by `--repositories`. The format for the coordinates should be groupId:artifactId:version.
 
-See [Application Submission Guide](https://spark.apache.org/docs/latest/submitting-applications.html) for more details about submitting
-applications with external dependencies.
+For more information about **submitting applications with external dependencies**, see [Application Submission Guide](https://spark.apache.org/docs/latest/submitting-applications.html). 
 
 ## Usage
 
-### Reading Data from Pulsar
+### Read data from Pulsar
 
-#### Creating a Pulsar Source for Streaming Queries
+#### Create a Pulsar source for streaming queries
 
 ```scala
 // Subscribe to 1 topic
@@ -112,11 +114,11 @@ df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
   .as[(String, String)]
 
 ```
-_Note: to use other language bindings for Spark Structured Streaming, 
-refer to [Structured Streaming Programming Guide](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html) 
-for more examples. We'll only show the scala code here as an example._
+> #### Tip
+> For more information on how to use other language bindings for Spark Structured Streaming, 
+> see [Structured Streaming Programming Guide](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html).
 
-#### Creating a Pulsar Source for Batch Queries 
+#### Create a Pulsar source for batch queries 
 If you have a use case that is better suited to batch processing,
 you can create a Dataset/DataFrame for a defined range of offsets.
 
@@ -167,46 +169,46 @@ The following options must be set for the Pulsar source
 for both batch and streaming queries.
 
 <table class="table">
-<tr><th>Option</th><th>value</th><th>meaning</th></tr>
+<tr><th>Option</th><th>Value</th><th>Description</th></tr>
 <tr>
   <td>topic</td>
   <td>A topic name string</td>
-  <td>Specific Topic to consume.
-  Only one of "topic", "topics" or "topicsPattern"
+  <td>The topic to be consumed.
+  Only one of `topic`, `topics` or `topicsPattern`
   options can be specified for Pulsar source.</td>
 </tr>
 <tr>
   <td>topics</td>
   <td>A comma-separated list of topics</td>
-  <td>The topic list to consume.
-  Only one of "topic", "topics" or "topicsPattern"
+  <td>The topic list to be consumed.
+  Only one of `topic`, `topics` or `topicsPattern`
   options can be specified for Pulsar source.</td>
 </tr>
 <tr>
   <td>topicsPattern</td>
-  <td>Java regex string</td>
+  <td>A Java regex string</td>
   <td>The pattern used to subscribe to topic(s).
-  Only one of "topic", "topics" or "topicsPattern"
+  Only one of `topic`, `topics` or `topicsPattern`
   options can be specified for Pulsar source.</td>
 </tr>
 <tr>
   <td>service.url</td>
-  <td>The service url of your Pulsar cluster</td>
-  <td>The Pulsar "serviceUrl" configuration.</td>
+  <td>A service URL of your Pulsar cluster</td>
+  <td>The Pulsar `serviceUrl` configuration.</td>
 </tr>
 <tr>
   <td>admin.url</td>
-  <td>The service http url of your Pulsar cluster</td>
-  <td>The Pulsar "serviceHttpUrl" configuration.</td>
+  <td>A service HTTP URL of your Pulsar cluster</td>
+  <td>The Pulsar `serviceHttpUrl` configuration.</td>
 </tr>
 </table>
 
-The following configurations are optional:
+The following configurations are optional.
 
 <table class="table">
-<tr><th>Option</th><th>value</th><th>default</th><th>query type</th><th>meaning</th></tr>
+<tr><th>Option</th><th>Value</th><th>Default</th><th>Query Type</th><th>Description</th></tr>
 <tr>
-  <td>startingOffsets</td>
+  <td>`startingOffsets`</td>
   <td>"earliest", "latest" (streaming only), or json string
   """ {"topic-1":[8,11,16,101,24,1,32,1],"topic-5":[8,15,16,105,24,5,32,5]} """
   </td>
@@ -223,7 +225,7 @@ The following configurations are optional:
   earliest.</td>
 </tr>
 <tr>
-  <td>endingOffsets</td>
+  <td>`endingOffsets`</td>
   <td>latest or json string
   {"topic-1":[8,12,16,102,24,2,32,2],"topic-5":[8,16,16,106,24,6,32,6]}
   </td>
@@ -234,7 +236,7 @@ The following configurations are optional:
   In json, MessageId.earliest ([8,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,16,-1,-1,-1,-1,-1,-1,-1,-1,-1,1]) as an offset is not allowed.</td>
 </tr>
 <tr>
-  <td>failOnDataLoss</td>
+  <td>`failOnDataLoss`</td>
   <td>true or false</td>
   <td>true</td>
   <td>streaming query</td>
@@ -245,7 +247,7 @@ The following configurations are optional:
 </tr>
 </table>
 
-#### Schema of Pulsar Source
+#### Schema of Pulsar source
 For topics without schema or with primitive schema in Pulsar, messages' `value()`
 will be loaded to a field named `value`, with the corresponding type with Pulsar schema.
 
@@ -255,23 +257,23 @@ Besides, each row in the source has the following metadata fields as well:
 <table class="table">
 <tr><th>Column</th><th>Type</th></tr>
 <tr>
-  <td>__key</td>
+  <td>`__key`</td>
   <td>Binary</td>
 </tr>
 <tr>
-  <td>__topic</td>
+  <td>`__topic`</td>
   <td>String</td>
 </tr>
 <tr>
-  <td>__messageId</td>
+  <td>`__messageId`</td>
   <td>Binary</td>
 </tr>
 <tr>
-  <td>__publishTime</td>
+  <td>`__publishTime`</td>
   <td>Timestamp</td>
 </tr>
 <tr>
-  <td>__eventTime</td>
+  <td>`__eventTime`</td>
   <td>Timestamp</td>
 </tr>
 </table>
@@ -308,14 +310,14 @@ root
  |-- __eventTime: timestamp (nullable = true)
  ```
 
-### Writing Data to Pulsar
+### Write data to Pulsar
 
 The DataFrame being written to Pulsar can have arbitrary schema, since each record in DataFrame are transformed as one message send to Pulsar, it's fields are divided into two groups: fields named `__key` and `__eventTime` are encoded as Pulsar message's metadata; other fields are grouped and encoded using AVRO and put in `value()`:
 ```scala
 producer.newMessage().key(__key).value(avro_encoded_fields).eventTime(__eventTime)
 ```
 
-#### Creating a Pulsar Sink for Streaming Queries
+#### Create a Pulsar sink for streaming queries
 
 ```scala
 
@@ -337,7 +339,7 @@ val ds = df
   .start()
 ```
 
-#### Writing the output of Batch Queries to Pulsar
+#### Write the output of batch queries to Pulsar
 
 ```scala
 
@@ -366,7 +368,7 @@ solution to remove duplicates when reading the written data could be to introduc
 that can be used to perform de-duplication when reading.
 
 
-### Pulsar Specific Configurations
+### Pulsar specific configurations
 
 Pulsar's client/producer/consumer configurations can be set via `DataStreamReader.option` 
 with `pulsar.client.`/`pulsar.producer.`/`pulsar.consumer.` prefix, e.g, 
