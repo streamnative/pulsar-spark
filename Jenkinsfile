@@ -44,10 +44,7 @@ export PATH=/usr/lib/jvm/java-1.8.0-openjdk-amd64/bin:$PATH
 javac -version
 java -version
 df -h
-mvn clean license:check checkstyle:check install spotbugs:check
-retcode=$?
-cat connectors/spark/target/surefire-reports/TestSuite.txt
-exit $retcode
+./.jenkins/precommit.sh
 """
       }
     }
