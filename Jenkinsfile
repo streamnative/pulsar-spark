@@ -45,6 +45,7 @@ javac -version
 java -version
 df -h
 mvn clean license:check checkstyle:check install spotbugs:check
+cat connectors/spark/target/surefire-reports/TestSuite.txt
 """
       }
     }
