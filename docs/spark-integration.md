@@ -5,7 +5,7 @@ Structured Streaming integration for Spark 2.4.0+ with Pulsar 2.3.1+ to read dat
 ## Build Pulsar-Spark Connector Jar By Yourself
 
 In order to use Pulsar in Spark, you need to build the fat jar of pulsar-spark connector.
-Clone the psegment repo, changing the `scala.version` and `scala.binary.version` 
+Clone the pulsar-spark repo, changing the `scala.version` and `scala.binary.version` 
 (_scala version should be consistent with the scala version of Spark you use_) in `pom.xml` 
 and build the fat jar using following command.
 
@@ -18,9 +18,9 @@ Once it finishes, there is a `-all` fat jar generated under your local maven rep
 ## Linking
 For Scala/Java applications using SBT/Maven project definitions, link your application with the following artifact:
 
-    groupId = org.apache.pulsar.segment
-    artifactId = psegment-connectors-spark-all_{{SCALA_BINARY_VERSION}}
-    version = {{PSEGMENT_VERSION}}
+    groupId = io.streamnative.connectors
+    artifactId = pulsar-spark-connector-all_{{SCALA_BINARY_VERSION}}
+    version = {{PULSAR_SPARK_VERSION}}
 
 For Python applications, you need to add this above library and its dependencies when deploying your
 application. See the [Deploying](#deploying) subsection below.
@@ -343,14 +343,14 @@ with `pulsar.client.`/`pulsar.producer.`/`pulsar.consumer.` prefix, e.g,
 
 ## Deploying
 
-As with any Spark applications, `spark-submit` is used to launch your application. `psegment-connectors-spark-all_{{SCALA_BINARY_VERSION}}`
+As with any Spark applications, `spark-submit` is used to launch your application. `pulsar-spark-connector-all_{{SCALA_BINARY_VERSION}}`
 and its dependencies can be directly added to `spark-submit` using `--packages`, such as,
 
-    ./bin/spark-submit --packages org.apache.pulsar.segment:psegment-connectors-spark-all_{{SCALA_BINARY_VERSION}}:{{PSEGMENT_VERSION}} ...
+    ./bin/spark-submit --packages io.streamnative.connectors:pulsar-spark-connector-all_{{SCALA_BINARY_VERSION}}:{{PULSAR_SPARK_VERSION}} ...
 
-For experimenting on `spark-shell`, you can also use `--packages` to add `psegment-connectors-spark-all_{{SCALA_BINARY_VERSION}}` and its dependencies directly,
+For experimenting on `spark-shell`, you can also use `--packages` to add `pulsar-spark-connector-all_{{SCALA_BINARY_VERSION}}` and its dependencies directly,
 
-    ./bin/spark-shell --packages org.apache.pulsar.segment:psegment-connectors-spark-all_{{SCALA_BINARY_VERSION}}:{{PSEGMENT_VERSION}} ...
+    ./bin/spark-shell --packages io.streamnative.connectors:pulsar-spark-connector-all_{{SCALA_BINARY_VERSION}}:{{PULSAR_SPARK_VERSION}} ...
     
 A little more information: `--packages` option will search the local maven repo, then maven central and any additional remote
 repositories given by `--repositories`. The format for the coordinates should be groupId:artifactId:version.

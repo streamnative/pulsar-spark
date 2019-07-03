@@ -12,8 +12,6 @@
 # limitations under the License.
 #
 
-# Build the website into a docker image
-
 set -e
 
 JENKINS_DIR=`dirname "$0"`
@@ -22,3 +20,6 @@ PRJ_HOME=`cd ${JENKINS_DIR}/..;pwd`
 cd ${PRJ_HOME}
 
 mvn clean license:check checkstyle:check install spotbugs:check
+retcode=$?
+cat connectors/spark/target/surefire-reports/TestSuite.txt
+exit $retcode

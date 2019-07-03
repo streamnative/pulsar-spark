@@ -17,12 +17,12 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>org.apache.pulsar.segment</groupId>
-    <artifactId>psegment-connectors-parent</artifactId>
+    <groupId>io.streamnative.connectors</groupId>
+    <artifactId>spark-parent</artifactId>
     <version>0.0.1.6-SNAPSHOT</version>
   </parent>
-  <artifactId>psegment-connectors-spark_${scala.binary.version}</artifactId>
-  <name>PSegment :: Connectors :: Spark</name>
+  <artifactId>pulsar-spark-connector_${scala.binary.version}</artifactId>
+  <name>StreamNative :: Pulsar Spark Integration :: Spark :: Connector</name>
   <dependencies>
     <dependency>
       <groupId>org.apache.pulsar</groupId>
@@ -30,9 +30,21 @@
       <version>${pulsar.version}</version>
     </dependency>
     <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-all</artifactId>
+      <version>${netty.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-sql_${scala.binary.version}</artifactId>
       <scope>provided</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>io.netty</groupId>
+          <artifactId>netty-all</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
@@ -45,16 +57,16 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>org.apache.pulsar.segment</groupId>
-      <artifactId>psegment-test-pulsar-common</artifactId>
-      <version>${project.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
       <groupId>io.streamnative.tests</groupId>
       <artifactId>framework-common</artifactId>
       <version>${streamnative-tests.version}</version>
       <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>io.netty</groupId>
+          <artifactId>netty-common</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.streamnative.tests</groupId>
@@ -83,12 +95,24 @@
       <artifactId>spark-core_${scala.binary.version}</artifactId>
       <classifier>tests</classifier>
       <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>io.netty</groupId>
+          <artifactId>netty-all</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-sql_${scala.binary.version}</artifactId>
       <classifier>tests</classifier>
       <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>io.netty</groupId>
+          <artifactId>netty-all</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
