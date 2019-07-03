@@ -26,7 +26,7 @@
   <artifactId>pulsar-spark-parent</artifactId>
   <version>0.0.1.6-SNAPSHOT</version>
   <packaging>pom</packaging>
-  <name>StreamNative :: Pulsar Spark Integration :: Parent</name>
+  <name>StreamNative :: Pulsar Connectors :: Spark</name>
   <url>http://pulsar.apache.org</url>
   <inceptionYear>2019</inceptionYear>
   <licenses>
@@ -47,8 +47,8 @@
     <url>https://github.com/streamnative/pulsar-spark/issues</url>
   </issueManagement>
   <modules>
-    <module>buildtools</module>
-    <module>connectors</module>
+    <module>spark</module>
+    <module>spark-all</module>
   </modules>
   <developers>
     <developer>
@@ -281,8 +281,8 @@
             </dependency>
           </dependencies>
           <configuration>
-            <configLocation>buildtools/src/main/resources/streamnative/checkstyle.xml</configLocation>
-            <suppressionsLocation>buildtools/src/main/resources/streamnative/suppressions.xml</suppressionsLocation>
+            <configLocation>src/resources/streamnative/checkstyle.xml</configLocation>
+            <suppressionsLocation>src/resources/streamnative/suppressions.xml</suppressionsLocation>
             <encoding>UTF-8</encoding>
             <consoleOutput>true</consoleOutput>
             <failOnViolation>true</failOnViolation>
@@ -307,7 +307,7 @@
         <artifactId>spotbugs-maven-plugin</artifactId>
         <version>${spotbugs-maven-plugin.version}</version>
         <configuration>
-          <excludeFilterFile>${session.executionRootDirectory}/buildtools/src/main/resources/streamnative/findbugsExclude.xml</excludeFilterFile>
+          <excludeFilterFile>${session.executionRootDirectory}/src/resources/streamnative/findbugsExclude.xml</excludeFilterFile>
         </configuration>
       </plugin>
       <plugin>

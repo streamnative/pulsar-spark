@@ -18,11 +18,11 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>io.streamnative.connectors</groupId>
-    <artifactId>spark-parent</artifactId>
+    <artifactId>pulsar-spark-parent</artifactId>
     <version>0.0.1.6-SNAPSHOT</version>
   </parent>
   <artifactId>pulsar-spark-connector_${scala.binary.version}</artifactId>
-  <name>StreamNative :: Pulsar Spark Integration :: Spark :: Connector</name>
+  <name>StreamNative :: Pulsar Connectors :: Spark :: Implementation</name>
   <dependencies>
     <dependency>
       <groupId>org.apache.pulsar</groupId>
