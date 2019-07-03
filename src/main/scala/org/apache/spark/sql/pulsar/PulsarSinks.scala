@@ -13,18 +13,18 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.{util => ju}
 import java.util.concurrent.TimeUnit
+import java.{util => ju}
 
 import org.apache.pulsar.client.api.{Producer, Schema}
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SparkSession}
 import org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Literal}
 import org.apache.spark.sql.execution.QueryExecution
 import org.apache.spark.sql.execution.streaming.Sink
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SparkSession}
 import org.apache.spark.util.Utils
 
 private[pulsar] class PulsarSink(

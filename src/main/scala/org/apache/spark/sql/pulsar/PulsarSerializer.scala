@@ -18,16 +18,16 @@ import java.util
 
 import scala.collection.JavaConverters._
 
+import org.apache.pulsar.client.api.schema.Field
+import org.apache.pulsar.client.impl.schema.generic.GenericAvroRecord
+
 import org.apache.pulsar.shade.org.apache.avro.Conversions.DecimalConversion
 import org.apache.pulsar.shade.org.apache.avro.LogicalTypes.{TimestampMicros, TimestampMillis}
-import org.apache.pulsar.shade.org.apache.avro.{LogicalTypes, Schema => ASchema}
 import org.apache.pulsar.shade.org.apache.avro.Schema.Type
 import org.apache.pulsar.shade.org.apache.avro.Schema.Type._
 import org.apache.pulsar.shade.org.apache.avro.generic.GenericData.EnumSymbol
 import org.apache.pulsar.shade.org.apache.avro.util.Utf8
-
-import org.apache.pulsar.client.api.schema.Field
-import org.apache.pulsar.client.impl.schema.generic.GenericAvroRecord
+import org.apache.pulsar.shade.org.apache.avro.{LogicalTypes, Schema => ASchema}
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters

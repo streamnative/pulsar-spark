@@ -19,7 +19,6 @@ import java.util.{Optional, UUID}
 import java.util.regex.Pattern
 import java.{util => ju}
 
-import org.apache.commons.lang.exception.ExceptionUtils
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.{Message, MessageId, PulsarClient, SubscriptionType}
 import org.apache.pulsar.client.impl.schema.BytesSchema
@@ -64,8 +63,7 @@ private[pulsar] case class PulsarMetadataReader(
         admin.topics().createSubscription(tp, s"$driverGroupIdPrefix-$tp", mid)
       } catch {
         case e: Throwable =>
-          throw new RuntimeException(s"Failed to create schema for ${TopicName.get(tp).toString}: " +
-            ExceptionUtils.getRootCause(e).getLocalizedMessage, e)
+          throw new RuntimeException(s"Failed to create schema for ${TopicName.get(tp).toString}", e)
       }
     }
   }
@@ -78,8 +76,7 @@ private[pulsar] case class PulsarMetadataReader(
         case e: PulsarAdminException if e.getStatusCode == 404 || e.getStatusCode == 412 =>
           logInfo(s"Cannot commit cursor since the topic $tp has been deleted during execution.")
         case e: Throwable =>
-          throw new RuntimeException(s"Failed to commit cursor for ${TopicName.get(tp).toString}: " +
-            ExceptionUtils.getRootCause(e).getLocalizedMessage, e)
+          throw new RuntimeException(s"Failed to commit cursor for ${TopicName.get(tp).toString}", e)
       }
     }
   }
@@ -93,8 +90,7 @@ private[pulsar] case class PulsarMetadataReader(
         case e: PulsarAdminException if e.getStatusCode == 404 =>
           logInfo(s"Cannot remove cursor since the topic $tp has been deleted during execution.")
         case e: Throwable =>
-          throw new RuntimeException(s"Failed to remove cursor for ${TopicName.get(tp).toString}: " +
-            ExceptionUtils.getRootCause(e).getLocalizedMessage, e)
+          throw new RuntimeException(s"Failed to remove cursor for ${TopicName.get(tp).toString}", e)
       }
     }
   }
@@ -142,8 +138,7 @@ private[pulsar] case class PulsarMetadataReader(
       case e: PulsarAdminException if e.getStatusCode == 404 =>
         return BytesSchema.of().getSchemaInfo
       case e: Throwable => throw new RuntimeException(
-        s"Failed to get schema information for ${TopicName.get(topic).toString}: " +
-          ExceptionUtils.getRootCause(e).getLocalizedMessage, e)
+        s"Failed to get schema information for ${TopicName.get(topic).toString}", e)
     }
   }
 
@@ -158,8 +153,7 @@ private[pulsar] case class PulsarMetadataReader(
             case e: PulsarAdminException if e.getStatusCode == 404 =>
               MessageId.earliest
             case e: Throwable => throw new RuntimeException(
-              s"Failed to get last messageId for ${TopicName.get(tp).toString}: " +
-                ExceptionUtils.getRootCause(e).getLocalizedMessage, e)
+              s"Failed to get last messageId for ${TopicName.get(tp).toString}", e)
           }
         ))
       }.toMap)
@@ -172,8 +166,7 @@ private[pulsar] case class PulsarMetadataReader(
       case e: PulsarAdminException if e.getStatusCode == 404 =>
         MessageId.earliest
       case e: Throwable => throw new RuntimeException(
-        s"Failed to get last messageId for ${TopicName.get(topic).toString}: " +
-          ExceptionUtils.getRootCause(e).getLocalizedMessage, e)
+        s"Failed to get last messageId for ${TopicName.get(topic).toString}", e)
     })
   }
 

@@ -19,8 +19,8 @@ import org.apache.spark.sql.execution.datasources.v2.StreamingDataSourceV2Relati
 class PulsarContinuousSourceSuite extends PulsarSourceSuiteBase with PulsarContinuousTest
 
 class PulsarContinuousSourceTopicDeletionSuite extends PulsarContinuousTest {
-  import testImplicits._
   import PulsarOptions._
+  import testImplicits._
 
   test("subscribing topic by pattern with topic deletions") {
     val topicPrefix = newTopic()

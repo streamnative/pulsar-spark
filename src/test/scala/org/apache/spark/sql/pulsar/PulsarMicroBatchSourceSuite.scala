@@ -80,10 +80,8 @@ class PulsarMicroBatchV2SourceSuite extends PulsarMicroBatchSourceSuiteBase {
 }
 
 abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
-
-  import testImplicits._
   import PulsarOptions._
-  import PulsarSourceUtils._
+  import testImplicits._
 
   test("(de)serialization of initial offsets") {
     val topic = newTopic()

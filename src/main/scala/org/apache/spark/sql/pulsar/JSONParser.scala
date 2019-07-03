@@ -16,9 +16,11 @@ package org.apache.spark.sql.pulsar
 import java.io.{ByteArrayOutputStream, CharConversionException}
 import java.nio.charset.MalformedInputException
 
-import scala.util.Try
 import scala.collection.mutable.ArrayBuffer
+import scala.util.Try
+
 import com.fasterxml.jackson.core._
+
 import org.apache.spark.SparkException
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
@@ -28,7 +30,6 @@ import org.apache.spark.sql.catalyst.util._
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 import org.apache.spark.util.Utils
-
 
 private[sql] object CreateJacksonRecordParser extends Serializable {
 

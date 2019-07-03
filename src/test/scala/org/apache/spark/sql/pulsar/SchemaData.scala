@@ -14,8 +14,8 @@
 package org.apache.spark.sql.pulsar
 
 import java.sql.Timestamp
-import java.util.Date
 import java.util
+import java.util.Date
 
 import scala.beans.BeanProperty
 import scala.collection.JavaConverters._

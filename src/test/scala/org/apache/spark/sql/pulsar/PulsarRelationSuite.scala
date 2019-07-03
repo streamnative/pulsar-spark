@@ -14,21 +14,22 @@
 package org.apache.spark.sql.pulsar
 
 import java.text.SimpleDateFormat
-import java.util.{Date, Locale}
 import java.util.concurrent.atomic.AtomicInteger
-
-import org.apache.pulsar.client.api.{Consumer, Message, MessageId, PulsarClient, Schema}
-import org.apache.pulsar.common.naming.TopicName
-import org.apache.pulsar.common.schema.SchemaType
-import org.apache.spark.sql.{DataFrame, Encoder, Encoders, QueryTest}
-import org.apache.spark.sql.test.SharedSQLContext
+import java.util.{Date, Locale}
 
 import scala.reflect.ClassTag
 
+import org.apache.pulsar.client.api.MessageId
+import org.apache.pulsar.common.naming.TopicName
+import org.apache.pulsar.common.schema.SchemaType
+
+import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.{DataFrame, Encoder, Encoders, QueryTest}
+
 class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTest {
-  import testImplicits._
   import PulsarOptions._
   import SchemaData._
+  import testImplicits._
 
   private val topicId = new AtomicInteger(0)
   private def newTopic(): String = TopicName.get(s"topic-${topicId.getAndIncrement()}").toString

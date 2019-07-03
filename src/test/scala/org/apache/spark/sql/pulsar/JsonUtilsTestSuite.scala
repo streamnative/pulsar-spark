@@ -13,12 +13,12 @@
  */
 package org.apache.spark.sql.pulsar
 
+import org.scalatest.BeforeAndAfterEach
+
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
+
 import org.apache.spark.SparkFunSuite
-import org.junit.runner.RunWith
-import org.scalatest.BeforeAndAfterEach
-import org.scalatest.junit.JUnitRunner
 
 class JsonUtilsTestSuite extends SparkFunSuite with BeforeAndAfterEach {
 

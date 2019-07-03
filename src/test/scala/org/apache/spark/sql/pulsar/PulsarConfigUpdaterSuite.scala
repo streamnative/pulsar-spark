@@ -14,9 +14,7 @@
 package org.apache.spark.sql.pulsar
 
 import org.apache.spark.SparkFunSuite
-import org.junit.runner.RunWith
 import org.scalatest.BeforeAndAfterEach
-import org.scalatest.junit.JUnitRunner
 
 class PulsarConfigUpdaterSuite extends SparkFunSuite with BeforeAndAfterEach {
   private val testModule = "testModule"

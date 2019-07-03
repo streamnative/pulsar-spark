@@ -21,12 +21,12 @@ import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.{Message, MessageId, Schema, SubscriptionType}
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
 
-import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.pulsar.PulsarSourceUtils._
 import org.apache.spark.util.{NextIterator, Utils}
+import org.apache.spark.{Partition, SparkContext, TaskContext}
 
 private[pulsar] case class PulsarSourceRDDPartition(
     index: Int, offsetRange: PulsarOffsetRange) extends Partition

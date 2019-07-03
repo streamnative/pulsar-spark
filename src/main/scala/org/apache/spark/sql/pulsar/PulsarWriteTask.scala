@@ -23,7 +23,7 @@ import org.apache.pulsar.client.api.{MessageId, Producer}
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Cast, Literal, UnsafeProjection}
-import org.apache.spark.sql.types.{BinaryType, LongType, StringType, StructType, TimestampType}
+import org.apache.spark.sql.types._
 
 private[pulsar] class PulsarWriteTask(
     clientConf: ju.Map[String, Object],

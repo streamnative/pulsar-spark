@@ -13,8 +13,8 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.{util => ju}
 import java.util.concurrent.{ConcurrentMap, ExecutionException, TimeUnit}
+import java.{util => ju}
 
 import scala.collection.JavaConverters._
 import scala.util.control.NonFatal

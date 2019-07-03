@@ -20,11 +20,6 @@ import java.nio.charset.StandardCharsets.UTF_8
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
 
-import org.apache.pulsar.shade.org.apache.avro.{LogicalTypes, SchemaBuilder, Schema => ASchema}
-import org.apache.pulsar.shade.org.apache.avro.LogicalTypes.{Date, Decimal, TimestampMicros, TimestampMillis}
-import org.apache.pulsar.shade.org.apache.avro.Schema.Type._
-
-import org.apache.commons.lang.exception.ExceptionUtils
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.schema.{GenericRecord, GenericSchema}
 import org.apache.pulsar.client.api.{Schema => PSchema}
@@ -33,6 +28,10 @@ import org.apache.pulsar.client.impl.schema.generic.GenericSchemaImpl
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.protocol.schema.PostSchemaPayload
 import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
+import org.apache.pulsar.shade.org.apache.avro.LogicalTypes.{Date, Decimal, TimestampMicros, TimestampMillis}
+import org.apache.pulsar.shade.org.apache.avro.Schema.Type._
+import org.apache.pulsar.shade.org.apache.avro.{LogicalTypes, SchemaBuilder, Schema => ASchema}
+
 import org.apache.spark.sql.types.Decimal.minBytesForPrecision
 import org.apache.spark.sql.types._
 
@@ -85,8 +84,7 @@ private[pulsar] object SchemaUtils {
       case e: PulsarAdminException if e.getStatusCode == 404 =>
         null
       case e: Throwable => throw new RuntimeException(
-        s"Failed to get schema information for ${TopicName.get(topic).toString}: " +
-          ExceptionUtils.getRootCause(e).getLocalizedMessage, e)
+        s"Failed to get schema information for ${TopicName.get(topic).toString}", e)
     }
 
     if (existingSchema == null) {
@@ -100,8 +98,7 @@ private[pulsar] object SchemaUtils {
         case e: PulsarAdminException if e.getStatusCode == 404 =>
           throw new RuntimeException(s"Create schema for ${TopicName.get(topic).toString} got 404")
         case e: Throwable => throw new RuntimeException(
-          s"Failed to create schema for ${TopicName.get(topic).toString}: " +
-            ExceptionUtils.getRootCause(e).getLocalizedMessage, e)
+          s"Failed to create schema for ${TopicName.get(topic).toString}", e)
       }
     } else if (existingSchema.equals(schemaInfo) || compatibleSchema(existingSchema, schemaInfo)) {
       // no need to upload again

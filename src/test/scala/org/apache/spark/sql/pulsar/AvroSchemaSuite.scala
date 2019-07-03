@@ -18,8 +18,8 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import org.apache.pulsar.common.naming.TopicName
 
-import org.apache.spark.sql.{DataFrame, QueryTest}
 import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.{DataFrame, QueryTest}
 
 case class IS(i: Int, s: String)
 case class MapFoo(m1: Map[String, Int], m2: Map[String, IS])
@@ -27,8 +27,8 @@ case class ArrayFoo(a1: Array[IS], a2: Array[String])
 case class BDFoo(b: BigDecimal, c: Int = 1)
 
 class AvroSchemaSuite extends QueryTest with SharedSQLContext with PulsarTest {
-  import testImplicits._
   import PulsarOptions._
+  import testImplicits._
 
   test("batch - avro map") {
     val mapFooSeq = MapFoo(null, null) :: MapFoo(Map(), Map()) ::
