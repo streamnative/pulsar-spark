@@ -66,24 +66,11 @@
 
     <!-- dependencies -->
     <bookkeeper.version>4.9.2</bookkeeper.version>
-    <commons-lang3.version>3.6</commons-lang3.version>
-    <google.code.version>3.0.2</google.code.version>
-    <google.errorprone.version>2.1.2</google.errorprone.version>
-    <grpc.version>1.18.0</grpc.version>
-    <guava.version>21.0</guava.version>
-    <hadoop.version>3.1.0</hadoop.version>
     <hamcrest.version>1.3</hamcrest.version>
-    <javax-annotations-api.version>1.3.2</javax-annotations-api.version>
-    <jna.version>5.2.0</jna.version>
-    <jmh.version>1.19</jmh.version>
-    <jmock.version>2.8.2</jmock.version>
     <junit.version>4.12</junit.version>
-    <lombok.version>1.16.22</lombok.version>
     <mockito.version>2.22.0</mockito.version>
     <netty.version>4.1.32.Final</netty.version>
-    <netty-boringssl.version>2.0.20.Final</netty-boringssl.version>
     <powermock.version>2.0.0-beta.5</powermock.version>
-    <protobuf3.version>3.5.1</protobuf3.version>
     <!-- latest version from apache pulsar master -->
     <pulsar.version>2.5.0-cc022f169</pulsar.version>
     <scala.version>2.11.12</scala.version>
@@ -119,26 +106,6 @@
         <artifactId>spotbugs-annotations</artifactId>
         <version>${spotbugs-annotations.version}</version>
       </dependency>
-      <dependency>
-        <groupId>javax.annotation</groupId>
-        <artifactId>javax.annotation-api</artifactId>
-        <version>${javax-annotations-api.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.google.code.findbugs</groupId>
-        <artifactId>jsr305</artifactId>
-        <version>${google.code.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.google.errorprone</groupId>
-        <artifactId>error_prone_annotations</artifactId>
-        <version>${google.errorprone.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.projectlombok</groupId>
-        <artifactId>lombok</artifactId>
-        <version>${lombok.version}</version>
-      </dependency>
 
       <!-- logging dependencies -->
       <dependency>
@@ -147,193 +114,7 @@
         <version>${slf4j.version}</version>
       </dependency>
 
-      <!-- commons dependencies -->
-      <dependency>
-        <groupId>org.apache.commons</groupId>
-        <artifactId>commons-lang3</artifactId>
-        <version>${commons-lang3.version}</version>
-      </dependency>
-
-      <!-- guava dependencies -->
-      <dependency>
-        <groupId>com.google.guava</groupId>
-        <artifactId>guava</artifactId>
-        <version>${guava.version}</version>
-      </dependency>
-
-      <!-- netty dependencies -->
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-common</artifactId>
-        <version>${netty.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-buffer</artifactId>
-        <version>${netty.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-transport</artifactId>
-        <version>${netty.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-handler</artifactId>
-        <version>${netty.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-transport-native-epoll</artifactId>
-        <version>${netty.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-transport-native-epoll</artifactId>
-        <version>${netty.version}</version>
-        <classifier>linux-x86_64</classifier>
-      </dependency>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-codec-dns</artifactId>
-        <version>${netty.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-codec-http</artifactId>
-        <version>${netty.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-codec-http2</artifactId>
-        <version>${netty.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-codec-socks</artifactId>
-        <version>${netty.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-handler-proxy</artifactId>
-        <version>${netty.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-resolver</artifactId>
-        <version>${netty.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-resolver-dns</artifactId>
-        <version>${netty.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-tcnative-boringssl-static</artifactId>
-        <version>${netty-boringssl.version}</version>
-      </dependency>
-
-      <!-- grpc dependencies -->
-      <dependency>
-        <groupId>io.grpc</groupId>
-        <artifactId>grpc-all</artifactId>
-        <version>${grpc.version}</version>
-        <exclusions>
-          <exclusion>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-testing</artifactId>
-          </exclusion>
-        </exclusions>
-      </dependency>
-
-      <dependency>
-        <groupId>io.grpc</groupId>
-        <artifactId>grpc-core</artifactId>
-        <version>${grpc.version}</version>
-      </dependency>
-
-      <dependency>
-        <groupId>io.grpc</groupId>
-        <artifactId>grpc-protobuf-lite</artifactId>
-        <version>${grpc.version}</version>
-      </dependency>
-
       <!-- pulsar & bookkeeper -->
-      <dependency>
-        <groupId>net.java.dev.jna</groupId>
-        <artifactId>jna</artifactId>
-        <version>${jna.version}</version>
-      </dependency>
-
-      <dependency>
-        <groupId>org.apache.bookkeeper</groupId>
-        <artifactId>bookkeeper-server</artifactId>
-        <version>${bookkeeper.version}</version>
-        <exclusions>
-          <exclusion>
-            <artifactId>slf4j-log4j12</artifactId>
-            <groupId>org.slf4j</groupId>
-          </exclusion>
-          <exclusion>
-            <artifactId>log4j</artifactId>
-            <groupId>log4j</groupId>
-          </exclusion>
-          <exclusion>
-            <groupId>org.jboss.netty</groupId>
-            <artifactId>netty</artifactId>
-          </exclusion>
-          <!-- exclude all netty dependencies, use whatever pulsar is using -->
-          <exclusion>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-*</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>net.java.dev.jna</groupId>
-            <artifactId>jna</artifactId>
-          </exclusion>
-        </exclusions>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.bookkeeper</groupId>
-        <artifactId>bookkeeper-server</artifactId>
-        <version>${bookkeeper.version}</version>
-        <classifier>tests</classifier>
-        <exclusions>
-          <exclusion>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-log4j12</artifactId>
-          </exclusion>
-          <exclusion>
-            <artifactId>log4j</artifactId>
-            <groupId>log4j</groupId>
-          </exclusion>
-          <exclusion>
-            <groupId>org.jboss.netty</groupId>
-            <artifactId>netty</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-common</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-buffer</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-handler</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-transport-native-epoll</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-tcnative-boringssl-static</artifactId>
-          </exclusion>
-        </exclusions>
-      </dependency>
       <dependency>
         <groupId>org.apache.pulsar</groupId>
         <artifactId>pulsar-client-original</artifactId>
@@ -343,45 +124,6 @@
         <groupId>org.apache.pulsar</groupId>
         <artifactId>pulsar-client-admin-original</artifactId>
         <version>${pulsar.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.pulsar</groupId>
-        <artifactId>managed-ledger-original</artifactId>
-        <version>${pulsar.version}</version>
-        <exclusions>
-          <exclusion>
-            <groupId>org.rocksdb</groupId>
-            <artifactId>rocksdbjni</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>jline</groupId>
-            <artifactId>jline</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-all</artifactId>
-          </exclusion>
-        </exclusions>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.pulsar</groupId>
-        <artifactId>pulsar-broker</artifactId>
-        <version>${pulsar.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.bookkeeper</groupId>
-        <artifactId>stream-storage-common</artifactId>
-        <version>${bookkeeper.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.bookkeeper</groupId>
-        <artifactId>bookkeeper-common</artifactId>
-        <version>${bookkeeper.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.bookkeeper</groupId>
-        <artifactId>bookkeeper-proto</artifactId>
-        <version>${bookkeeper.version}</version>
       </dependency>
 
       <!-- scala dependencies -->
@@ -451,11 +193,6 @@
         <version>${hamcrest.version}</version>
       </dependency>
       <dependency>
-        <groupId>org.jmock</groupId>
-        <artifactId>jmock</artifactId>
-        <version>${jmock.version}</version>
-      </dependency>
-      <dependency>
         <groupId>org.mockito</groupId>
         <artifactId>mockito-core</artifactId>
         <version>${mockito.version}</version>
@@ -476,28 +213,12 @@
         <version>${testcontainers.version}</version>
       </dependency>
 
-      <!-- benchmark dependencies -->
-      <dependency>
-        <groupId>org.openjdk.jmh</groupId>
-        <artifactId>jmh-core</artifactId>
-        <version>${jmh.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.openjdk.jmh</groupId>
-        <artifactId>jmh-generator-annprocess</artifactId>
-        <version>${jmh.version}</version>
-      </dependency>
     </dependencies>
   </dependencyManagement>
 
   <!-- dependencies for all modules -->
   <dependencies>
     <!-- provided dependencies (available at compilation and test classpths and *NOT* packaged) -->
-    <dependency>
-      <groupId>org.projectlombok</groupId>
-      <artifactId>lombok</artifactId>
-      <scope>provided</scope>
-    </dependency>
     <dependency>
       <groupId>com.github.spotbugs</groupId>
       <artifactId>spotbugs-annotations</artifactId>
@@ -534,12 +255,6 @@
     <dependency>
       <groupId>org.powermock</groupId>
       <artifactId>powermock-module-junit4</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.google.protobuf</groupId>
-      <artifactId>protobuf-java</artifactId>
-      <version>${protobuf3.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
