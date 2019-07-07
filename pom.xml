@@ -625,4 +625,10 @@
       <url>https://dl.bintray.com/streamnative/maven</url>
     </repository>
   </repositories>
+  <distributionManagement>
+    <repository>
+      <id>streamnative</id>
+      <url>https://api.bintray.com/maven/streamnative/maven/io.streamnative.connectors/;publish=1</url>
+    </repository>
+  </distributionManagement>
 </project>
