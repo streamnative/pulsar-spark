@@ -17,8 +17,8 @@ Unified data processing with [Apache Pulsar](https://pulsar.apache.org) and [Apa
 1. Checkout the source code.
 
 ```bash
-git clone https://github.com/streamnative/pulsar-spark.git
-cd pulsar-spark
+$ git clone https://github.com/streamnative/pulsar-spark.git
+$ cd pulsar-spark
 ```
 
 2. Install Docker.
@@ -35,18 +35,20 @@ cd pulsar-spark
 4. Build the project.
 
 ```bash
-mvn clean install -DskipTests
+$ mvn clean install -DskipTests
 ```
 
 5. Run the tests.
 
 ```bash
-mvn clean install
+$ mvn clean install
 ```
 Once the installation is finished, there is a fat jar generated under both local maven repo and `target` directory.
 
 ### Link
-* For Scala/Java applications using SBT/Maven project definitions, link your application with the following artifact:
+
+#### Client library  
+For Scala/Java applications using SBT/Maven project definitions and Python applications, link your application with the following artifact:
 
 ```
     groupId = io.streamnative.connectors
@@ -54,30 +56,42 @@ Once the installation is finished, there is a fat jar generated under both local
     version = {{PULSAR_SPARK_VERSION}}
 ```
 
-* For Python applications, you need to add this above library and its dependencies when deploying your
-application. For more information, see [Deploy](#deploy) subsection below.
-
-For experimenting on `spark-shell`, you need to add this above library and its dependencies too when invoking `spark-shell`. Also, see the [Deploying](#deploying) subsection below.
+#### CLI
+For experimenting on `spark-shell`, you need to add the library and dependency above when invoking `spark-shell`.
 
 ### Deploy
 
-As with any Spark applications, `spark-submit` is used to launch your application. `pulsar-spark-connector_{{SCALA_BINARY_VERSION}}`
-and its dependencies can be directly added to `spark-submit` using `--packages`, such as,
+#### Client library  
+As with any Spark applications, `spark-submit` is used to launch your application.     
+`pulsar-spark-connector_{{SCALA_BINARY_VERSION}}`
+and its dependencies can be directly added to `spark-submit` using `--packages`.  
 
-    ./bin/spark-submit --packages io.streamnative.connectors:pulsar-spark-connector_{{SCALA_BINARY_VERSION}}:{{PULSAR_SPARK_VERSION}} ...
+Example
 
-For experimenting on `spark-shell`, you can also use `--packages` to add `pulsar-spark-connector_{{SCALA_BINARY_VERSION}}` and its dependencies directly,
+```
+$ ./bin/spark-submit --packages io.streamnative.connectors:pulsar-spark-connector_{{SCALA_BINARY_VERSION}}:{{PULSAR_SPARK_VERSION}} ...
+```
 
-    ./bin/spark-shell --packages io.streamnative.connectors:pulsar-spark-connector_{{SCALA_BINARY_VERSION}}:{{PULSAR_SPARK_VERSION}} ...
-    
+#### CLI  
+For experimenting on `spark-shell`, you can also use `--packages` to add `pulsar-spark-connector_{{SCALA_BINARY_VERSION}}` and its dependencies directly.
+
+Example
+
+```
+$ ./bin/spark-shell --packages io.streamnative.connectors:pulsar-spark-connector_{{SCALA_BINARY_VERSION}}:{{PULSAR_SPARK_VERSION}} ...
+```
+
 When locating an artifact or library, `--packages` option checks the following repositories in order:
+
 1. Local maven repository
+
 2. Maven central repository
+
 3. Other repositories specified by `--repositories`
 
 The format for the coordinates should be `groupId:artifactId:version`.
 
-For more information about **submitting applications with external dependencies**, see [Application Submission Guide](https://spark.apache.org/docs/latest/submitting-applications.html). 
+For more information about **submitting applications with external dependencies**, see [Application Submission Guide](https://spark.apache.org/docs/latest/submitting-applications.html).
 
 ## Usage
 
@@ -121,10 +135,10 @@ df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
 
 ```
 > #### Tip
-> For more information on how to use other language bindings for Spark Structured Streaming, 
+> For more information on how to use other language bindings for Spark Structured Streaming,
 > see [Structured Streaming Programming Guide](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html).
 
-#### Create a Pulsar source for batch queries 
+#### Create a Pulsar source for batch queries
 If you have a use case that is better suited to batch processing,
 you can create a Dataset/DataFrame for a defined range of offsets.
 
@@ -223,11 +237,11 @@ The following configurations are optional.
   <td>The following are valid values:<br>
 
   * "earliest"(streaming and batch queries)<br>
-  
+
   * "latest" (streaming query)<br>
-  
+
   * A JSON string<br>
-  
+
     **Example**<br>
 
     """ {"topic-1":[8,11,16,101,24,1,32,1],"topic-5":[8,15,16,105,24,5,32,5]} """
@@ -236,9 +250,9 @@ The following configurations are optional.
   <td>
 
    * "earliest"（batch query)<br>
-  
+
    *  "latest"（streaming query)</td>
-  
+
   <td>Streaming and batch queries</td>
 
   <td>
@@ -248,7 +262,7 @@ The following configurations are optional.
   * "earliest": lacks a valid offset, the consumer reads all the data in the partition, starting from the very beginning.<br>
 
 *  "latest": lacks a valid offset, the consumer reads from the newest records written after the consumer starts running.<br>
-  
+
 * A JSON string: specifies a starting offset for each Topic. <br>
 You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, MessageId])` to convert a message offset to a JSON string. <br>
 
@@ -269,11 +283,11 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
   <td>The following are valid values:<br>
 
   * "latest" (batch query)<br>
-  
+
   * A JSON string<br>
-  
-   **Example**<br> 
-   
+
+   **Example**<br>
+
    {"topic-1":[8,12,16,102,24,2,32,2],"topic-5":[8,16,16,106,24,6,32,6]}
 
   </td>
@@ -283,15 +297,15 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
   <td>Batch query</td>
 
   <td>
-  
+
   `endingOffsets` option controls where a consumer stops reading data.
-  
+
   * "latest": the consumer stops reading data at the latest record.
- 
+
  * A JSON string: specifies an ending offset for each topic.<br>
 
-    **Note**: <br> 
-    
+    **Note**: <br>
+
     `MessageId.earliest ([8,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,16,-1,-1,-1,-1,-1,-1,-1,-1,-1,1])` is not allowed.</td>
 
 </tr>
@@ -303,9 +317,9 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
   <td>The following are valid values:<br>
 
   * true
-  
+
   * false
-  
+
   </td>
 
   <td>true</td>
@@ -313,12 +327,12 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
   <td>Streaming query</td>
 
   <td>
-  
+
   `failOnDataLoss` option controls whether to fail a query when data is lost (for example, topics are deleted, or
   messages are deleted because of retention policy).<br>
 
   This may cause a false alarm. You can set it to `false` when it doesn't work as you expected. <br>
-  
+
   A batch query always fails if it fails to read any data from the provided offsets due to data loss.</td>
 
 </tr>
@@ -378,7 +392,7 @@ root
  |-- __publishTime: timestamp (nullable = true)
  |-- __eventTime: timestamp (nullable = true)
  ```
- 
+
  For Pulsar topic with `Schema.DOUBLE`, it's schema as a DataFrame is:
  ```
  root
@@ -444,13 +458,13 @@ df.selectExpr("__topic", "CAST(__key AS STRING)", "CAST(value AS STRING)")
 Currently, we provide at-least-once semantic. Consequently, when writing either streaming queries
 or batch Queries to Pulsar, some records may be duplicated.
 If writing the query is successful, then you can assume that the query output was written at least once. A possible
-solution to remove duplicates when reading the written data could be to introduce a primary (unique) key 
+solution to remove duplicates when reading the written data could be to introduce a primary (unique) key
 that can be used to perform de-duplication when reading.
 
 
 ### Pulsar specific configurations
 
-Pulsar's client/producer/consumer configurations can be set via `DataStreamReader.option` 
-with `pulsar.client.`/`pulsar.producer.`/`pulsar.consumer.` prefix, e.g, 
-`stream.option("pulsar.consumer.ackTimeoutMillis", "10000")`. For possible Pulsar parameters, check docs at 
+Pulsar's client/producer/consumer configurations can be set via `DataStreamReader.option`
+with `pulsar.client.`/`pulsar.producer.`/`pulsar.consumer.` prefix, e.g,
+`stream.option("pulsar.consumer.ackTimeoutMillis", "10000")`. For possible Pulsar parameters, check docs at
 [Pulsar client libraries](https://pulsar.apache.org/docs/en/client-libraries/).
