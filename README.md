@@ -406,7 +406,7 @@ root
 
 ### Write data to Pulsar
 
-The DataFrame being written to Pulsar can have arbitrary schema, since each record in DataFrame are transformed as one message send to Pulsar, it's fields are divided into two groups: fields named `__key` and `__eventTime` are encoded as Pulsar message's metadata; other fields are grouped and encoded using AVRO and put in `value()`:
+The DataFrame written to Pulsar can have arbitrary schema, since each record in DataFrame is transformed as one message sent to Pulsar, fields of DataFrame are divided into two groups: `__key` and `__eventTime` fields are encoded as metadata of Pulsar message; other fields are grouped and encoded using AVRO and put in `value()`:
 ```scala
 producer.newMessage().key(__key).value(avro_encoded_fields).eventTime(__eventTime)
 ```
@@ -421,6 +421,7 @@ val ds = df
   .writeStream
   .format("pulsar")
   .option("service.url", "pulsar://localhost:6650")
+  .option("admin.url", "http://localhost:8080")
   .option("topic", "topic1")
   .start()
 
@@ -430,6 +431,7 @@ val ds = df
   .writeStream
   .format("pulsar")
   .option("service.url", "pulsar://localhost:6650")
+  .option("admin.url", "http://localhost:8080")
   .start()
 ```
 
@@ -442,6 +444,7 @@ df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
   .write
   .format("pulsar")
   .option("service.url", "pulsar://localhost:6650")
+  .option("admin.url", "http://localhost:8080")
   .option("topic", "topic1")
   .save()
 
@@ -450,21 +453,19 @@ df.selectExpr("__topic", "CAST(__key AS STRING)", "CAST(value AS STRING)")
   .write
   .format("pulsar")
   .option("service.url", "pulsar://localhost:6650")
+  .option("admin.url", "http://localhost:8080")
   .save()
 ```
 
 #### Limitations
 
-Currently, we provide at-least-once semantic. Consequently, when writing either streaming queries
-or batch Queries to Pulsar, some records may be duplicated.
-If writing the query is successful, then you can assume that the query output was written at least once. A possible
-solution to remove duplicates when reading the written data could be to introduce a primary (unique) key
-that can be used to perform de-duplication when reading.
+Currently, we provide at-least-once semantic. Consequently, when writing either streaming queries or batch queries to Pulsar, some records may be duplicated.
+A possible solution to remove duplicates when reading the written data could be to introduce a primary (unique) key that can be used to perform de-duplication when reading.
 
 
 ### Pulsar specific configurations
 
-Pulsar's client/producer/consumer configurations can be set via `DataStreamReader.option`
+Client/producer/consumer configurations of Pulsar can be set via `DataStreamReader.option`
 with `pulsar.client.`/`pulsar.producer.`/`pulsar.consumer.` prefix, e.g,
 `stream.option("pulsar.consumer.ackTimeoutMillis", "10000")`. For possible Pulsar parameters, check docs at
 [Pulsar client libraries](https://pulsar.apache.org/docs/en/client-libraries/).
