@@ -628,7 +628,7 @@
   <distributionManagement>
     <repository>
       <id>streamnative</id>
-      <url>https://api.bintray.com/maven/streamnative/maven/io.streamnative.connectors/;publish=1</url>
+      <url>https://api.bintray.com/maven/streamnative/maven/org.apache.spark/;publish=1</url>
     </repository>
   </distributionManagement>
 </project>
