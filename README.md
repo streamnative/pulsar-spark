@@ -1,7 +1,10 @@
 # pulsar-spark
 
+[![Jenkins](https://jenkins.snio.xyz/job/StreamNative/job/pulsar-spark/job/master/badge/icon)](https://jenkins.snio.xyz/job/StreamNative/job/pulsar-spark/job/master/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Version](https://img.shields.io/github/release/streamnative/pulsar-spark.svg)](https://github.com/streamnative/pulsar-spark/releases)
+[![Bintray](https://img.shields.io/bintray/v/streamnative/maven/io.streamnative.pulsar-spark.svg)](https://dl.bintray.com/streamnative/maven/io/streamnative/connectors/pulsar-spark-connector_2.11/)
+
+[![Version](https://img.shields.io/github/release/streamnative/pulsar-spark/all.svg)](https://github.com/streamnative/pulsar-spark/releases)
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-spark.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-spark?ref=badge_shield)
 
 Unified data processing with [Apache Pulsar](https://pulsar.apache.org) and [Apache Spark](https://spark.apache.org).
