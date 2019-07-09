@@ -13,8 +13,8 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.util.function.BiConsumer
 import java.{util => ju}
+import java.util.function.BiConsumer
 
 import scala.collection.mutable
 
@@ -30,11 +30,12 @@ private[pulsar] class PulsarWriteTask(
     producerConf: ju.Map[String, Object],
     topic: Option[String],
     inputSchema: Seq[Attribute],
-    adminUrl: String) extends PulsarRowWriter(inputSchema, clientConf, producerConf, topic, adminUrl) {
+    adminUrl: String)
+    extends PulsarRowWriter(inputSchema, clientConf, producerConf, topic, adminUrl) {
 
   /**
-    * Writes key value data out to topics.
-    */
+   * Writes key value data out to topics.
+   */
   def execute(iterator: Iterator[InternalRow]): Unit = {
     while (iterator.hasNext && failedWrite == null) {
       val currentRow = iterator.next()
@@ -56,47 +57,56 @@ private[pulsar] abstract class PulsarRowWriter(
     producerConf: ju.Map[String, Object],
     topic: Option[String],
     adminUrl: String) {
-  
+
   import PulsarOptions._
 
   protected lazy val admin = PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()
 
   private def createProjections = {
-    val topicExpression = topic.map(Literal(_)).orElse {
-      inputSchema.find(_.name == TOPIC_ATTRIBUTE_NAME)
-    }.getOrElse {
-      throw new IllegalStateException(s"topic option required when no " +
-        s"'$TOPIC_ATTRIBUTE_NAME' attribute is present")
-    }
+    val topicExpression = topic
+      .map(Literal(_))
+      .orElse {
+        inputSchema.find(_.name == TOPIC_ATTRIBUTE_NAME)
+      }
+      .getOrElse {
+        throw new IllegalStateException(
+          s"topic option required when no " +
+            s"'$TOPIC_ATTRIBUTE_NAME' attribute is present")
+      }
     topicExpression.dataType match {
       case StringType => // good
       case t =>
-        throw new IllegalStateException(TOPIC_ATTRIBUTE_NAME +
-          s"attribute unsupported type $t. $TOPIC_ATTRIBUTE_NAME " +
-          s"must be a ${StringType.catalogString}")
+        throw new IllegalStateException(
+          TOPIC_ATTRIBUTE_NAME +
+            s"attribute unsupported type $t. $TOPIC_ATTRIBUTE_NAME " +
+            s"must be a ${StringType.catalogString}")
     }
 
-    val keyExpression = inputSchema.find(_.name == KEY_ATTRIBUTE_NAME)
+    val keyExpression = inputSchema
+      .find(_.name == KEY_ATTRIBUTE_NAME)
       .getOrElse(Literal(null, BinaryType))
     keyExpression.dataType match {
       case StringType | BinaryType => // good
       case t =>
-        throw new IllegalStateException(KEY_ATTRIBUTE_NAME +
-          s"attribute unsupported type ${t.catalogString}")
+        throw new IllegalStateException(
+          KEY_ATTRIBUTE_NAME +
+            s"attribute unsupported type ${t.catalogString}")
     }
 
-    val eventTimeExpression = inputSchema.find(_.name == EVENT_TIME_NAME)
+    val eventTimeExpression = inputSchema
+      .find(_.name == EVENT_TIME_NAME)
       .getOrElse(Literal(null, LongType))
     eventTimeExpression.dataType match {
       case LongType | TimestampType => // good
-      case t => throw new IllegalStateException(EVENT_TIME_NAME +
-        s"attribute unsupported type ${t.catalogString}")
+      case t =>
+        throw new IllegalStateException(
+          EVENT_TIME_NAME +
+            s"attribute unsupported type ${t.catalogString}")
     }
 
-    val metaProj = UnsafeProjection.create(Seq(
-      topicExpression,
-      Cast(keyExpression, BinaryType),
-      eventTimeExpression), inputSchema)
+    val metaProj = UnsafeProjection.create(
+      Seq(topicExpression, Cast(keyExpression, BinaryType), eventTimeExpression),
+      inputSchema)
 
     val valuesExpression =
       inputSchema.filter(n => !PulsarOptions.META_FIELD_NAMES.contains(n.name))
@@ -157,10 +167,10 @@ private[pulsar] abstract class PulsarRowWriter(
   }
 
   /**
-    * Send the specified row to the producer, with a callback that will save any exception
-    * to failedWrite. Note that send is asynchronous; subclasses must flush() their producer before
-    * assuming the row is in Pulsar.
-    */
+   * Send the specified row to the producer, with a callback that will save any exception
+   * to failedWrite. Note that send is asynchronous; subclasses must flush() their producer before
+   * assuming the row is in Pulsar.
+   */
   protected def sendRow(row: InternalRow): Unit = {
     val metaRow = metaProj(row)
     val valueRow = valueProj(row)
@@ -170,8 +180,9 @@ private[pulsar] abstract class PulsarRowWriter(
     val key = metaRow.getBinary(1)
 
     if (topic == null) {
-      throw new NullPointerException(s"null topic present in the data. Use the " +
-        s"$TOPIC_SINGLE option for setting a topic.")
+      throw new NullPointerException(
+        s"null topic present in the data. Use the " +
+          s"$TOPIC_SINGLE option for setting a topic.")
     }
 
     val mb = getProducer(topic.toString).newMessage().value(value)

@@ -13,5 +13,4 @@
  */
 package org.apache.spark.sql
 
-package object pulsar {
-}
+package object pulsar {}

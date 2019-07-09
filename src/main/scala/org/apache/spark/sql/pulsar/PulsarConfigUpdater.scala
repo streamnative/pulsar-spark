@@ -23,9 +23,9 @@ import org.apache.spark.internal.Logging
  * Class to conveniently update pulsar config params, while logging the changes.
  */
 private[pulsar] case class PulsarConfigUpdater(
-   module: String,
-   pulsarParams: Map[String, Object],
-   blacklistedKeys: Set[String] = Set())
+    module: String,
+    pulsarParams: Map[String, Object],
+    blacklistedKeys: Set[String] = Set())
     extends Logging {
 
   private val map = new ju.HashMap[String, Object](pulsarParams.asJava)
@@ -69,7 +69,8 @@ private[pulsar] case class PulsarConfigUpdater(
 
   def rebuild(): ju.Map[String, Object] = {
     val map = new ju.HashMap[String, Object]()
-    pulsarParams map { case (k, v) =>
+    pulsarParams map {
+      case (k, v) =>
         set(k, v, map)
     }
     map

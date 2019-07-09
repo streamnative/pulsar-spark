@@ -13,9 +13,9 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.util.concurrent.TimeUnit
-import java.util.{Optional, UUID}
 import java.{util => ju}
+import java.util.{Optional, UUID}
+import java.util.concurrent.TimeUnit
 
 import scala.collection.JavaConverters._
 
@@ -28,8 +28,8 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.pulsar.PulsarSourceUtils.messageExists
-import org.apache.spark.sql.sources.v2.reader.streaming.{MicroBatchReader, Offset}
 import org.apache.spark.sql.sources.v2.reader.{InputPartition, InputPartitionReader}
+import org.apache.spark.sql.sources.v2.reader.streaming.{MicroBatchReader, Offset}
 import org.apache.spark.sql.types.StructType
 
 private[pulsar] class PulsarMicroBatchReader(
@@ -42,7 +42,8 @@ private[pulsar] class PulsarMicroBatchReader(
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
     jsonOptions: JSONOptionsInRead)
-  extends MicroBatchReader with Logging {
+    extends MicroBatchReader
+    with Logging {
 
   import PulsarSourceUtils._
 
@@ -52,8 +53,13 @@ private[pulsar] class PulsarMicroBatchReader(
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
 
   private lazy val initialTopicOffsets: SpecificPulsarOffset = {
-    val metadataLog = new PulsarSourceInitialOffsetWriter(SparkSession.getActiveSession.get, metadataPath)
-    metadataLog.getInitialOffset(metadataReader, startingOffsets, Some(pollTimeoutMs), reportDataLoss)
+    val metadataLog =
+      new PulsarSourceInitialOffsetWriter(SparkSession.getActiveSession.get, metadataPath)
+    metadataLog.getInitialOffset(
+      metadataReader,
+      startingOffsets,
+      Some(pollTimeoutMs),
+      reportDataLoss)
   }
 
   // use general `MessageIdImpl` while talking with Spark,
@@ -62,12 +68,12 @@ private[pulsar] class PulsarMicroBatchReader(
     initialTopicOffsets
 
     startTopicOffsets = Option(start.orElse(null))
-        .map(_.asInstanceOf[SpecificPulsarOffset].topicOffsets)
-        .getOrElse(initialTopicOffsets.topicOffsets)
+      .map(_.asInstanceOf[SpecificPulsarOffset].topicOffsets)
+      .getOrElse(initialTopicOffsets.topicOffsets)
 
     endTopicOffsets = Option(end.orElse(null))
-        .map(_.asInstanceOf[SpecificPulsarOffset].topicOffsets)
-        .getOrElse(metadataReader.fetchLatestOffsets().topicOffsets)
+      .map(_.asInstanceOf[SpecificPulsarOffset].topicOffsets)
+      .getOrElse(metadataReader.fetchLatestOffsets().topicOffsets)
   }
 
   override def getStartOffset: Offset = SpecificPulsarOffset(startTopicOffsets)
@@ -99,35 +105,45 @@ private[pulsar] class PulsarMicroBatchReader(
 
     val newStartsOffsets = startTopicOffsets ++ newPartitionInitialOffsets
 
-    val offsetRanges = endTopicOffsets.keySet.map { tp =>
-      val fromOffset = newStartsOffsets.getOrElse(tp, {
-        // this shouldn't happen
-        throw new IllegalStateException(s"$tp doesn't have a start offset")
-      })
-      val untilOffset = endTopicOffsets(tp)
-      val sortedExecutors = getSortedExecutorList()
-      val numExecutors = sortedExecutors.length
-      val preferredLoc = if (numExecutors > 0) {
-        // This allows cached PulsarClient in the executors to be re-used to read the same
-        // partition in every batch.
-        Some(sortedExecutors(Math.floorMod(tp.hashCode, numExecutors)))
-      } else None
-      PulsarOffsetRange(tp, fromOffset, untilOffset, preferredLoc)
-    }.filter { range =>
-      if (range.untilOffset.compareTo(range.fromOffset) < 0) {
-        reportDataLoss(s"${range.topic}'s offset was changed " +
-          s"from ${range.fromOffset} to ${range.untilOffset}, " +
-          "some data might has been missed")
-        false
-      } else {
-        true
+    val offsetRanges = endTopicOffsets.keySet
+      .map { tp =>
+        val fromOffset = newStartsOffsets.getOrElse(tp, {
+          // this shouldn't happen
+          throw new IllegalStateException(s"$tp doesn't have a start offset")
+        })
+        val untilOffset = endTopicOffsets(tp)
+        val sortedExecutors = getSortedExecutorList()
+        val numExecutors = sortedExecutors.length
+        val preferredLoc = if (numExecutors > 0) {
+          // This allows cached PulsarClient in the executors to be re-used to read the same
+          // partition in every batch.
+          Some(sortedExecutors(Math.floorMod(tp.hashCode, numExecutors)))
+        } else None
+        PulsarOffsetRange(tp, fromOffset, untilOffset, preferredLoc)
       }
-    }.toSeq
+      .filter { range =>
+        if (range.untilOffset.compareTo(range.fromOffset) < 0) {
+          reportDataLoss(
+            s"${range.topic}'s offset was changed " +
+              s"from ${range.fromOffset} to ${range.untilOffset}, " +
+              "some data might has been missed")
+          false
+        } else {
+          true
+        }
+      }
+      .toSeq
 
     offsetRanges.map { range =>
       new PulsarMicroBatchInputPartition(
-        range, new SchemaInfoSerializable(pulsarSchema), clientConf, consumerConf,
-        pollTimeoutMs, failOnDataLoss, subscriptionNamePrefix, jsonOptions): InputPartition[InternalRow]
+        range,
+        new SchemaInfoSerializable(pulsarSchema),
+        clientConf,
+        consumerConf,
+        pollTimeoutMs,
+        failOnDataLoss,
+        subscriptionNamePrefix,
+        jsonOptions): InputPartition[InternalRow]
     }.asJava
   }
 
@@ -145,7 +161,8 @@ case class PulsarMicroBatchInputPartition(
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
-    jsonOptions: JSONOptionsInRead) extends InputPartition[InternalRow] {
+    jsonOptions: JSONOptionsInRead)
+    extends InputPartition[InternalRow] {
   override def preferredLocations(): Array[String] = range.preferredLoc.toArray
 
   override def createPartitionReader(): InputPartitionReader[InternalRow] = {
@@ -157,13 +174,20 @@ case class PulsarMicroBatchInputPartition(
       return PulsarMicroBatchEmptyInputPartitionReader
     }
     new PulsarMicroBatchInputPartitionReader(
-      range, pulsarSchema, clientConf, consumerConf, pollTimeoutMs,
-      failOnDataLoss, subscriptionNamePrefix, jsonOptions)
+      range,
+      pulsarSchema,
+      clientConf,
+      consumerConf,
+      pollTimeoutMs,
+      failOnDataLoss,
+      subscriptionNamePrefix,
+      jsonOptions)
   }
 }
 
 object PulsarMicroBatchEmptyInputPartitionReader
-    extends InputPartitionReader[InternalRow] with Logging {
+    extends InputPartitionReader[InternalRow]
+    with Logging {
 
   override def next(): Boolean = false
   override def get(): InternalRow = null
@@ -178,7 +202,9 @@ case class PulsarMicroBatchInputPartitionReader(
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
-    jsonOptions: JSONOptionsInRead) extends InputPartitionReader[InternalRow] with Logging {
+    jsonOptions: JSONOptionsInRead)
+    extends InputPartitionReader[InternalRow]
+    with Logging {
 
   import PulsarSourceUtils._
 
@@ -190,7 +216,8 @@ case class PulsarMicroBatchInputPartitionReader(
 
   private val deserializer = new PulsarDeserializer(pulsarSchema.si, jsonOptions)
   private val schema: Schema[_] = SchemaUtils.getPSchema(pulsarSchema.si)
-  val consumer = CachedPulsarClient.getOrCreate(clientConf)
+  val consumer = CachedPulsarClient
+    .getOrCreate(clientConf)
     .newConsumer(schema)
     .topic(tp)
     .subscriptionName(s"$subscriptionNamePrefix-${UUID.randomUUID()}")
@@ -221,8 +248,9 @@ case class PulsarMicroBatchInputPartitionReader(
     } else {
       nextId = nextMessage.getMessageId
       if (start != MessageId.earliest && !messageIdRoughEquals(nextId, start)) {
-        reportDataLoss(s"Potential Data Loss in reading $tp: intended to start at $start, " +
-          s"actually we get $nextId")
+        reportDataLoss(
+          s"Potential Data Loss in reading $tp: intended to start at $start, " +
+            s"actually we get $nextId")
       }
 
       (start, nextId) match {
@@ -231,7 +259,8 @@ case class PulsarMicroBatchInputPartitionReader(
         case (_: MessageIdImpl, cbmid: BatchMessageIdImpl) =>
           // we seek using a message id, this is supposed to be read by previous task since it's
           // inclusive for the last batch (start, end], so we skip this batch
-          val newStart = new MessageIdImpl(cbmid.getLedgerId, cbmid.getEntryId + 1, cbmid.getPartitionIndex)
+          val newStart =
+            new MessageIdImpl(cbmid.getLedgerId, cbmid.getEntryId + 1, cbmid.getPartitionIndex)
           consumer.seek(newStart)
         case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
         // current entry is a non-batch entry, we can read next directly in `getNext()`
@@ -250,7 +279,8 @@ case class PulsarMicroBatchInputPartitionReader(
 
     if (nextMessage == null) {
       // Losing some data. Skip the rest offsets in this partition.
-      reportDataLoss(s"we didn't get enough messages as promised from topic $tp, data loss occurs")
+      reportDataLoss(
+        s"we didn't get enough messages as promised from topic $tp, data loss occurs")
       return false
     }
 

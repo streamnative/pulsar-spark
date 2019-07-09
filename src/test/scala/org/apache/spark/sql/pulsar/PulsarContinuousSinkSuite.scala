@@ -39,8 +39,7 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
   test("streaming - write to pulsar with topic field") {
     val inputTopic = newTopic()
 
-    val input = spark
-      .readStream
+    val input = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -53,8 +52,7 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     val writer = createPulsarWriter(
       input.toDF(),
       withTopic = Some(topic),
-      withOutputMode = Some(OutputMode.Append))(
-      withSelectExpr = s"'$topic' as __topic", "value")
+      withOutputMode = Some(OutputMode.Append))(withSelectExpr = s"'$topic' as __topic", "value")
 
     val reader = createPulsarReader(topic)
       .selectExpr("CAST(__key as STRING) __key", "CAST(value as STRING) value")
@@ -79,8 +77,7 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
   test("streaming - write w/o topic field, with topic option") {
     val inputTopic = newTopic()
 
-    val input = spark
-      .readStream
+    val input = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -125,8 +122,7 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
      */
     val inputTopic = newTopic()
 
-    val input = spark
-      .readStream
+    val input = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -140,7 +136,8 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
       input.toDF(),
       withTopic = Some(topic),
       withOutputMode = Some(OutputMode.Append()))(
-      withSelectExpr = "'foo' as __topic", "CAST(value as STRING) value")
+      withSelectExpr = "'foo' as __topic",
+      "CAST(value as STRING) value")
 
     try {
       sendMessages(inputTopic, Array("1", "2", "3", "4", "5"))
@@ -164,14 +161,17 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     }
   }
 
-  private def check[T: ClassTag](schemaInfo: SchemaInfo, data: Seq[T], encoder: Encoder[T], str: T => String) = {
+  private def check[T: ClassTag](
+      schemaInfo: SchemaInfo,
+      data: Seq[T],
+      encoder: Encoder[T],
+      str: T => String) = {
     val inputTopic = newTopic()
     val topic = newTopic()
     createPulsarSchema(inputTopic, schemaInfo)
     createPulsarSchema(topic, schemaInfo)
 
-    val input = spark
-      .readStream
+    val input = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -182,8 +182,7 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     val writer = createPulsarWriter(
       input.toDF(),
       withTopic = Some(topic),
-      withOutputMode = Some(OutputMode.Append))(
-      withSelectExpr = s"'$topic' as __topic", "value")
+      withOutputMode = Some(OutputMode.Append))(withSelectExpr = s"'$topic' as __topic", "value")
 
     try {
       sendTypedMessages[T](inputTopic, schemaInfo.getType, data, None)
@@ -195,7 +194,7 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
 
       eventually(timeout(streamingTimeout)) {
         if (str == null) {
-          checkDatasetUnorderly[String](reader, data.map(_.toString) : _*)
+          checkDatasetUnorderly[String](reader, data.map(_.toString): _*)
         } else {
           checkDatasetUnorderly[String](reader, data.map(str(_)): _*)
         }
@@ -238,20 +237,25 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
   }
 
   test("streaming - byte array") {
-    check[Array[Byte]](Schema.BYTES.getSchemaInfo, bytesSeq,
-      Encoders.BINARY, new String(_))
+    check[Array[Byte]](Schema.BYTES.getSchemaInfo, bytesSeq, Encoders.BINARY, new String(_))
   }
 
   test("streaming - date") {
     val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
-    check[Date](Schema.DATE.getSchemaInfo, dateSeq,
-      Encoders.bean(classOf[Date]), dateFormat.format(_))
+    check[Date](
+      Schema.DATE.getSchemaInfo,
+      dateSeq,
+      Encoders.bean(classOf[Date]),
+      dateFormat.format(_))
   }
 
   test("streaming - timestamp") {
     val tsFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-    check[java.sql.Timestamp](Schema.TIMESTAMP.getSchemaInfo, timestampSeq,
-      Encoders.kryo(classOf[java.sql.Timestamp]), tsFormat.format(_))
+    check[java.sql.Timestamp](
+      Schema.TIMESTAMP.getSchemaInfo,
+      timestampSeq,
+      Encoders.kryo(classOf[java.sql.Timestamp]),
+      tsFormat.format(_))
   }
 
   test("streaming - struct type") {
@@ -262,8 +266,7 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     val topic = newTopic()
     createPulsarSchema(inputTopic, schemaInfo)
 
-    val input = spark
-      .readStream
+    val input = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -274,8 +277,7 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     val writer = createPulsarWriter(
       input.toDF(),
       withTopic = Some(topic),
-      withOutputMode = Some(OutputMode.Append))(
-      withSelectExpr = "i", "f", "bar")
+      withOutputMode = Some(OutputMode.Append))(withSelectExpr = "i", "f", "bar")
 
     try {
       sendTypedMessages[Foo](inputTopic, SchemaType.AVRO, fooSeq, None)
@@ -298,9 +300,7 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
       }
 
       eventually(timeout(streamingTimeout)) {
-        checkDatasetUnorderly[Foo](
-          reader,
-          fooSeq: _*)
+        checkDatasetUnorderly[Foo](reader, fooSeq: _*)
       }
     } finally {
       writer.stop()
@@ -310,8 +310,7 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
   test("null topic attribute") {
     val inputTopic = newTopic()
 
-    val input = spark
-      .readStream
+    val input = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -325,7 +324,8 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     var ex: Exception = null
     try {
       writer = createPulsarWriter(input.toDF())(
-        withSelectExpr = "CAST(null as STRING) as __topic", "value"
+        withSelectExpr = "CAST(null as STRING) as __topic",
+        "value"
       )
       sendMessages(inputTopic, Array("1", "2", "3", "4", "5"))
       eventually(timeout(streamingTimeout)) {
@@ -335,16 +335,16 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     } finally {
       writer.stop()
     }
-    assert(ex.getCause.getCause.getMessage
-      .toLowerCase(Locale.ROOT)
-      .contains("null topic present in the data."))
+    assert(
+      ex.getCause.getCause.getMessage
+        .toLowerCase(Locale.ROOT)
+        .contains("null topic present in the data."))
   }
 
   test("streaming - write data with bad schema") {
     val inputTopic = newTopic()
 
-    val input = spark
-      .readStream
+    val input = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -358,7 +358,8 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     var ex: Exception = null
     try {
       writer = createPulsarWriter(input.toDF())(
-        withSelectExpr = "value as __key", "value"
+        withSelectExpr = "value as __key",
+        "value"
       )
       sendMessages(inputTopic, Array("1", "2", "3", "4", "5"))
       eventually(timeout(streamingTimeout)) {
@@ -368,14 +369,16 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     } finally {
       writer.stop()
     }
-    assert(ex.getMessage
-      .toLowerCase(Locale.ROOT)
-      .contains("topic option required when no '__topic' attribute is present"))
+    assert(
+      ex.getMessage
+        .toLowerCase(Locale.ROOT)
+        .contains("topic option required when no '__topic' attribute is present"))
 
     try {
       /* No value field */
       writer = createPulsarWriter(input.toDF())(
-        withSelectExpr = s"'$topic' as __topic", "value as __key"
+        withSelectExpr = s"'$topic' as __topic",
+        "value as __key"
       )
       sendMessages(inputTopic, Array("1", "2", "3", "4", "5"))
       eventually(timeout(streamingTimeout)) {
@@ -385,15 +388,13 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     } finally {
       writer.stop()
     }
-    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
-      "schema should have at least one"))
+    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains("schema should have at least one"))
   }
 
   test("streaming - write data with valid schema but wrong types") {
     val inputTopic = newTopic()
 
-    val input = spark
-      .readStream
+    val input = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -408,7 +409,8 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     try {
       /* topic field wrong type */
       writer = createPulsarWriter(input.toDF())(
-        withSelectExpr = s"CAST('1' as INT) as __topic", "value"
+        withSelectExpr = s"CAST('1' as INT) as __topic",
+        "value"
       )
       sendMessages(inputTopic, Array("1", "2", "3", "4", "5"))
       eventually(timeout(streamingTimeout)) {
@@ -423,7 +425,9 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     try {
       /* key field wrong type */
       writer = createPulsarWriter(input.toDF())(
-        withSelectExpr = s"'$topic' as __topic", "CAST(value as INT) as __key", "value"
+        withSelectExpr = s"'$topic' as __topic",
+        "CAST(value as INT) as __key",
+        "value"
       )
       sendMessages(inputTopic, Array("1", "2", "3", "4", "5"))
       eventually(timeout(streamingTimeout)) {
@@ -433,13 +437,17 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     } finally {
       writer.stop()
     }
-    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
-      "key attribute type must be a string or binary"))
+    assert(
+      ex.getMessage
+        .toLowerCase(Locale.ROOT)
+        .contains("key attribute type must be a string or binary"))
 
     try {
       /* eventTime field wrong type */
       writer = createPulsarWriter(input.toDF())(
-        withSelectExpr = s"'$topic' as __topic", "value as __eventTime", "value"
+        withSelectExpr = s"'$topic' as __topic",
+        "value as __eventTime",
+        "value"
       )
       sendMessages(inputTopic, Array("1", "2", "3", "4", "5"))
       eventually(timeout(streamingTimeout)) {
@@ -449,17 +457,19 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     } finally {
       writer.stop()
     }
-    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
-      "__eventtime attribute type must be a bigint or timestamp"))
+    assert(
+      ex.getMessage
+        .toLowerCase(Locale.ROOT)
+        .contains("__eventtime attribute type must be a bigint or timestamp"))
   }
 
   ignore("generic - write big data with small producer buffer") {
     /* This test ensures that we understand the semantics of Pulsar when
-    * is comes to blocking on a call to send when the send buffer is full.
-    * This test will configure the smallest possible producer buffer and
-    * indicate that we should block when it is full. Thus, no exception should
-    * be thrown in the case of a full buffer.
-    */
+     * is comes to blocking on a call to send when the send buffer is full.
+     * This test will configure the smallest possible producer buffer and
+     * indicate that we should block when it is full. Thus, no exception should
+     * be thrown in the case of a full buffer.
+     */
     val topic = newTopic()
     val options = new java.util.HashMap[String, String]
     options.put(SERVICE_URL_OPTION_KEY, serviceUrl)
@@ -496,8 +506,8 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
       input: DataFrame,
       withTopic: Option[String] = None,
       withOutputMode: Option[OutputMode] = None,
-      withOptions: Map[String, String] = Map[String, String]())
-      (withSelectExpr: String*): StreamingQuery = {
+      withOptions: Map[String, String] = Map[String, String]())(
+      withSelectExpr: String*): StreamingQuery = {
     var stream: DataStreamWriter[Row] = null
     val checkpointDir = Utils.createTempDir()
     var df = input.toDF()

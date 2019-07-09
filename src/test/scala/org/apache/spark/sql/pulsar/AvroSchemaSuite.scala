@@ -32,7 +32,7 @@ class AvroSchemaSuite extends QueryTest with SharedSQLContext with PulsarTest {
 
   test("batch - avro map") {
     val mapFooSeq = MapFoo(null, null) :: MapFoo(Map(), Map()) ::
-      MapFoo(Map("x" -> 1, "y"-> 2), Map("w" -> IS(1, "1"), "H" -> IS(2, "2"))) ::  Nil
+      MapFoo(Map("x" -> 1, "y" -> 2), Map("w" -> IS(1, "1"), "H" -> IS(2, "2"))) :: Nil
 
     val topic = newTopic()
 
@@ -52,7 +52,7 @@ class AvroSchemaSuite extends QueryTest with SharedSQLContext with PulsarTest {
 
   test("batch - avro array") {
     val arrayFoo = ArrayFoo(null, null) :: ArrayFoo(Array.empty[IS], Array.empty[String]) ::
-      ArrayFoo(Array(IS(1, "1"), IS(2, "2")), Array("1", "2", "3")) ::  Nil
+      ArrayFoo(Array(IS(1, "1"), IS(2, "2")), Array("1", "2", "3")) :: Nil
 
     val topic = newTopic()
 
@@ -71,10 +71,14 @@ class AvroSchemaSuite extends QueryTest with SharedSQLContext with PulsarTest {
   }
 
   test("batch - avro bigDecimal") {
-    val bdSeq = BDFoo(new BigDecimal("0")) :: BDFoo(new BigDecimal("0.00")) :: BDFoo(new BigDecimal("123")) ::
-      BDFoo(new BigDecimal("-123")) :: BDFoo(new BigDecimal("1.23E3")) :: BDFoo(new BigDecimal("1.23E+3")) ::
-      BDFoo(new BigDecimal("12.3E+7")) :: BDFoo(new BigDecimal("12.0")) :: BDFoo(new BigDecimal("12.3")) ::
-      BDFoo(new BigDecimal("0.00123")) :: BDFoo(new BigDecimal("-1.23E-12")) :: BDFoo(new BigDecimal("1234.5E-4")) ::
+    val bdSeq = BDFoo(new BigDecimal("0")) :: BDFoo(new BigDecimal("0.00")) :: BDFoo(
+      new BigDecimal("123")) ::
+      BDFoo(new BigDecimal("-123")) :: BDFoo(new BigDecimal("1.23E3")) :: BDFoo(
+      new BigDecimal("1.23E+3")) ::
+      BDFoo(new BigDecimal("12.3E+7")) :: BDFoo(new BigDecimal("12.0")) :: BDFoo(
+      new BigDecimal("12.3")) ::
+      BDFoo(new BigDecimal("0.00123")) :: BDFoo(new BigDecimal("-1.23E-12")) :: BDFoo(
+      new BigDecimal("1234.5E-4")) ::
       BDFoo(new BigDecimal("0E+7")) :: BDFoo(new BigDecimal("-0")) :: Nil
 
     val topic = newTopic()

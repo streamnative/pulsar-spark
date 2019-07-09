@@ -21,12 +21,12 @@ import org.apache.commons.io.IOUtils
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl, TopicMessageIdImpl}
 
+import org.apache.spark.{SparkContext, SparkEnv}
 import org.apache.spark.internal.Logging
 import org.apache.spark.scheduler.ExecutorCacheTaskLocation
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.execution.streaming.{HDFSMetadataLog, SerializedOffset}
 import org.apache.spark.storage.BlockManager
-import org.apache.spark.{SparkContext, SparkEnv}
 
 private[pulsar] object PulsarSourceUtils extends Logging {
   import PulsarOptions._
@@ -34,7 +34,9 @@ private[pulsar] object PulsarSourceUtils extends Logging {
   private[pulsar] val VERSION = 1
 
   def getSortedExecutorList(blockManager: BlockManager): Array[String] = {
-    blockManager.master.getPeers(blockManager.blockManagerId).toArray
+    blockManager.master
+      .getPeers(blockManager.blockManagerId)
+      .toArray
       .map(x => ExecutorCacheTaskLocation(x.host, x.executorId))
       .sortWith(compare)
       .map(_.toString)
@@ -53,16 +55,15 @@ private[pulsar] object PulsarSourceUtils extends Logging {
   }
 
   /**
-    * If `failOnDataLoss` is true, this method will throw an `IllegalStateException`.
-    * Otherwise, just log a warning.
-    */
-  def reportDataLossFunc(failOnDataLoss: Boolean): (String) => Unit = {
-    (message: String) =>
-      if (failOnDataLoss) {
-        throw new IllegalStateException(message + s". $INSTRUCTION_FOR_FAIL_ON_DATA_LOSS_TRUE")
-      } else {
-        logWarning(message + s". $INSTRUCTION_FOR_FAIL_ON_DATA_LOSS_FALSE")
-      }
+   * If `failOnDataLoss` is true, this method will throw an `IllegalStateException`.
+   * Otherwise, just log a warning.
+   */
+  def reportDataLossFunc(failOnDataLoss: Boolean): (String) => Unit = { (message: String) =>
+    if (failOnDataLoss) {
+      throw new IllegalStateException(message + s". $INSTRUCTION_FOR_FAIL_ON_DATA_LOSS_TRUE")
+    } else {
+      logWarning(message + s". $INSTRUCTION_FOR_FAIL_ON_DATA_LOSS_FALSE")
+    }
   }
 
   // used to check whether starting position and current message we got actually are equal
@@ -75,8 +76,9 @@ private[pulsar] object PulsarSourceUtils extends Logging {
       case (lb: BatchMessageIdImpl, rm: MessageIdImpl) =>
         rm.equals(new MessageIdImpl(lb.getLedgerId, lb.getEntryId, lb.getPartitionIndex))
       case (lm: MessageIdImpl, rm: MessageIdImpl) => lm.equals(rm)
-      case _ => throw new IllegalStateException(
-        s"comparing messageIds of type [${l.getClass.getName}, ${r.getClass.getName}]")
+      case _ =>
+        throw new IllegalStateException(
+          s"comparing messageIds of type [${l.getClass.getName}, ${r.getClass.getName}]")
     }
   }
 
@@ -90,7 +92,8 @@ private[pulsar] object PulsarSourceUtils extends Logging {
   def enteredEnd(end: MessageId)(current: MessageId): Boolean = {
     val endImpl = end.asInstanceOf[MessageIdImpl]
     val currentImpl = current.asInstanceOf[MessageIdImpl]
-    val result = endImpl.getLedgerId == currentImpl.getLedgerId && endImpl.getEntryId == currentImpl.getEntryId
+    val result = endImpl.getLedgerId == currentImpl.getLedgerId &&
+      endImpl.getEntryId == currentImpl.getEntryId
 
     result
   }
@@ -99,9 +102,11 @@ private[pulsar] object PulsarSourceUtils extends Logging {
     messageId match {
       case bmid: BatchMessageIdImpl =>
         bmid.getBatchIndex == bmid.getBatchSize - 1
-      case _ : MessageIdImpl =>
+      case _: MessageIdImpl =>
         true
-      case _ => throw new IllegalStateException(s"reading a message of type ${messageId.getClass.getName}")
+      case _ =>
+        throw new IllegalStateException(
+          s"reading a message of type ${messageId.getClass.getName}")
     }
   }
 
@@ -120,7 +125,7 @@ private[pulsar] object PulsarSourceUtils extends Logging {
 }
 
 class PulsarSourceInitialOffsetWriter(sparkSession: SparkSession, metadataPath: String)
-  extends HDFSMetadataLog[SpecificPulsarOffset](sparkSession, metadataPath) {
+    extends HDFSMetadataLog[SpecificPulsarOffset](sparkSession, metadataPath) {
 
   import PulsarSourceUtils._
 
@@ -170,7 +175,8 @@ private[pulsar] class PulsarOffsetRange private (
     private var topic_ : String,
     private var fromOffset_ : MessageId,
     private var untilOffset_ : MessageId,
-    private var preferredLoc_ : Option[String]) extends Externalizable {
+    private var preferredLoc_ : Option[String])
+    extends Externalizable {
 
   def this() = this(null, null, null, None) // For deserialization only
 

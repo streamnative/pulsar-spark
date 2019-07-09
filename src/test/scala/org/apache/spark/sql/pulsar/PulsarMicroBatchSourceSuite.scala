@@ -36,8 +36,7 @@ class PulsarMicroBatchV1SourceSuite extends PulsarMicroBatchSourceSuiteBase {
   test("V1 Source is used when disabled through SQLConf") {
     val topic = newTopic()
 
-    val pulsar = spark
-      .readStream
+    val pulsar = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -60,8 +59,7 @@ class PulsarMicroBatchV2SourceSuite extends PulsarMicroBatchSourceSuiteBase {
   test("V2 Source is used by default") {
     val topic = newTopic()
 
-    val pulsar = spark
-      .readStream
+    val pulsar = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -87,18 +85,13 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     val topic = newTopic()
     createNonPartitionedTopic(topic)
 
-    val reader = spark
-      .readStream
+    val reader = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(TOPIC_SINGLE, topic)
 
-    testStream(reader.load)(
-      makeSureGetOffsetCalled,
-      StopStream,
-      StartStream(),
-      StopStream)
+    testStream(reader.load)(makeSureGetOffsetCalled, StopStream, StartStream(), StopStream)
   }
 
   test("input row metrics") {
@@ -106,8 +99,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     sendMessages(topic, Array("-1"))
     require(getLatestOffsets(Set(topic)).size === 1)
 
-    val pulsar = spark
-      .readStream
+    val pulsar = spark.readStream
       .format("pulsar")
       .option(TOPIC_SINGLE, topic)
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
@@ -137,15 +129,15 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     sendMessages(topic, Array("-1"))
     require(getLatestOffsets(Set(topic)).size === 5)
 
-    val reader = spark
-      .readStream
+    val reader = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(TOPIC_PATTERN, s"$topicPrefix-.*")
       .option("failOnDataLoss", "false")
 
-    val pulsar = reader.load()
+    val pulsar = reader
+      .load()
       .selectExpr("CAST(value AS STRING)")
       .as[String]
     val mapped = pulsar.map(v => v.toInt + 1)
@@ -173,8 +165,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     createNonPartitionedTopic(topic2)
     sendMessages(topic2, Array("2", "4"))
 
-    val reader = spark
-      .readStream
+    val reader = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -182,7 +173,8 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       .option("failOnDataLoss", "true")
       .option("startingOffsets", "earliest")
 
-    val ds = reader.load()
+    val ds = reader
+      .load()
       .selectExpr("CAST(value AS STRING)")
       .as[String]
       .map(v => v.toInt)
@@ -221,8 +213,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     val topic = newTopic()
     sendMessages(topic, Array(1).map(_.toString))
 
-    val pulsar = spark
-      .readStream
+    val pulsar = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -236,8 +227,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       .agg(count("*") as 'count)
       .select($"window".getField("start") as 'window, $"count")
 
-    val query = windowedAggregation
-      .writeStream
+    val query = windowedAggregation.writeStream
       .format("memory")
       .outputMode("complete")
       .queryName("pulsarWatermark")
@@ -262,8 +252,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     val topic = newTopic()
     sendMessages(topic, (1 to 10).map(_.toString).toArray)
 
-    val reader = spark
-      .readStream
+    val reader = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -271,27 +260,32 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
       .option(POLL_TIMEOUT_MS, "1000")
       .option("failOnDataLoss", "false")
-    val pulsar = reader.load()
+    val pulsar = reader
+      .load()
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
     // The following ForeachWriter will delete the topic before fetching data from Pulsar
     // in executors.
 
     val adminu: String = adminUrl
-    val query = pulsar.map(kv => kv._2.toInt).writeStream.foreach(new ForeachWriter[Int] {
-      override def open(partitionId: Long, version: Long): Boolean = {
-        Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminu).build()) { admin =>
-          admin.topics().delete(topic, true)
+    val query = pulsar
+      .map(kv => kv._2.toInt)
+      .writeStream
+      .foreach(new ForeachWriter[Int] {
+        override def open(partitionId: Long, version: Long): Boolean = {
+          Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminu).build()) { admin =>
+            admin.topics().delete(topic, true)
+          }
+          true
         }
-        true
-      }
 
-      override def process(value: Int): Unit = {
-        PulsarSourceSuite.collectedData.add(value)
-      }
+        override def process(value: Int): Unit = {
+          PulsarSourceSuite.collectedData.add(value)
+        }
 
-      override def close(errorOrNull: Throwable): Unit = {}
-    }).start()
+        override def close(errorOrNull: Throwable): Unit = {}
+      })
+      .start()
     query.processAllAvailable()
     query.stop()
     // `failOnDataLoss` is `false`, we should not fail the query
@@ -301,8 +295,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
   test("ensure stream-stream self-join generates only one offset in log and correct metrics") {
     val topic = newTopic()
 
-    val pulsar = spark
-      .readStream
+    val pulsar = spark.readStream
       .format("pulsar")
       .option(TOPIC_SINGLE, topic)
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
@@ -310,7 +303,8 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       .load()
 
     val values = pulsar
-      .selectExpr("CAST(CAST(value AS STRING) AS INT) AS value",
+      .selectExpr(
+        "CAST(CAST(value AS STRING) AS INT) AS value",
         "CAST(CAST(value AS STRING) AS INT) % 5 AS key")
 
     val join = values.join(values, "key")

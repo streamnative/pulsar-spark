@@ -26,7 +26,7 @@ import org.apache.pulsar.common.schema.SchemaType
 import org.apache.spark.sql.test.SharedSQLContext
 import org.apache.spark.sql.{DataFrame, Encoder, Encoders, QueryTest}
 
-class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTest {
+class PulsarRelationSuite extends QueryTest with SharedSQLContext with PulsarTest {
   import PulsarOptions._
   import SchemaData._
   import testImplicits._
@@ -38,8 +38,7 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
       topic: String,
       withOptions: Map[String, String] = Map.empty[String, String],
       brokerAddress: Option[String] = None) = {
-    val df = spark
-      .read
+    val df = spark.read
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -58,7 +57,8 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
     sendMessages(topic, Array("20"), Some(2))
 
     // Specify explicit earliest and latest offset values
-    val df = createDF(topic,
+    val df = createDF(
+      topic,
       withOptions = Map("startingOffsets" -> "earliest", "endingOffsets" -> "latest"))
     checkAnswer(df, (0 to 20).map(_.toString).toDF)
 
@@ -85,7 +85,8 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
     val topic2 = newTopic()
 
     sendMessages(topic1, (0 to 9).map(_.toString).toArray, None)
-    val t2mid: Seq[(String, MessageId)] = sendMessages(topic2, (10 to 19).map(_.toString).toArray, None)
+    val t2mid: Seq[(String, MessageId)] =
+      sendMessages(topic2, (10 to 19).map(_.toString).toArray, None)
     val first = t2mid.head._2
     val last = t2mid.last._2
 
@@ -101,7 +102,8 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
       topic2 -> last) // explicit offset happens to = the latest
 
     val endingOffsets = JsonUtils.topicOffsets(endPartitionOffsets)
-    val df = createDF(s"$topic1,$topic2",
+    val df = createDF(
+      s"$topic1,$topic2",
       withOptions = Map("startingOffsets" -> startingOffsets, "endingOffsets" -> endingOffsets))
     checkAnswer(df, (0 to 19).map(_.toString).toDF)
 
@@ -120,16 +122,22 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
     sendMessages(topic, (0 to 10).map(_.toString).toArray, None)
 
     // Specify explicit earliest and latest offset values
-    val df = createDF(topic,
+    val df = createDF(
+      topic,
       withOptions = Map("startingOffsets" -> "earliest", "endingOffsets" -> "latest"))
     checkAnswer(df.union(df), ((0 to 10) ++ (0 to 10)).map(_.toString).toDF)
   }
 
-  private def check[T: ClassTag](schemaType: SchemaType, datas: Seq[T], encoder: Encoder[T], str: T => String): (DataFrame, DataFrame) = {
+  private def check[T: ClassTag](
+      schemaType: SchemaType,
+      datas: Seq[T],
+      encoder: Encoder[T],
+      str: T => String): (DataFrame, DataFrame) = {
     val topic = newTopic()
     sendTypedMessages[T](topic, schemaType, datas, None)
 
-    val df = createDF(topic,
+    val df = createDF(
+      topic,
       withOptions = Map("startingOffsets" -> "earliest", "endingOffsets" -> "latest"))
 
     val df2 = if (str == null) {
@@ -175,20 +183,21 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
 
   test("test byte array") {
     // compare string, encoders are just placeholders, not actually used
-    check[Array[Byte]](SchemaType.BYTES, bytesSeq,
-      Encoders.BINARY, new String(_))
+    check[Array[Byte]](SchemaType.BYTES, bytesSeq, Encoders.BINARY, new String(_))
   }
 
   test("test date") {
     val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
-    check[Date](SchemaType.DATE, dateSeq,
-      Encoders.bean(classOf[Date]), dateFormat.format(_))
+    check[Date](SchemaType.DATE, dateSeq, Encoders.bean(classOf[Date]), dateFormat.format(_))
   }
 
   test("test timestamp") {
     val tsFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-    check[java.sql.Timestamp](SchemaType.TIMESTAMP, timestampSeq,
-      Encoders.kryo(classOf[java.sql.Timestamp]), tsFormat.format(_))
+    check[java.sql.Timestamp](
+      SchemaType.TIMESTAMP,
+      timestampSeq,
+      Encoders.kryo(classOf[java.sql.Timestamp]),
+      tsFormat.format(_))
   }
 
   test("test struct types in avro") {
@@ -198,15 +207,15 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
 
     sendTypedMessages[Foo](topic, SchemaType.AVRO, fooSeq, None)
 
-    val result = spark
-      .read
+    val result = spark.read
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(TOPIC_MULTI, topic)
       .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
       .option(ENDING_OFFSETS_OPTION_KEY, "latest")
-      .load().selectExpr("i", "f", "bar")
+      .load()
+      .selectExpr("i", "f", "bar")
 
     checkAnswer(result, fooSeq.toDF())
   }
@@ -218,15 +227,15 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
 
     sendTypedMessages[F1](topic, SchemaType.JSON, f1Seq, None)
 
-    val result = spark
-      .read
+    val result = spark.read
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(TOPIC_MULTI, topic)
       .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
       .option(ENDING_OFFSETS_OPTION_KEY, "latest")
-      .load().selectExpr("baz.f", "baz.d", "baz.mp", "baz.arr")
+      .load()
+      .selectExpr("baz.f", "baz.d", "baz.mp", "baz.arr")
 
     checkAnswer(result, f1Results.toDF())
   }
@@ -234,8 +243,7 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
   test("bad batch query options") {
     def testBadOptions(options: (String, String)*)(expectedMsgs: String*): Unit = {
       val ex = intercept[IllegalArgumentException] {
-        val reader = spark
-          .read
+        val reader = spark.read
           .format("pulsar")
           .option(SERVICE_URL_OPTION_KEY, serviceUrl)
           .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -248,19 +256,20 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
     }
 
     // Specifying an ending offset as the starting point
-    testBadOptions("startingOffsets" -> "latest")("starting offset can't be latest " +
-      "for batch queries on pulsar")
+    testBadOptions("startingOffsets" -> "latest")(
+      "starting offset can't be latest " +
+        "for batch queries on pulsar")
 
     // Now do it with an explicit json start offset indicating latest
-    val startPartitionOffsets = Map( "t" -> MessageId.latest)
+    val startPartitionOffsets = Map("t" -> MessageId.latest)
     val startingOffsets = JsonUtils.topicOffsets(startPartitionOffsets)
     testBadOptions(TOPIC_SINGLE -> "t", "startingOffsets" -> startingOffsets)(
       "starting offset for t can't be latest for batch queries on pulsar")
 
-
     // Make sure we catch ending offsets that indicate earliest
-    testBadOptions("endingOffsets" -> "earliest")("ending offset can't be" +
-      " earliest for batch queries on pulsar")
+    testBadOptions("endingOffsets" -> "earliest")(
+      "ending offset can't be" +
+        " earliest for batch queries on pulsar")
 
     // Make sure we catch ending offsets that indicating earliest
     val endPartitionOffsets = Map("t" -> MessageId.earliest)
@@ -272,8 +281,7 @@ class PulsarRelationSuite  extends QueryTest with SharedSQLContext with PulsarTe
     testBadOptions()("one of the topic options", TOPIC_SINGLE, TOPIC_MULTI, TOPIC_PATTERN)
 
     // Multiple strategies specified
-    testBadOptions(TOPIC_MULTI -> "t", TOPIC_PATTERN -> "t.*")(
-      "one of the topic options")
+    testBadOptions(TOPIC_MULTI -> "t", TOPIC_PATTERN -> "t.*")("one of the topic options")
 
     testBadOptions(TOPIC_MULTI -> "t", TOPIC_SINGLE -> """{"a":[0]}""")(
       "one of the topic options")

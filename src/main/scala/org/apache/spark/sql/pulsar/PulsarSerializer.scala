@@ -20,23 +20,20 @@ import scala.collection.JavaConverters._
 
 import org.apache.pulsar.client.api.schema.Field
 import org.apache.pulsar.client.impl.schema.generic.GenericAvroRecord
-
+import org.apache.pulsar.shade.org.apache.avro.{LogicalTypes, Schema => ASchema}
 import org.apache.pulsar.shade.org.apache.avro.Conversions.DecimalConversion
 import org.apache.pulsar.shade.org.apache.avro.LogicalTypes.{TimestampMicros, TimestampMillis}
 import org.apache.pulsar.shade.org.apache.avro.Schema.Type
 import org.apache.pulsar.shade.org.apache.avro.Schema.Type._
 import org.apache.pulsar.shade.org.apache.avro.generic.GenericData.EnumSymbol
 import org.apache.pulsar.shade.org.apache.avro.util.Utf8
-import org.apache.pulsar.shade.org.apache.avro.{LogicalTypes, Schema => ASchema}
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.types._
 
-class PulsarSerializer(
-    rootCatalystType: DataType,
-    nullable: Boolean) {
+class PulsarSerializer(rootCatalystType: DataType, nullable: Boolean) {
 
   def serialize(catalystData: Any): Any = {
     converter.apply(catalystData)
@@ -59,13 +56,12 @@ class PulsarSerializer(
         (data: Any) =>
           converter.apply(data.asInstanceOf[SpecializedGetters], 0)
     }
-    if (nullable) {
-      (data: Any) =>
-        if (data == null) {
-          null
-        } else {
-          baseConverter.apply(data)
-        }
+    if (nullable) { (data: Any) =>
+      if (data == null) {
+        null
+      } else {
+        baseConverter.apply(data)
+      }
     } else {
       baseConverter
     }
@@ -74,40 +70,56 @@ class PulsarSerializer(
   private def singleValueConverter(catalystType: DataType, avroType: ASchema): Converter = {
     (catalystType, avroType.getType) match {
       case (NullType, NULL) =>
-        (getter, ordinal) => null
+        (getter, ordinal) =>
+          null
       case (BooleanType, BOOLEAN) =>
-        (getter, ordinal) => getter.getBoolean(ordinal)
+        (getter, ordinal) =>
+          getter.getBoolean(ordinal)
       case (ByteType, INT) =>
-        (getter, ordinal) => getter.getByte(ordinal)
+        (getter, ordinal) =>
+          getter.getByte(ordinal)
       case (ShortType, INT) =>
-        (getter, ordinal) => getter.getShort(ordinal)
+        (getter, ordinal) =>
+          getter.getShort(ordinal)
       case (IntegerType, INT) =>
-        (getter, ordinal) => getter.getInt(ordinal)
+        (getter, ordinal) =>
+          getter.getInt(ordinal)
       case (LongType, LONG) =>
-        (getter, ordinal) => getter.getLong(ordinal)
+        (getter, ordinal) =>
+          getter.getLong(ordinal)
       case (FloatType, FLOAT) =>
-        (getter, ordinal) => getter.getFloat(ordinal)
+        (getter, ordinal) =>
+          getter.getFloat(ordinal)
       case (DoubleType, DOUBLE) =>
-        (getter, ordinal) => getter.getDouble(ordinal)
+        (getter, ordinal) =>
+          getter.getDouble(ordinal)
       case (StringType, STRING) =>
-        (getter, ordinal) => getter.getUTF8String(ordinal).toString
+        (getter, ordinal) =>
+          getter.getUTF8String(ordinal).toString
       case (BinaryType, BYTES) =>
-        (getter, ordinal) => getter.getBinary(ordinal)
+        (getter, ordinal) =>
+          getter.getBinary(ordinal)
       case (DateType, INT) =>
-        (getter, ordinal) => DateTimeUtils.toJavaDate(getter.getInt(ordinal))
+        (getter, ordinal) =>
+          DateTimeUtils.toJavaDate(getter.getInt(ordinal))
 
-      case (TimestampType, LONG) => avroType.getLogicalType match {
-        case _: TimestampMillis => (getter, ordinal) =>
-          DateTimeUtils.toJavaTimestamp(getter.getLong(ordinal) / 1000)
-        case _: TimestampMicros => (getter, ordinal) =>
-          DateTimeUtils.toJavaTimestamp(getter.getLong(ordinal))
-        case other => throw new IncompatibleSchemaException(
-          s"Cannot convert Catalyst Timestamp type to Avro logical type ${other}")
-      }
+      case (TimestampType, LONG) =>
+        avroType.getLogicalType match {
+          case _: TimestampMillis =>
+            (getter, ordinal) =>
+              DateTimeUtils.toJavaTimestamp(getter.getLong(ordinal) / 1000)
+          case _: TimestampMicros =>
+            (getter, ordinal) =>
+              DateTimeUtils.toJavaTimestamp(getter.getLong(ordinal))
+          case other =>
+            throw new IncompatibleSchemaException(
+              s"Cannot convert Catalyst Timestamp type to Avro logical type ${other}")
+        }
 
       case other =>
-        throw new IncompatibleSchemaException(s"Cannot convert Catalyst type $catalystType to " +
-          s"Avro type $avroType.")
+        throw new IncompatibleSchemaException(
+          s"Cannot convert Catalyst type $catalystType to " +
+            s"Avro type $avroType.")
     }
   }
 
@@ -116,47 +128,67 @@ class PulsarSerializer(
   private def newConverter(catalystType: DataType, avroType: ASchema): Converter = {
     (catalystType, avroType.getType) match {
       case (NullType, NULL) =>
-        (getter, ordinal) => null
+        (getter, ordinal) =>
+          null
       case (BooleanType, BOOLEAN) =>
-        (getter, ordinal) => getter.getBoolean(ordinal)
+        (getter, ordinal) =>
+          getter.getBoolean(ordinal)
       case (ByteType, INT) =>
-        (getter, ordinal) => getter.getByte(ordinal).toInt
+        (getter, ordinal) =>
+          getter.getByte(ordinal).toInt
       case (ShortType, INT) =>
-        (getter, ordinal) => getter.getShort(ordinal).toInt
+        (getter, ordinal) =>
+          getter.getShort(ordinal).toInt
       case (IntegerType, INT) =>
-        (getter, ordinal) => getter.getInt(ordinal)
+        (getter, ordinal) =>
+          getter.getInt(ordinal)
       case (LongType, LONG) =>
-        (getter, ordinal) => getter.getLong(ordinal)
+        (getter, ordinal) =>
+          getter.getLong(ordinal)
       case (FloatType, FLOAT) =>
-        (getter, ordinal) => getter.getFloat(ordinal)
+        (getter, ordinal) =>
+          getter.getFloat(ordinal)
       case (DoubleType, DOUBLE) =>
-        (getter, ordinal) => getter.getDouble(ordinal)
+        (getter, ordinal) =>
+          getter.getDouble(ordinal)
 
       case (d: DecimalType, FIXED)
-        if avroType.getLogicalType == LogicalTypes.decimal(d.precision, d.scale) =>
+          if avroType.getLogicalType == LogicalTypes.decimal(d.precision, d.scale) =>
         (getter, ordinal) =>
           val decimal = getter.getDecimal(ordinal, d.precision, d.scale)
-          decimalConversions.toFixed(decimal.toJavaBigDecimal, avroType,
+          decimalConversions.toFixed(
+            decimal.toJavaBigDecimal,
+            avroType,
             LogicalTypes.decimal(d.precision, d.scale))
 
       case (d: DecimalType, BYTES)
-        if avroType.getLogicalType == LogicalTypes.decimal(d.precision, d.scale) =>
+          if avroType.getLogicalType == LogicalTypes.decimal(d.precision, d.scale) =>
         (getter, ordinal) =>
           val decimal = getter.getDecimal(ordinal, d.precision, d.scale)
-          decimalConversions.toBytes(decimal.toJavaBigDecimal, avroType,
+          decimalConversions.toBytes(
+            decimal.toJavaBigDecimal,
+            avroType,
             LogicalTypes.decimal(d.precision, d.scale))
 
       case (BinaryType, BYTES) =>
-        (getter, ordinal) => ByteBuffer.wrap(getter.getBinary(ordinal))
+        (getter, ordinal) =>
+          ByteBuffer.wrap(getter.getBinary(ordinal))
       case (DateType, INT) =>
-        (getter, ordinal) => getter.getInt(ordinal)
+        (getter, ordinal) =>
+          getter.getInt(ordinal)
 
-      case (TimestampType, LONG) => avroType.getLogicalType match {
-        case _: TimestampMillis => (getter, ordinal) => getter.getLong(ordinal) / 1000
-        case _: TimestampMicros => (getter, ordinal) => getter.getLong(ordinal)
-        case other => throw new IncompatibleSchemaException(
-          s"Cannot convert Catalyst Timestamp type to Avro logical type ${other}")
-      }
+      case (TimestampType, LONG) =>
+        avroType.getLogicalType match {
+          case _: TimestampMillis =>
+            (getter, ordinal) =>
+              getter.getLong(ordinal) / 1000
+          case _: TimestampMicros =>
+            (getter, ordinal) =>
+              getter.getLong(ordinal)
+          case other =>
+            throw new IncompatibleSchemaException(
+              s"Cannot convert Catalyst Timestamp type to Avro logical type ${other}")
+        }
 
       case (StringType, STRING) =>
         (getter, ordinal) =>
@@ -175,29 +207,30 @@ class PulsarSerializer(
           new EnumSymbol(avroType, data)
 
       case (ArrayType(et, containsNull), ARRAY) =>
-        val elementConverter = newConverter(
-          et, resolveNullableType(avroType.getElementType, containsNull))
-        (getter, ordinal) => {
-          val arrayData = getter.getArray(ordinal)
-          val len = arrayData.numElements()
-          val result = new Array[Any](len)
-          var i = 0
-          while (i < len) {
-            if (containsNull && arrayData.isNullAt(i)) {
-              result(i) = null
-            } else {
-              result(i) = elementConverter(arrayData, i)
+        val elementConverter =
+          newConverter(et, resolveNullableType(avroType.getElementType, containsNull))
+        (getter, ordinal) =>
+          {
+            val arrayData = getter.getArray(ordinal)
+            val len = arrayData.numElements()
+            val result = new Array[Any](len)
+            var i = 0
+            while (i < len) {
+              if (containsNull && arrayData.isNullAt(i)) {
+                result(i) = null
+              } else {
+                result(i) = elementConverter(arrayData, i)
+              }
+              i += 1
             }
-            i += 1
+            // avro writer is expecting a Java Collection, so we convert it into
+            // `ArrayList` backed by the specified array without data copying.
+            java.util.Arrays.asList(result: _*)
           }
-          // avro writer is expecting a Java Collection, so we convert it into
-          // `ArrayList` backed by the specified array without data copying.
-          java.util.Arrays.asList(result: _*)
-        }
 
       case (MapType(kt, vt, valueContainsNull), MAP) if kt == StringType =>
-        val valueConverter = newConverter(
-          vt, resolveNullableType(avroType.getValueType, valueContainsNull))
+        val valueConverter =
+          newConverter(vt, resolveNullableType(avroType.getValueType, valueContainsNull))
         (getter, ordinal) =>
           val mapData = getter.getMap(ordinal)
           val len = mapData.numElements()
@@ -219,19 +252,23 @@ class PulsarSerializer(
       case (st: StructType, RECORD) =>
         val structConverter = newStructConverter(st, avroType)
         val numFields = st.length
-        (getter, ordinal) => structConverter(getter.getStruct(ordinal, numFields)).getAvroRecord
+        (getter, ordinal) =>
+          structConverter(getter.getStruct(ordinal, numFields)).getAvroRecord
 
       case other =>
-        throw new IncompatibleSchemaException(s"Cannot convert Catalyst type $catalystType to " +
-          s"Avro type $avroType.")
+        throw new IncompatibleSchemaException(
+          s"Cannot convert Catalyst type $catalystType to " +
+            s"Avro type $avroType.")
     }
   }
 
   private def newStructConverter(
-      catalystStruct: StructType, avroStruct: ASchema): InternalRow => GenericAvroRecord = {
+      catalystStruct: StructType,
+      avroStruct: ASchema): InternalRow => GenericAvroRecord = {
     if (avroStruct.getType != RECORD || avroStruct.getFields.size() != catalystStruct.length) {
-      throw new IncompatibleSchemaException(s"Cannot convert Catalyst type $catalystStruct to " +
-        s"Avro type $avroStruct.")
+      throw new IncompatibleSchemaException(
+        s"Cannot convert Catalyst type $catalystStruct to " +
+          s"Avro type $avroStruct.")
     }
     val fieldConverters = catalystStruct.zip(avroStruct.getFields.asScala).map {
       case (f1, f2) => newConverter(f1.dataType, resolveNullableType(f2.schema(), f1.nullable))

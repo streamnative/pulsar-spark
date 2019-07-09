@@ -13,18 +13,18 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.util.concurrent.TimeUnit
 import java.{util => ju}
+import java.util.concurrent.TimeUnit
 
 import org.apache.pulsar.client.api.{Producer, Schema}
 
 import org.apache.spark.internal.Logging
+import org.apache.spark.sql.{AnalysisException, DataFrame, SparkSession, SQLContext}
 import org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Literal}
 import org.apache.spark.sql.execution.QueryExecution
 import org.apache.spark.sql.execution.streaming.Sink
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SparkSession}
 import org.apache.spark.util.Utils
 
 private[pulsar] class PulsarSink(
@@ -32,7 +32,9 @@ private[pulsar] class PulsarSink(
     pulsarClientConf: ju.Map[String, Object],
     pulsarProducerConf: ju.Map[String, Object],
     topic: Option[String],
-    adminUrl: String) extends Sink with Logging {
+    adminUrl: String)
+    extends Sink
+    with Logging {
 
   @volatile private var latestBatchId = -1L
 
@@ -63,8 +65,10 @@ private[pulsar] object PulsarSinks extends Logging {
   def checkForUnsupportedType(valuesDT: Seq[DataType]): Unit = {
     valuesDT.map { dt =>
       dt match {
-        case CalendarIntervalType => throw new AnalysisException("CalendarIntervalType not supported by pulsar sink yet")
-        case u: UserDefinedType[_] => throw new AnalysisException(s"$u not supported by pulsar sink yet")
+        case CalendarIntervalType =>
+          throw new AnalysisException("CalendarIntervalType not supported by pulsar sink yet")
+        case u: UserDefinedType[_] =>
+          throw new AnalysisException(s"$u not supported by pulsar sink yet")
         case o: ObjectType => throw new AnalysisException(s"$o not supported by pulsar sink yet")
         case st: StructType => checkForUnsupportedType(st.fields.map(_.dataType).toSeq)
         case _ => // spark types we are able to handle right now
@@ -73,45 +77,59 @@ private[pulsar] object PulsarSinks extends Logging {
   }
 
   def validateQuery(schema: Seq[Attribute], topic: Option[String]): Unit = {
-    schema.find(_.name == TOPIC_ATTRIBUTE_NAME).getOrElse(
-      if (topic.isEmpty) {
-        throw new AnalysisException(s"topic option required when no " +
-          s"'$TOPIC_ATTRIBUTE_NAME' attribute is present. Use the " +
-          s"$TOPIC_SINGLE option for setting a topic.")
-      } else {
-        Literal(topic.get, StringType)
-      }
-    ).dataType match {
+    schema
+      .find(_.name == TOPIC_ATTRIBUTE_NAME)
+      .getOrElse(
+        if (topic.isEmpty) {
+          throw new AnalysisException(
+            s"topic option required when no " +
+              s"'$TOPIC_ATTRIBUTE_NAME' attribute is present. Use the " +
+              s"$TOPIC_SINGLE option for setting a topic.")
+        } else {
+          Literal(topic.get, StringType)
+        }
+      )
+      .dataType match {
       case StringType => // good
       case _ =>
         throw new AnalysisException(s"Topic type must be a ${StringType.catalogString}")
     }
 
-    schema.find(_.name == PulsarOptions.KEY_ATTRIBUTE_NAME).getOrElse(
-      Literal(null, StringType)
-    ).dataType match {
+    schema
+      .find(_.name == PulsarOptions.KEY_ATTRIBUTE_NAME)
+      .getOrElse(
+        Literal(null, StringType)
+      )
+      .dataType match {
       case StringType | BinaryType => // good
       case _ =>
-        throw new AnalysisException(s"${PulsarOptions.KEY_ATTRIBUTE_NAME} attribute type " +
-          s"must be a ${StringType.catalogString} or ${BinaryType.catalogString}")
+        throw new AnalysisException(
+          s"${PulsarOptions.KEY_ATTRIBUTE_NAME} attribute type " +
+            s"must be a ${StringType.catalogString} or ${BinaryType.catalogString}")
     }
 
-    schema.find(_.name == PulsarOptions.EVENT_TIME_NAME).getOrElse(
-      Literal(null, LongType)
-    ).dataType match {
-      case LongType | TimestampType=> // good
+    schema
+      .find(_.name == PulsarOptions.EVENT_TIME_NAME)
+      .getOrElse(
+        Literal(null, LongType)
+      )
+      .dataType match {
+      case LongType | TimestampType => // good
       case _ =>
-        throw new AnalysisException(s"${PulsarOptions.EVENT_TIME_NAME} attribute type " +
-          s"must be a ${LongType.catalogString} or ${TimestampType.catalogString}")
+        throw new AnalysisException(
+          s"${PulsarOptions.EVENT_TIME_NAME} attribute type " +
+            s"must be a ${LongType.catalogString} or ${TimestampType.catalogString}")
     }
 
-    schema.find(a =>
-      a.name == PulsarOptions.MESSAGE_ID_NAME ||
-      a.name == PulsarOptions.PUBLISH_TIME_NAME).map(a =>
-      logWarning(s"${a.name} attribute exists in schema," +
-        "it's reserved by Pulsar Source and generated automatically by pulsar for each record." +
-        "Choose another name if you want to keep this field or it will be ignored by pulsar.")
-    )
+    schema
+      .find(
+        a =>
+          a.name == PulsarOptions.MESSAGE_ID_NAME ||
+            a.name == PulsarOptions.PUBLISH_TIME_NAME)
+      .map(a =>
+        logWarning(s"${a.name} attribute exists in schema," +
+          "it's reserved by Pulsar Source and generated automatically by pulsar for each record." +
+          "Choose another name if you want to keep this field or it will be ignored by pulsar."))
 
     val valuesExpression =
       schema.filter(n => !PulsarOptions.META_FIELD_NAMES.contains(n.name))
@@ -137,14 +155,9 @@ private[pulsar] object PulsarSinks extends Logging {
 
     // execute RDD
     queryExecution.toRdd.foreachPartition { iter =>
-      val writeTask = new PulsarWriteTask(
-        pulsarClientConf,
-        pulsarProducerConf,
-        topic,
-        schema,
-        adminUrl)
-      Utils.tryWithSafeFinally(block = writeTask.execute(iter))(
-        finallyBlock = writeTask.close())
+      val writeTask =
+        new PulsarWriteTask(pulsarClientConf, pulsarProducerConf, topic, schema, adminUrl)
+      Utils.tryWithSafeFinally(block = writeTask.execute(iter))(finallyBlock = writeTask.close())
     }
   }
 
@@ -154,7 +167,8 @@ private[pulsar] object PulsarSinks extends Logging {
       topic: String,
       schema: Schema[T]): Producer[T] = {
 
-    CachedPulsarClient.getOrCreate(clientConf)
+    CachedPulsarClient
+      .getOrCreate(clientConf)
       .newProducer(schema)
       .topic(topic)
       .loadConf(producerConf)

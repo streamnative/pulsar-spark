@@ -43,7 +43,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     val topic = newTopic()
     val df = Seq("1", "2", "3", "4", "5") map { v =>
       (v, v)
-    } toDF("key", "value")
+    } toDF ("key", "value")
     df.write
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
@@ -56,7 +56,11 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       Row("1") :: Row("2") :: Row("3") :: Row("4") :: Row("5") :: Nil)
   }
 
-  private def batchCheck[T: ClassTag](schemaInfo: SchemaInfo, data: Seq[T], encoder: Encoder[T], str: T => String) = {
+  private def batchCheck[T: ClassTag](
+      schemaInfo: SchemaInfo,
+      data: Seq[T],
+      encoder: Encoder[T],
+      str: T => String) = {
     val topic = newTopic()
 
     val df = if (str == null) {
@@ -112,19 +116,24 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
 
   test("batch - date") {
     val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
-    batchCheck[Date](Schema.DATE.getSchemaInfo, dateSeq,
-      Encoders.bean(classOf[Date]), dateFormat.format(_))
+    batchCheck[Date](
+      Schema.DATE.getSchemaInfo,
+      dateSeq,
+      Encoders.bean(classOf[Date]),
+      dateFormat.format(_))
   }
 
   test("batch - timestamp") {
     val tsFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-    batchCheck[java.sql.Timestamp](Schema.TIMESTAMP.getSchemaInfo, timestampSeq,
-      Encoders.kryo(classOf[java.sql.Timestamp]), tsFormat.format(_))
+    batchCheck[java.sql.Timestamp](
+      Schema.TIMESTAMP.getSchemaInfo,
+      timestampSeq,
+      Encoders.kryo(classOf[java.sql.Timestamp]),
+      tsFormat.format(_))
   }
 
   test("batch - byte array") {
-    batchCheck[Array[Byte]](Schema.BYTES.getSchemaInfo, bytesSeq,
-      Encoders.BINARY, new String(_))
+    batchCheck[Array[Byte]](Schema.BYTES.getSchemaInfo, bytesSeq, Encoders.BINARY, new String(_))
   }
 
   test("batch - struct types") {
@@ -153,8 +162,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
         .option(ADMIN_URL_OPTION_KEY, adminUrl)
         .save()
     }
-    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
-      "topic option required"))
+    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains("topic option required"))
   }
 
   test("batch - unsupported save modes") {
@@ -165,12 +173,12 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     var ex = intercept[AnalysisException] {
       df.write
         .format("pulsar")
-        .option(SERVICE_URL_OPTION_KEY,serviceUrl)
+        .option(SERVICE_URL_OPTION_KEY, serviceUrl)
         .mode(SaveMode.Ignore)
         .save()
     }
-    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
-      s"save mode ignore not allowed for pulsar"))
+    assert(
+      ex.getMessage.toLowerCase(Locale.ROOT).contains(s"save mode ignore not allowed for pulsar"))
 
     // Test bad save mode Overwrite
     ex = intercept[AnalysisException] {
@@ -180,8 +188,10 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
         .mode(SaveMode.Overwrite)
         .save()
     }
-    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
-      s"save mode overwrite not allowed for pulsar"))
+    assert(
+      ex.getMessage
+        .toLowerCase(Locale.ROOT)
+        .contains(s"save mode overwrite not allowed for pulsar"))
   }
 
   test("streaming - write to pulsar with topic field") {
@@ -191,8 +201,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     val writer = createPulsarWriter(
       input.toDF(),
       withTopic = None,
-      withOutputMode = Some(OutputMode.Append))(
-      withSelectExpr = s"'$topic' as __topic", "value")
+      withOutputMode = Some(OutputMode.Append))(withSelectExpr = s"'$topic' as __topic", "value")
 
     val reader = createPulsarReader(topic)
       .selectExpr("CAST(__key as STRING) __key", "CAST(value as STRING) value")
@@ -224,7 +233,8 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       input.toDF().groupBy("value").count(),
       withTopic = Some(topic),
       withOutputMode = Some(OutputMode.Update()))(
-      withSelectExpr = "CAST(value as STRING) __key", "CAST(count as STRING) value"
+      withSelectExpr = "CAST(value as STRING) __key",
+      "CAST(count as STRING) value"
     )
 
     val reader = createPulsarReader(topic)
@@ -265,7 +275,8 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       withTopic = Some(topic),
       withOutputMode = Some(OutputMode.Update()))(
       withSelectExpr = "'foo' as __topic",
-      "CAST(value as STRING) __key", "CAST(count as STRING) value")
+      "CAST(value as STRING) __key",
+      "CAST(count as STRING) value")
 
     val reader = createPulsarReader(topic)
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
@@ -288,7 +299,11 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     }
   }
 
-  private def streamCheck[T: ClassTag](schemaInfo: SchemaInfo, data: Seq[T], encoder: Encoder[T], str: T => String) = {
+  private def streamCheck[T: ClassTag](
+      schemaInfo: SchemaInfo,
+      data: Seq[T],
+      encoder: Encoder[T],
+      str: T => String) = {
     implicit val enc = encoder
     val input = MemoryStream[T]
     val topic = newTopic()
@@ -297,8 +312,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     val writer = createPulsarWriter(
       input.toDF(),
       withTopic = Some(topic),
-      withOutputMode = Some(OutputMode.Append))(
-      withSelectExpr = s"'$topic' as __topic", "value")
+      withOutputMode = Some(OutputMode.Append))(withSelectExpr = s"'$topic' as __topic", "value")
 
     try {
       input.addData(data)
@@ -353,19 +367,25 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
   }
 
   test("streaming - write byte array") {
-    streamCheck[Array[Byte]](Schema.BYTES.getSchemaInfo, bytesSeq,
-      Encoders.BINARY, new String(_))  }
+    streamCheck[Array[Byte]](Schema.BYTES.getSchemaInfo, bytesSeq, Encoders.BINARY, new String(_))
+  }
 
   test("streaming - write date") {
     val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
-    streamCheck[java.sql.Date](Schema.DATE.getSchemaInfo, dateSeq.map(d => new java.sql.Date(d.getTime)),
-      Encoders.DATE, dateFormat.format(_))  }
-
+    streamCheck[java.sql.Date](
+      Schema.DATE.getSchemaInfo,
+      dateSeq.map(d => new java.sql.Date(d.getTime)),
+      Encoders.DATE,
+      dateFormat.format(_))
+  }
 
   test("streaming - write timestamp") {
     val tsFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-    streamCheck[java.sql.Timestamp](Schema.TIMESTAMP.getSchemaInfo, timestampSeq,
-      Encoders.TIMESTAMP, tsFormat.format(_))
+    streamCheck[java.sql.Timestamp](
+      Schema.TIMESTAMP.getSchemaInfo,
+      timestampSeq,
+      Encoders.TIMESTAMP,
+      tsFormat.format(_))
   }
 
   test("streaming - write struct type") {
@@ -375,8 +395,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     val writer = createPulsarWriter(
       input.toDF(),
       withTopic = Some(topic),
-      withOutputMode = Some(OutputMode.Append))(
-      withSelectExpr = "i", "f", "bar")
+      withOutputMode = Some(OutputMode.Append))(withSelectExpr = "i", "f", "bar")
 
     try {
       input.addData(fooSeq)
@@ -385,7 +404,8 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       }
 
       val reader = createPulsarReader(topic)
-        .selectExpr("i", "f", "bar").as[Foo]
+        .selectExpr("i", "f", "bar")
+        .as[Foo]
 
       implicit val orderingB = new Ordering[Bar] {
         override def compare(x: Bar, y: Bar): Int = {
@@ -417,7 +437,8 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       /* No value field */
       ex = intercept[StreamingQueryException] {
         writer = createPulsarWriter(input.toDF(), withTopic = Some(topic))(
-          withSelectExpr = s"'$topic' as __topic", "value as __key"
+          withSelectExpr = s"'$topic' as __topic",
+          "value as __key"
         )
         input.addData("1", "2", "3", "4", "5")
         writer.processAllAvailable()
@@ -438,7 +459,9 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       ex = intercept[StreamingQueryException] {
         /* key field wrong type */
         writer = createPulsarWriter(input.toDF(), withTopic = Some(topic))(
-          withSelectExpr = s"'$topic' as topic", "CAST(value as INT) as __key", "value"
+          withSelectExpr = s"'$topic' as topic",
+          "CAST(value as INT) as __key",
+          "value"
         )
         input.addData("1", "2", "3", "4", "5")
         writer.processAllAvailable()
@@ -446,14 +469,18 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     } finally {
       writer.stop()
     }
-    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
-      "key attribute type must be a string or binary"))
+    assert(
+      ex.getMessage
+        .toLowerCase(Locale.ROOT)
+        .contains("key attribute type must be a string or binary"))
 
     try {
       ex = intercept[StreamingQueryException] {
         /* eventTime field wrong type */
         writer = createPulsarWriter(input.toDF(), withTopic = Some(topic))(
-          withSelectExpr = s"'$topic' as topic", "value as __eventTime", "value"
+          withSelectExpr = s"'$topic' as topic",
+          "value as __eventTime",
+          "value"
         )
         input.addData("1", "2", "3", "4", "5")
         writer.processAllAvailable()
@@ -461,17 +488,19 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     } finally {
       writer.stop()
     }
-    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
-      "__eventtime attribute type must be a bigint or timestamp"))
+    assert(
+      ex.getMessage
+        .toLowerCase(Locale.ROOT)
+        .contains("__eventtime attribute type must be a bigint or timestamp"))
   }
 
   ignore("generic - write big data with small producer buffer") {
     /* This test ensures that we understand the semantics of Pulsar when
-    * is comes to blocking on a call to send when the send buffer is full.
-    * This test will configure the smallest possible producer buffer and
-    * indicate that we should block when it is full. Thus, no exception should
-    * be thrown in the case of a full buffer.
-    */
+     * is comes to blocking on a call to send when the send buffer is full.
+     * This test will configure the smallest possible producer buffer and
+     * indicate that we should block when it is full. Thus, no exception should
+     * be thrown in the case of a full buffer.
+     */
     val topic = newTopic()
     val clientOptions = new java.util.HashMap[String, Object]
     clientOptions.put(SERVICE_URL_OPTION_KEY, serviceUrl)
@@ -480,7 +509,8 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     val producerOptions = new java.util.HashMap[String, Object]
     val inputSchema = Seq(AttributeReference("value", BinaryType)())
     val data = new Array[Byte](15000) // large value
-    val writeTask = new PulsarWriteTask(clientOptions, producerOptions, Some(topic), inputSchema, "")
+    val writeTask =
+      new PulsarWriteTask(clientOptions, producerOptions, Some(topic), inputSchema, "")
     try {
       val fieldTypes: Array[DataType] = Array(BinaryType)
       val converter = UnsafeProjection.create(fieldTypes)
@@ -512,8 +542,8 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       input: DataFrame,
       withTopic: Option[String] = None,
       withOutputMode: Option[OutputMode] = None,
-      withOptions: Map[String, String] = Map[String, String]())
-      (withSelectExpr: String*): StreamingQuery = {
+      withOptions: Map[String, String] = Map[String, String]())(
+      withSelectExpr: String*): StreamingQuery = {
     var stream: DataStreamWriter[Row] = null
     withTempDir { checkpointDir =>
       var df = input.toDF()

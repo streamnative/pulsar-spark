@@ -30,15 +30,15 @@ class PulsarContinuousSourceTopicDeletionSuite extends PulsarContinuousTest {
     sendMessages(topic, Array("-1"))
     require(getLatestOffsets(Set(topic)).size === 5)
 
-    val reader = spark
-      .readStream
+    val reader = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(TOPIC_PATTERN, s"$topicPrefix-.*")
       .option("failOnDataLoss", "false")
 
-    val pulsar = reader.load()
+    val pulsar = reader
+      .load()
       .selectExpr("CAST(value AS STRING)")
       .as[String]
     val mapped = pulsar.map(v => v.toInt + 1)
@@ -52,15 +52,18 @@ class PulsarContinuousSourceTopicDeletionSuite extends PulsarContinuousTest {
         createTopic(topic2, partitions = 5)
         eventually(timeout(streamingTimeout)) {
           assert(
-            query.lastExecution.logical.collectFirst {
-              case StreamingDataSourceV2Relation(_, _, _, r: PulsarContinuousReader) => r
-            }.exists { r =>
-              // Ensure the new topic is present and the old topic is gone.
-              val topic2Parts = (0 until 5).map(p => s"$topic2$PARTITION_SUFFIX$p")
-              val knowns = r.knownTopics
-              knowns.equals(topic2Parts.toSet)
-            },
-            s"query never reconfigured to new topic $topic2")
+            query.lastExecution.logical
+              .collectFirst {
+                case StreamingDataSourceV2Relation(_, _, _, r: PulsarContinuousReader) => r
+              }
+              .exists { r =>
+                // Ensure the new topic is present and the old topic is gone.
+                val topic2Parts = (0 until 5).map(p => s"$topic2$PARTITION_SUFFIX$p")
+                val knowns = r.knownTopics
+                knowns.equals(topic2Parts.toSet)
+              },
+            s"query never reconfigured to new topic $topic2"
+          )
         }
       },
       AddPulsarData(Set(topic2), 4, 5, 6),

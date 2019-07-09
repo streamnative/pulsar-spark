@@ -29,11 +29,12 @@ trait PulsarContinuousTest extends PulsarSourceTest {
   override val defaultUseV2Sink = true
 
   // We need more than the default local[2] to be able to schedule all partitions simultaneously.
-  override protected def createSparkSession = new TestSparkSession(
-    new SparkContext(
-      "local[10]",
-      "continuous-stream-test-sql-context",
-      sparkConf.set("spark.sql.testkey", "true")))
+  override protected def createSparkSession =
+    new TestSparkSession(
+      new SparkContext(
+        "local[10]",
+        "continuous-stream-test-sql-context",
+        sparkConf.set("spark.sql.testkey", "true")))
 
   // Continuous processing tasks end asynchronously, so test that they actually end.
   private val tasksEndedListener = new SparkListener() {
