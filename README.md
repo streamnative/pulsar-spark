@@ -16,52 +16,33 @@ Unified data processing with [Apache Pulsar](https://pulsar.apache.org) and [Apa
 - Pulsar 2.4.0 or later
 
 ## Preparations
-### Build Spark Pulsar Connector
-
-1. Checkout the source code.
-
-```bash
-$ git clone https://github.com/streamnative/pulsar-spark.git
-$ cd pulsar-spark
-```
-
-2. Install Docker.
-
-> Pulsar-spark connector is using [Testcontainers](https://www.testcontainers.org/) for
-> integration tests. In order to run the integration tests, make sure you
-> have installed [Docker](https://docs.docker.com/docker-for-mac/install/).
-
-3. Set a Scala version.
-> Change `scala.version` and `scala.binary.version` in `pom.xml`.
-> #### Note
-> Scala version should be consistent with the Scala version of Spark you use.
-
-4. Build the project.
-
-```bash
-$ mvn clean install -DskipTests
-```
-
-5. Run the tests.
-
-```bash
-$ mvn clean install
-```
-Once the installation is finished, there is a fat jar generated under both local maven repo and `target` directory.
 
 ### Link
 
 #### Client library  
-For Scala/Java applications using SBT/Maven project definitions and Python applications, link your application with the following artifact:
+For Scala/Java applications using SBT/Maven project definitions, link your application with the following artifact:
 
 ```
     groupId = io.streamnative.connectors
     artifactId = pulsar-spark-connector_{{SCALA_BINARY_VERSION}}
     version = {{PULSAR_SPARK_VERSION}}
 ```
-
-#### CLI
-For experimenting on `spark-shell`, you need to add the library and dependency above when invoking `spark-shell`.
+Currently, the artifact is available in Bintray Maven repository of StreamNative: `https://dl.bintray.com/streamnative/maven`.
+For Maven project, you can add the repository to your `pom.xml` as follows:
+```xml
+  <repositories>
+    <repository>
+      <id>central</id>
+      <layout>default</layout>
+      <url>https://repo1.maven.org/maven2</url>
+    </repository>
+    <repository>
+      <id>bintray-streamnative-maven</id>
+      <name>bintray</name>
+      <url>https://dl.bintray.com/streamnative/maven</url>
+    </repository>
+  </repositories>
+```
 
 ### Deploy
 
@@ -73,16 +54,22 @@ and its dependencies can be directly added to `spark-submit` using `--packages`.
 Example
 
 ```
-$ ./bin/spark-submit --packages io.streamnative.connectors:pulsar-spark-connector_{{SCALA_BINARY_VERSION}}:{{PULSAR_SPARK_VERSION}} ...
+$ ./bin/spark-submit 
+  --packages io.streamnative.connectors:pulsar-spark-connector_{{SCALA_BINARY_VERSION}}:{{PULSAR_SPARK_VERSION}}
+  --repositories https://dl.bintray.com/streamnative/maven
+  ...
 ```
 
 #### CLI  
-For experimenting on `spark-shell`, you can also use `--packages` to add `pulsar-spark-connector_{{SCALA_BINARY_VERSION}}` and its dependencies directly.
+For experimenting on `spark-shell` (or `pyspark` for Python), you can also use `--packages` to add `pulsar-spark-connector_{{SCALA_BINARY_VERSION}}` and its dependencies directly.
 
 Example
 
 ```
-$ ./bin/spark-shell --packages io.streamnative.connectors:pulsar-spark-connector_{{SCALA_BINARY_VERSION}}:{{PULSAR_SPARK_VERSION}} ...
+$ ./bin/spark-shell 
+  --packages io.streamnative.connectors:pulsar-spark-connector_{{SCALA_BINARY_VERSION}}:{{PULSAR_SPARK_VERSION}}
+  --repositories https://dl.bintray.com/streamnative/maven
+  ...
 ```
 
 When locating an artifact or library, `--packages` option checks the following repositories in order:
@@ -473,6 +460,40 @@ Client/producer/consumer configurations of Pulsar can be set via `DataStreamRead
 with `pulsar.client.`/`pulsar.producer.`/`pulsar.consumer.` prefix, e.g,
 `stream.option("pulsar.consumer.ackTimeoutMillis", "10000")`. For possible Pulsar parameters, check docs at
 [Pulsar client libraries](https://pulsar.apache.org/docs/en/client-libraries/).
+
+## Build Spark Pulsar Connector
+If you’d like to build the connector from source, follow the steps below.
+
+1. Checkout the source code.
+
+```bash
+$ git clone https://github.com/streamnative/pulsar-spark.git
+$ cd pulsar-spark
+```
+
+2. Install Docker.
+
+> Pulsar-spark connector is using [Testcontainers](https://www.testcontainers.org/) for
+> integration tests. In order to run the integration tests, make sure you
+> have installed [Docker](https://docs.docker.com/docker-for-mac/install/).
+
+3. Set a Scala version.
+> Change `scala.version` and `scala.binary.version` in `pom.xml`.
+> #### Note
+> Scala version should be consistent with the Scala version of Spark you use.
+
+4. Build the project.
+
+```bash
+$ mvn clean install -DskipTests
+```
+
+5. Run the tests.
+
+```bash
+$ mvn clean install
+```
+Once the installation is finished, there is a fat jar generated under both local maven repo and `target` directory.
 
 
 ## License
