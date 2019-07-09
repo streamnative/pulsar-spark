@@ -15,6 +15,8 @@ package org.apache.spark.sql.pulsar
 
 import java.util.concurrent.atomic.AtomicInteger
 
+import scala.language.reflectiveCalls
+
 import org.apache.spark.SparkContext
 import org.apache.spark.scheduler.{SparkListener, SparkListenerTaskEnd, SparkListenerTaskStart}
 import org.apache.spark.sql.execution.streaming.continuous.ContinuousExecution

@@ -69,6 +69,7 @@
     <streamnative-tests.version>0.0.13</streamnative-tests.version>
     <testcontainers.version>1.10.6</testcontainers.version>
     <!-- plugin dependencies -->
+    <maven.version>3.5.4</maven.version>
     <license-maven-plugin.version>3.0.rc1</license-maven-plugin.version>
     <maven-compiler-plugin.version>3.7.0</maven-compiler-plugin.version>
     <maven-dependency-plugin.version>3.1.1</maven-dependency-plugin.version>
@@ -258,9 +259,9 @@
           </execution>
         </executions>
         <configuration>
-          <scalaVersion>${scala.binary.version}</scalaVersion>
-          <recompileMode>all</recompileMode>
+          <scalaVersion>${scala.version}</scalaVersion>
           <args>
+            <arg>-target:jvm-1.8</arg>
             <arg>-unchecked</arg>
             <arg>-deprecation</arg>
             <arg>-feature</arg>
@@ -287,9 +288,9 @@
         <configuration>
           <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
           <junitxml>.</junitxml>
-          <filereports>WDF TestSuite.txt</filereports>
+          <filereports>ConnectorTestSuite.txt</filereports>
           <systemProperties>
-            <log4j.configuration>${project.basedir}/src/test/resources/log4j.properties</log4j.configuration>
+            <log4j.configuration>file:src/test/resources/log4j.properties</log4j.configuration>
           </systemProperties>
         </configuration>
         <executions>
