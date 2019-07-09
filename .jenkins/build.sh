@@ -21,5 +21,5 @@ cd ${PRJ_HOME}
 
 mvn clean license:check install
 retcode=$?
-cat target/surefire-reports/TestSuite.txt
+cat target/surefire-reports/ConnectorTestSuite.txt
 exit $retcode

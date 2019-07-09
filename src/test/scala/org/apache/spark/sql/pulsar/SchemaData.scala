@@ -15,7 +15,7 @@ package org.apache.spark.sql.pulsar
 
 import java.sql.Timestamp
 import java.util
-import java.util.Date
+import java.util.{Calendar, Date}
 
 import scala.beans.BeanProperty
 import scala.collection.JavaConverters._
@@ -24,14 +24,21 @@ object SchemaData {
 
   val booleanSeq = Seq(true, false, true, true, false)
   val bytesSeq = 1.to(5).map(_.toString.getBytes)
-  val dateSeq = Seq(new Date(119, 1, 1), new Date(119, 1, 2), new Date(119, 1, 3), new Date(119, 1, 4), new Date(119, 1, 5))
+
+  val cal = Calendar.getInstance()
+  cal.clear()
+  val dateSeq = (1 to 5).map { i =>
+    cal.set(2019, 0, i)
+    cal.getTime
+  }
+
+  cal.clear()
+  val timestampSeq = (1 to 5).map { i =>
+    cal.set(2019, 0, i, 20, 35, 40)
+    new Timestamp(cal.getTimeInMillis)
+  }
+
   val stringSeq = 1.to(5).map(_.toString)
-  val timestampSeq = Seq(
-    new Timestamp(119, 1, 1, 20, 35, 40, 10),
-    new Timestamp(119, 1, 2, 20, 35, 40, 10),
-    new Timestamp(119, 1, 3, 20, 35, 40, 10),
-    new Timestamp(119, 1, 4, 20, 35, 40, 10),
-    new Timestamp(119, 1, 5, 20, 35, 40, 10))
   val int8Seq = 1.to(5).map(_.toByte)
   val doubleSeq = 1.to(5).map(_.toDouble)
   val floatSeq = 1.to(5).map(_.toFloat)
