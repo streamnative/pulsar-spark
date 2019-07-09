@@ -27,7 +27,7 @@ For Scala/Java applications using SBT/Maven project definitions, link your appli
     artifactId = pulsar-spark-connector_{{SCALA_BINARY_VERSION}}
     version = {{PULSAR_SPARK_VERSION}}
 ```
-Currently, the artifact is available in Bintray Maven repository of StreamNative: `https://dl.bintray.com/streamnative/maven`.
+Currently, the artifact is available in [Bintray Maven repository of StreamNative]( https://dl.bintray.com/streamnative/maven).
 For Maven project, you can add the repository to your `pom.xml` as follows:
 ```xml
   <repositories>
@@ -462,7 +462,7 @@ with `pulsar.client.`/`pulsar.producer.`/`pulsar.consumer.` prefix, e.g,
 [Pulsar client libraries](https://pulsar.apache.org/docs/en/client-libraries/).
 
 ## Build Spark Pulsar Connector
-If you’d like to build the connector from source, follow the steps below.
+If you want to build a Spark-Pulsar connector reading data from Pulsar and writing results to Pulsar, follow the steps below.
 
 1. Checkout the source code.
 
