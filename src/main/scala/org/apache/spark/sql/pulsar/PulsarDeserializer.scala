@@ -25,13 +25,12 @@ import scala.collection.mutable.ArrayBuffer
 import org.apache.pulsar.client.api.Message
 import org.apache.pulsar.client.impl.schema.generic.GenericAvroRecord
 import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
-
+import org.apache.pulsar.shade.org.apache.avro.{LogicalTypes, Schema, SchemaBuilder}
 import org.apache.pulsar.shade.org.apache.avro.Conversions.DecimalConversion
 import org.apache.pulsar.shade.org.apache.avro.LogicalTypes.{TimestampMicros, TimestampMillis}
 import org.apache.pulsar.shade.org.apache.avro.Schema.Type._
 import org.apache.pulsar.shade.org.apache.avro.generic.{GenericData, GenericFixed, GenericRecord}
 import org.apache.pulsar.shade.org.apache.avro.util.Utf8
-import org.apache.pulsar.shade.org.apache.avro.{LogicalTypes, Schema, SchemaBuilder}
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{SpecificInternalRow, UnsafeArrayData}
@@ -55,48 +54,53 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
     schemaInfo.getType match {
       case SchemaType.AVRO =>
         val st = rootDataType.asInstanceOf[StructType]
-        val resultRow = new SpecificInternalRow(st.map(_.dataType) ++ metaDataFields.map(_.dataType))
+        val resultRow = new SpecificInternalRow(
+          st.map(_.dataType) ++ metaDataFields.map(_.dataType))
         val fieldUpdater = new RowUpdater(resultRow)
-        val avroSchema = new Schema.Parser().parse(
-          new String(schemaInfo.getSchema, StandardCharsets.UTF_8))
+        val avroSchema =
+          new Schema.Parser().parse(new String(schemaInfo.getSchema, StandardCharsets.UTF_8))
         val writer = getRecordWriter(avroSchema, st, Nil)
-        (msg: Message[_]) => {
-          val value = msg.getValue
-          writer(fieldUpdater, value.asInstanceOf[GenericAvroRecord].getAvroRecord)
-          writeMetadataFields(msg, resultRow)
-          resultRow
-        }
+        (msg: Message[_]) =>
+          {
+            val value = msg.getValue
+            writer(fieldUpdater, value.asInstanceOf[GenericAvroRecord].getAvroRecord)
+            writeMetadataFields(msg, resultRow)
+            resultRow
+          }
 
       case SchemaType.JSON =>
         val st = rootDataType.asInstanceOf[StructType]
-        val resultRow = new SpecificInternalRow(st.map(_.dataType) ++ metaDataFields.map(_.dataType))
+        val resultRow = new SpecificInternalRow(
+          st.map(_.dataType) ++ metaDataFields.map(_.dataType))
         val createParser = CreateJacksonParser.string _
         val rawParser = new JacksonRecordParser(rootDataType, parsedOptions)
         val parser = new FailureSafeRecordParser[String](
           (input, record) => rawParser.parse(input, createParser, UTF8String.fromString, record),
           parsedOptions.parseMode,
           st)
-        (msg: Message[_]) => {
-          val value = msg.getData
-          parser.parse(new String(value, java.nio.charset.StandardCharsets.UTF_8), resultRow)
-          writeMetadataFields(msg, resultRow)
-          resultRow
-        }
+        (msg: Message[_]) =>
+          {
+            val value = msg.getData
+            parser.parse(new String(value, java.nio.charset.StandardCharsets.UTF_8), resultRow)
+            writeMetadataFields(msg, resultRow)
+            resultRow
+          }
 
       case _ => // AtomicTypes
         val tmpRow = new SpecificInternalRow(Seq(rootDataType) ++ metaDataFields.map(_.dataType))
         val fieldUpdater = new RowUpdater(tmpRow)
         val writer = newAtomicWriter(rootDataType)
-        (msg: Message[_]) => {
-          val value = msg.getValue
-          writer(fieldUpdater, 0, value)
-          writeMetadataFields(msg, tmpRow)
-          tmpRow
-        }
+        (msg: Message[_]) =>
+          {
+            val value = msg.getValue
+            writer(fieldUpdater, 0, value)
+            writeMetadataFields(msg, tmpRow)
+            tmpRow
+          }
     }
   }
 
-  def writeMetadataFields(message: Message[_], row: SpecificInternalRow) = {
+  def writeMetadataFields(message: Message[_], row: SpecificInternalRow): Unit = {
     val metaStartIdx = row.numFields - 5
     // key
     if (message.hasKey) {
@@ -122,52 +126,62 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
     }
   }
 
-  private def newAtomicWriter(dataType: DataType):
-      (RowUpdater, Int, Any) => Unit =
+  private def newAtomicWriter(dataType: DataType): (RowUpdater, Int, Any) => Unit =
     dataType match {
-      case ByteType => (updater, ordinal, value) =>
-        updater.setByte(ordinal, value.asInstanceOf[Byte])
+      case ByteType =>
+        (updater, ordinal, value) =>
+          updater.setByte(ordinal, value.asInstanceOf[Byte])
 
-      case BooleanType => (updater, ordinal, value) =>
-        updater.setBoolean(ordinal, value.asInstanceOf[Boolean])
+      case BooleanType =>
+        (updater, ordinal, value) =>
+          updater.setBoolean(ordinal, value.asInstanceOf[Boolean])
 
-      case IntegerType => (updater, ordinal, value) =>
-        updater.setInt(ordinal, value.asInstanceOf[Int])
+      case IntegerType =>
+        (updater, ordinal, value) =>
+          updater.setInt(ordinal, value.asInstanceOf[Int])
 
-      case DateType => (updater, ordinal, value) =>
-        updater.setInt(ordinal,
-          (value.asInstanceOf[Date].getTime / DateTimeUtils.MILLIS_PER_DAY).toInt)
+      case DateType =>
+        (updater, ordinal, value) =>
+          updater.setInt(
+            ordinal,
+            (value.asInstanceOf[Date].getTime / DateTimeUtils.MILLIS_PER_DAY).toInt)
 
-      case LongType => (updater, ordinal, value) =>
-        updater.setLong(ordinal, value.asInstanceOf[Long])
+      case LongType =>
+        (updater, ordinal, value) =>
+          updater.setLong(ordinal, value.asInstanceOf[Long])
 
-      case TimestampType => (updater, ordinal, value) =>
-        updater.setLong(ordinal,
-          DateTimeUtils.fromJavaTimestamp(value.asInstanceOf[Timestamp]))
+      case TimestampType =>
+        (updater, ordinal, value) =>
+          updater.setLong(ordinal, DateTimeUtils.fromJavaTimestamp(value.asInstanceOf[Timestamp]))
 
-      case FloatType => (updater, ordinal, value) =>
-        updater.setFloat(ordinal, value.asInstanceOf[Float])
+      case FloatType =>
+        (updater, ordinal, value) =>
+          updater.setFloat(ordinal, value.asInstanceOf[Float])
 
-      case DoubleType => (updater, ordinal, value) =>
-        updater.setDouble(ordinal, value.asInstanceOf[Double])
+      case DoubleType =>
+        (updater, ordinal, value) =>
+          updater.setDouble(ordinal, value.asInstanceOf[Double])
 
-      case ShortType => (updater, ordinal, value) =>
-        updater.setShort(ordinal, value.asInstanceOf[Short])
+      case ShortType =>
+        (updater, ordinal, value) =>
+          updater.setShort(ordinal, value.asInstanceOf[Short])
 
-      case StringType => (updater, ordinal, value) =>
-        val str = UTF8String.fromString(value.asInstanceOf[String])
-        updater.set(ordinal, str)
+      case StringType =>
+        (updater, ordinal, value) =>
+          val str = UTF8String.fromString(value.asInstanceOf[String])
+          updater.set(ordinal, str)
 
-      case BinaryType => (updater, ordinal, value) =>
-        val bytes = value match {
-          case b: ByteBuffer =>
-            val bytes = new Array[Byte](b.remaining)
-            b.get(bytes)
-            bytes
-          case b: Array[Byte] => b
-          case other => throw new RuntimeException(s"$other is not a valid avro binary.")
-        }
-        updater.set(ordinal, bytes)
+      case BinaryType =>
+        (updater, ordinal, value) =>
+          val bytes = value match {
+            case b: ByteBuffer =>
+              val bytes = new Array[Byte](b.remaining)
+              b.get(bytes)
+              bytes
+            case b: Array[Byte] => b
+            case other => throw new RuntimeException(s"$other is not a valid avro binary.")
+          }
+          updater.set(ordinal, bytes)
 
       case tpe =>
         throw new NotImplementedError(s"$tpe is not supported for the moment")
@@ -178,74 +192,95 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
       catalystType: DataType,
       path: List[String]): (CatalystDataUpdater, Int, Any) => Unit =
     (avroType.getType, catalystType) match {
-      case (NULL, NullType) => (updater, ordinal, _) =>
-        updater.setNullAt(ordinal)
+      case (NULL, NullType) =>
+        (updater, ordinal, _) =>
+          updater.setNullAt(ordinal)
 
-      case (BOOLEAN, BooleanType) => (updater, ordinal, value) =>
-        updater.setBoolean(ordinal, value.asInstanceOf[Boolean])
+      case (BOOLEAN, BooleanType) =>
+        (updater, ordinal, value) =>
+          updater.setBoolean(ordinal, value.asInstanceOf[Boolean])
 
-      case (INT, IntegerType) => (updater, ordinal, value) =>
-        updater.setInt(ordinal, value.asInstanceOf[Int])
+      case (INT, IntegerType) =>
+        (updater, ordinal, value) =>
+          updater.setInt(ordinal, value.asInstanceOf[Int])
 
-      case (INT, DateType) => (updater, ordinal, value) =>
-        updater.setInt(ordinal, value.asInstanceOf[Int])
+      case (INT, DateType) =>
+        (updater, ordinal, value) =>
+          updater.setInt(ordinal, value.asInstanceOf[Int])
 
-      case (LONG, LongType) => (updater, ordinal, value) =>
-        updater.setLong(ordinal, value.asInstanceOf[Long])
-
-      case (LONG, TimestampType) => avroType.getLogicalType match {
-        case _: TimestampMillis => (updater, ordinal, value) =>
-          updater.setLong(ordinal, value.asInstanceOf[Long] * 1000)
-        case _: TimestampMicros => (updater, ordinal, value) =>
+      case (LONG, LongType) =>
+        (updater, ordinal, value) =>
           updater.setLong(ordinal, value.asInstanceOf[Long])
-        case other => throw new IncompatibleSchemaException(
-          s"Cannot convert Avro logical type ${other} to Catalyst Timestamp type.")
-      }
 
-      case (FLOAT, FloatType) => (updater, ordinal, value) =>
-        updater.setFloat(ordinal, value.asInstanceOf[Float])
-
-      case (DOUBLE, DoubleType) => (updater, ordinal, value) =>
-        updater.setDouble(ordinal, value.asInstanceOf[Double])
-
-      case (STRING, StringType) => (updater, ordinal, value) =>
-        val str = value match {
-          case s: String => UTF8String.fromString(s)
-          case s: Utf8 =>
-            val bytes = new Array[Byte](s.getByteLength)
-            System.arraycopy(s.getBytes, 0, bytes, 0, s.getByteLength)
-            UTF8String.fromBytes(bytes)
+      case (LONG, TimestampType) =>
+        avroType.getLogicalType match {
+          case _: TimestampMillis =>
+            (updater, ordinal, value) =>
+              updater.setLong(ordinal, value.asInstanceOf[Long] * 1000)
+          case _: TimestampMicros =>
+            (updater, ordinal, value) =>
+              updater.setLong(ordinal, value.asInstanceOf[Long])
+          case other =>
+            throw new IncompatibleSchemaException(
+              s"Cannot convert Avro logical type ${other} to Catalyst Timestamp type.")
         }
-        updater.set(ordinal, str)
 
-      case (ENUM, StringType) => (updater, ordinal, value) =>
-        updater.set(ordinal, UTF8String.fromString(value.toString))
+      case (FLOAT, FloatType) =>
+        (updater, ordinal, value) =>
+          updater.setFloat(ordinal, value.asInstanceOf[Float])
 
-      case (FIXED, BinaryType) => (updater, ordinal, value) =>
-        updater.set(ordinal, value.asInstanceOf[GenericFixed].bytes().clone())
+      case (DOUBLE, DoubleType) =>
+        (updater, ordinal, value) =>
+          updater.setDouble(ordinal, value.asInstanceOf[Double])
 
-      case (BYTES, BinaryType) => (updater, ordinal, value) =>
-        val bytes = value match {
-          case b: ByteBuffer =>
-            val bytes = new Array[Byte](b.remaining)
-            b.get(bytes)
-            bytes
-          case b: Array[Byte] => b
-          case other => throw new RuntimeException(s"$other is not a valid avro binary.")
-        }
-        updater.set(ordinal, bytes)
+      case (STRING, StringType) =>
+        (updater, ordinal, value) =>
+          val str = value match {
+            case s: String => UTF8String.fromString(s)
+            case s: Utf8 =>
+              val bytes = new Array[Byte](s.getByteLength)
+              System.arraycopy(s.getBytes, 0, bytes, 0, s.getByteLength)
+              UTF8String.fromBytes(bytes)
+          }
+          updater.set(ordinal, str)
 
-      case (FIXED, d: DecimalType) => (updater, ordinal, value) =>
-        val bigDecimal = decimalConversions.fromFixed(value.asInstanceOf[GenericFixed], avroType,
-          LogicalTypes.decimal(d.precision, d.scale))
-        val decimal = createDecimal(bigDecimal, d.precision, d.scale)
-        updater.setDecimal(ordinal, decimal)
+      case (ENUM, StringType) =>
+        (updater, ordinal, value) =>
+          updater.set(ordinal, UTF8String.fromString(value.toString))
 
-      case (BYTES, d: DecimalType) => (updater, ordinal, value) =>
-        val bigDecimal = decimalConversions.fromBytes(value.asInstanceOf[ByteBuffer], avroType,
-          LogicalTypes.decimal(d.precision, d.scale))
-        val decimal = createDecimal(bigDecimal, d.precision, d.scale)
-        updater.setDecimal(ordinal, decimal)
+      case (FIXED, BinaryType) =>
+        (updater, ordinal, value) =>
+          updater.set(ordinal, value.asInstanceOf[GenericFixed].bytes().clone())
+
+      case (BYTES, BinaryType) =>
+        (updater, ordinal, value) =>
+          val bytes = value match {
+            case b: ByteBuffer =>
+              val bytes = new Array[Byte](b.remaining)
+              b.get(bytes)
+              bytes
+            case b: Array[Byte] => b
+            case other => throw new RuntimeException(s"$other is not a valid avro binary.")
+          }
+          updater.set(ordinal, bytes)
+
+      case (FIXED, d: DecimalType) =>
+        (updater, ordinal, value) =>
+          val bigDecimal = decimalConversions.fromFixed(
+            value.asInstanceOf[GenericFixed],
+            avroType,
+            LogicalTypes.decimal(d.precision, d.scale))
+          val decimal = createDecimal(bigDecimal, d.precision, d.scale)
+          updater.setDecimal(ordinal, decimal)
+
+      case (BYTES, d: DecimalType) =>
+        (updater, ordinal, value) =>
+          val bigDecimal = decimalConversions.fromBytes(
+            value.asInstanceOf[ByteBuffer],
+            avroType,
+            LogicalTypes.decimal(d.precision, d.scale))
+          val decimal = createDecimal(bigDecimal, d.precision, d.scale)
+          updater.setDecimal(ordinal, decimal)
 
       case (RECORD, st: StructType) =>
         val writeRecord = getRecordWriter(avroType, st, path)
@@ -267,8 +302,9 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
             val element = array.get(i)
             if (element == null) {
               if (!containsNull) {
-                throw new RuntimeException(s"Array value at path ${path.mkString(".")} is not " +
-                  "allowed to be null")
+                throw new RuntimeException(
+                  s"Array value at path ${path.mkString(".")} is not " +
+                    "allowed to be null")
               } else {
                 elementUpdater.setNullAt(i)
               }
@@ -297,8 +333,9 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
             keyWriter(keyUpdater, i, entry.getKey)
             if (entry.getValue == null) {
               if (!valueContainsNull) {
-                throw new RuntimeException(s"Map value at path ${path.mkString(".")} is not " +
-                  "allowed to be null")
+                throw new RuntimeException(
+                  s"Map value at path ${path.mkString(".")} is not " +
+                    "allowed to be null")
               } else {
                 valueUpdater.setNullAt(i)
               }
@@ -319,32 +356,39 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
           } else {
             nonNullTypes.map(_.getType) match {
               case Seq(a, b) if Set(a, b) == Set(INT, LONG) && catalystType == LongType =>
-                (updater, ordinal, value) => value match {
-                  case null => updater.setNullAt(ordinal)
-                  case l: java.lang.Long => updater.setLong(ordinal, l)
-                  case i: java.lang.Integer => updater.setLong(ordinal, i.longValue())
-                }
+                (updater, ordinal, value) =>
+                  value match {
+                    case null => updater.setNullAt(ordinal)
+                    case l: java.lang.Long => updater.setLong(ordinal, l)
+                    case i: java.lang.Integer => updater.setLong(ordinal, i.longValue())
+                  }
 
               case Seq(a, b) if Set(a, b) == Set(FLOAT, DOUBLE) && catalystType == DoubleType =>
-                (updater, ordinal, value) => value match {
-                  case null => updater.setNullAt(ordinal)
-                  case d: java.lang.Double => updater.setDouble(ordinal, d)
-                  case f: java.lang.Float => updater.setDouble(ordinal, f.doubleValue())
-                }
+                (updater, ordinal, value) =>
+                  value match {
+                    case null => updater.setNullAt(ordinal)
+                    case d: java.lang.Double => updater.setDouble(ordinal, d)
+                    case f: java.lang.Float => updater.setDouble(ordinal, f.doubleValue())
+                  }
 
               case _ =>
                 catalystType match {
                   case st: StructType if st.length == nonNullTypes.size =>
-                    val fieldWriters = nonNullTypes.zip(st.fields).map {
-                      case (schema, field) => newWriter(schema, field.dataType, path :+ field.name)
-                    }.toArray
-                    (updater, ordinal, value) => {
-                      val row = new SpecificInternalRow(st)
-                      val fieldUpdater = new RowUpdater(row)
-                      val i = GenericData.get().resolveUnion(avroType, value)
-                      fieldWriters(i)(fieldUpdater, i, value)
-                      updater.set(ordinal, row)
-                    }
+                    val fieldWriters = nonNullTypes
+                      .zip(st.fields)
+                      .map {
+                        case (schema, field) =>
+                          newWriter(schema, field.dataType, path :+ field.name)
+                      }
+                      .toArray
+                    (updater, ordinal, value) =>
+                      {
+                        val row = new SpecificInternalRow(st)
+                        val fieldUpdater = new RowUpdater(row)
+                        val i = GenericData.get().resolveUnion(avroType, value)
+                        fieldWriters(i)(fieldUpdater, i, value)
+                        updater.set(ordinal, row)
+                      }
 
                   case _ =>
                     throw new IncompatibleSchemaException(
@@ -354,8 +398,8 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
                 }
             }
           }
-        } else {
-          (updater, ordinal, value) => updater.setNullAt(ordinal)
+        } else { (updater, ordinal, value) =>
+          updater.setNullAt(ordinal)
         }
 
       case _ =>
@@ -392,7 +436,8 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
       } else if (!sqlField.nullable) {
         throw new IncompatibleSchemaException(
           s"""
-             |Cannot find non-nullable field ${path.mkString(".")}.${sqlField.name} in Avro schema.
+             |Cannot find non-nullable field ${path
+               .mkString(".")}.${sqlField.name} in Avro schema.
              |Source Avro schema: $avroType.
              |Target Catalyst type: $sqlType.
            """.stripMargin)
@@ -400,13 +445,14 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
       i += 1
     }
 
-    (fieldUpdater, record) => {
-      var i = 0
-      while (i < validFieldIndexes.length) {
-        fieldWriters(i)(fieldUpdater, record.get(validFieldIndexes(i)))
-        i += 1
+    (fieldUpdater, record) =>
+      {
+        var i = 0
+        while (i < validFieldIndexes.length) {
+          fieldWriters(i)(fieldUpdater, record.get(validFieldIndexes(i)))
+          i += 1
+        }
       }
-    }
   }
 
   private def createDecimal(decimal: BigDecimal, precision: Int, scale: Int): Decimal = {
@@ -431,9 +477,9 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
   }
 
   /**
-    * A base interface for updating values inside catalyst data structure like `InternalRow` and
-    * `ArrayData`.
-    */
+   * A base interface for updating values inside catalyst data structure like `InternalRow` and
+   * `ArrayData`.
+   */
   sealed trait CatalystDataUpdater {
     def set(ordinal: Int, value: Any): Unit
 

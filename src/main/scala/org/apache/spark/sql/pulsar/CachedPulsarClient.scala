@@ -13,8 +13,8 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.util.concurrent.{ConcurrentMap, ExecutionException, TimeUnit}
 import java.{util => ju}
+import java.util.concurrent.{ConcurrentMap, ExecutionException, TimeUnit}
 
 import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
@@ -32,9 +32,10 @@ private[pulsar] object CachedPulsarClient extends Logging {
   private val defaultCacheExpireTimeout = TimeUnit.MINUTES.toMillis(10)
 
   private lazy val cacheExpireTimeout: Long =
-    Option(SparkEnv.get).map(_.conf.getTimeAsMs(
-      "spark.pulsar.client.cache.timeout",
-      s"${defaultCacheExpireTimeout}ms")).getOrElse(defaultCacheExpireTimeout)
+    Option(SparkEnv.get)
+      .map(_.conf
+        .getTimeAsMs("spark.pulsar.client.cache.timeout", s"${defaultCacheExpireTimeout}ms"))
+      .getOrElse(defaultCacheExpireTimeout)
 
   private val cacheLoader = new CacheLoader[Seq[(String, Object)], Client] {
     override def load(config: Seq[(String, Object)]): Client = {
@@ -55,12 +56,15 @@ private[pulsar] object CachedPulsarClient extends Logging {
   }
 
   private lazy val guavaCache: LoadingCache[Seq[(String, Object)], Client] =
-    CacheBuilder.newBuilder().expireAfterAccess(cacheExpireTimeout, TimeUnit.MILLISECONDS)
+    CacheBuilder
+      .newBuilder()
+      .expireAfterAccess(cacheExpireTimeout, TimeUnit.MILLISECONDS)
       .removalListener(removalListener)
       .build[Seq[(String, Object)], Client](cacheLoader)
 
   private def createPulsarClient(pulsarConf: ju.Map[String, Object]): Client = {
-    val pulsarServiceUrl = pulsarConf.get(PulsarOptions.SERVICE_URL_OPTION_KEY).asInstanceOf[String]
+    val pulsarServiceUrl =
+      pulsarConf.get(PulsarOptions.SERVICE_URL_OPTION_KEY).asInstanceOf[String]
     val clientConf = new PulsarConfigUpdater(
       "pulsarClientCache",
       pulsarConf.asScala.toMap,
@@ -68,33 +72,37 @@ private[pulsar] object CachedPulsarClient extends Logging {
     ).rebuild()
     logInfo(s"Client Conf = ${clientConf}")
     try {
-      val pulsarClient: Client = org.apache.pulsar.client.api.PulsarClient.builder()
+      val pulsarClient: Client = org.apache.pulsar.client.api.PulsarClient
+        .builder()
         .serviceUrl(pulsarServiceUrl)
         .loadConf(clientConf)
         .build();
-      logDebug(s"Created a new instance of PulsarClient for serviceUrl = $pulsarServiceUrl,"
-        + s" clientConf = $clientConf.")
+      logDebug(
+        s"Created a new instance of PulsarClient for serviceUrl = $pulsarServiceUrl,"
+          + s" clientConf = $clientConf.")
       pulsarClient
     } catch {
       case e: Throwable =>
-        logError(s"Failed to create PulsarClient to serviceUrl ${pulsarServiceUrl}"
-          + s" using client conf ${clientConf}", e)
+        logError(
+          s"Failed to create PulsarClient to serviceUrl ${pulsarServiceUrl}"
+            + s" using client conf ${clientConf}",
+          e)
         throw e
     }
   }
 
   /**
-    * Get a cached PulsarProducer for a given configuration. If matching PulsarProducer doesn't
-    * exist, a new PulsarProducer will be created. PulsarProducer is thread safe, it is best to keep
-    * one instance per specified pulsarParams.
-    */
+   * Get a cached PulsarProducer for a given configuration. If matching PulsarProducer doesn't
+   * exist, a new PulsarProducer will be created. PulsarProducer is thread safe, it is best to keep
+   * one instance per specified pulsarParams.
+   */
   private[pulsar] def getOrCreate(pulsarParams: ju.Map[String, Object]): Client = {
     val paramsSeq: Seq[(String, Object)] = paramsToSeq(pulsarParams)
     try {
       guavaCache.get(paramsSeq)
     } catch {
       case e @ (_: ExecutionException | _: UncheckedExecutionException | _: ExecutionError)
-        if e.getCause != null =>
+          if e.getCause != null =>
         throw e.getCause
     }
   }

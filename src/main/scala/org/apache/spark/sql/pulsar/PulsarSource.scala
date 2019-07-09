@@ -19,11 +19,11 @@ import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.common.schema.SchemaInfo
 
 import org.apache.spark.internal.Logging
+import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, SQLContext}
 
 private[pulsar] class PulsarSource(
     sqlContext: SQLContext,
@@ -36,7 +36,8 @@ private[pulsar] class PulsarSource(
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
     jsonOptions: JSONOptionsInRead)
-  extends Source with Logging {
+    extends Source
+    with Logging {
 
   import PulsarSourceUtils._
 
@@ -46,7 +47,11 @@ private[pulsar] class PulsarSource(
 
   private lazy val initialTopicOffsets: SpecificPulsarOffset = {
     val metadataLog = new PulsarSourceInitialOffsetWriter(sqlContext.sparkSession, metadataPath)
-    metadataLog.getInitialOffset(metadataReader, startingOffsets, Some(pollTimeoutMs), reportDataLoss)
+    metadataLog.getInitialOffset(
+      metadataReader,
+      startingOffsets,
+      Some(pollTimeoutMs),
+      reportDataLoss)
   }
 
   private var currentTopicOffsets: Option[Map[String, MessageId]] = None
@@ -77,7 +82,9 @@ private[pulsar] class PulsarSource(
 
     if (start.isDefined && start.get == end) {
       return sqlContext.internalCreateDataFrame(
-        sqlContext.sparkContext.emptyRDD[InternalRow].setName("empty"), schema, isStreaming = true)
+        sqlContext.sparkContext.emptyRDD[InternalRow].setName("empty"),
+        schema,
+        isStreaming = true)
     }
 
     val fromTopicOffsets = start match {
@@ -100,35 +107,47 @@ private[pulsar] class PulsarSource(
 
     val newFromTopicOffsets = fromTopicOffsets ++ newTopicOffsets
 
-    val offsetRanges = endTopicOffsets.keySet.map { tp =>
-      val fromOffset = newFromTopicOffsets.getOrElse(tp, {
-        // This should never happen
-        throw new IllegalStateException(s"$tp doesn't have a from offset")
-      })
-      val untilOffset = endTopicOffsets(tp)
-      val preferredLoc = if (numExecutors > 0) {
-        // This allows cached PulsarClient in the executors to be re-used to read the same
-        // partition in every batch.
-        Some(sortedExecutors(Math.floorMod(tp.hashCode, numExecutors)))
-      } else None
-      PulsarOffsetRange(tp, fromOffset, untilOffset, preferredLoc)
-    }.filter { range =>
-      if (range.untilOffset.compareTo(range.fromOffset) < 0) {
-        reportDataLoss(s"${range.topic}'s offset was changed " +
-          s"from ${range.fromOffset} to ${range.untilOffset}, " +
-          "some data might has been missed")
-        false
-      } else {
-        true
+    val offsetRanges = endTopicOffsets.keySet
+      .map { tp =>
+        val fromOffset = newFromTopicOffsets.getOrElse(tp, {
+          // This should never happen
+          throw new IllegalStateException(s"$tp doesn't have a from offset")
+        })
+        val untilOffset = endTopicOffsets(tp)
+        val preferredLoc = if (numExecutors > 0) {
+          // This allows cached PulsarClient in the executors to be re-used to read the same
+          // partition in every batch.
+          Some(sortedExecutors(Math.floorMod(tp.hashCode, numExecutors)))
+        } else None
+        PulsarOffsetRange(tp, fromOffset, untilOffset, preferredLoc)
       }
-    }.toSeq
+      .filter { range =>
+        if (range.untilOffset.compareTo(range.fromOffset) < 0) {
+          reportDataLoss(
+            s"${range.topic}'s offset was changed " +
+              s"from ${range.fromOffset} to ${range.untilOffset}, " +
+              "some data might has been missed")
+          false
+        } else {
+          true
+        }
+      }
+      .toSeq
 
     val rdd = new PulsarSourceRDD(
-      sc, new SchemaInfoSerializable(pulsarSchema),
-      clientConf, consumerConf, offsetRanges, pollTimeoutMs, failOnDataLoss, subscriptionNamePrefix, jsonOptions)
+      sc,
+      new SchemaInfoSerializable(pulsarSchema),
+      clientConf,
+      consumerConf,
+      offsetRanges,
+      pollTimeoutMs,
+      failOnDataLoss,
+      subscriptionNamePrefix,
+      jsonOptions)
 
-    logInfo("GetBatch generating RDD of offset range: " +
-      offsetRanges.sortBy(_.topic).mkString(", "))
+    logInfo(
+      "GetBatch generating RDD of offset range: " +
+        offsetRanges.sortBy(_.topic).mkString(", "))
 
     sqlContext.internalCreateDataFrame(rdd.setName("pulsar"), schema, isStreaming = true)
   }

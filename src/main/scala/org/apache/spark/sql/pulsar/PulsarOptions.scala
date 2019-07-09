@@ -62,13 +62,10 @@ private[pulsar] object PulsarOptions {
       | source option "failOnDataLoss" to "false".
     """.stripMargin
 
-
   val TOPIC_SCHEMA_CLASS_OPTION_KEY = "topic.schema.class"
 
-  val FILTERED_KEYS: Set[String] = Set(
-    TOPIC_SINGLE,
-    SERVICE_URL_OPTION_KEY,
-    TOPIC_SCHEMA_CLASS_OPTION_KEY)
+  val FILTERED_KEYS: Set[String] =
+    Set(TOPIC_SINGLE, SERVICE_URL_OPTION_KEY, TOPIC_SCHEMA_CLASS_OPTION_KEY)
 
   val TOPIC_ATTRIBUTE_NAME: String = "__topic"
   val KEY_ATTRIBUTE_NAME: String = "__key"

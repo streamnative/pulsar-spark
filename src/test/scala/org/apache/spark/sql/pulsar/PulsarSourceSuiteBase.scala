@@ -34,8 +34,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     val topic = newTopic()
     sendMessages(topic, (101 to 105).map { _.toString }.toArray)
 
-    val reader = spark
-      .readStream
+    val reader = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -137,8 +136,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
   test("bad source options") {
     def testBadOptions(options: (String, String)*)(expectedMsgs: String*): Unit = {
       val ex = intercept[IllegalArgumentException] {
-        val reader = spark
-          .readStream
+        val reader = spark.readStream
           .format("pulsar")
           .option(SERVICE_URL_OPTION_KEY, serviceUrl)
           .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -151,14 +149,14 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     }
 
     // Specifying an ending offset
-    testBadOptions(ENDING_OFFSETS_OPTION_KEY -> "latest")("Ending offset not valid in streaming queries")
+    testBadOptions(ENDING_OFFSETS_OPTION_KEY -> "latest")(
+      "Ending offset not valid in streaming queries")
 
     // No strategy specified
     testBadOptions()("one of the topic options", TOPIC_SINGLE, TOPIC_MULTI, TOPIC_PATTERN)
 
     // Multiple strategies specified
-    testBadOptions(TOPIC_MULTI -> "t", TOPIC_PATTERN -> "t.*")(
-      "one of the topic options")
+    testBadOptions(TOPIC_MULTI -> "t", TOPIC_PATTERN -> "t.*")("one of the topic options")
 
     testBadOptions(TOPIC_MULTI -> "t", TOPIC_SINGLE -> """{"a":[0]}""")(
       "one of the topic options")
@@ -170,15 +168,15 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
 
   test("get offsets from case insensitive parameters") {
     for ((optionKey, optionValue, answer) <- Seq(
-      (STARTING_OFFSETS_OPTION_KEY, "earLiEst", EarliestOffset),
-      (ENDING_OFFSETS_OPTION_KEY, "laTest", LatestOffset))) {
+           (STARTING_OFFSETS_OPTION_KEY, "earLiEst", EarliestOffset),
+           (ENDING_OFFSETS_OPTION_KEY, "laTest", LatestOffset))) {
       val offset = getPulsarOffset(Map(optionKey -> optionValue), optionKey, answer)
       assert(offset === answer)
     }
 
     for ((optionKey, answer) <- Seq(
-      (STARTING_OFFSETS_OPTION_KEY, EarliestOffset),
-      (ENDING_OFFSETS_OPTION_KEY, LatestOffset))) {
+           (STARTING_OFFSETS_OPTION_KEY, EarliestOffset),
+           (ENDING_OFFSETS_OPTION_KEY, LatestOffset))) {
       val offset = getPulsarOffset(Map.empty, optionKey, answer)
       assert(offset === answer)
     }
@@ -189,8 +187,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     val topic = newTopic()
     val mid = sendMessages(topic, Array(1).map(_.toString))(0)._2
 
-    val pulsar = spark
-      .readStream
+    val pulsar = spark.readStream
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
@@ -198,14 +195,14 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       .option(TOPIC_MULTI, topic)
       .load()
 
-    val query = pulsar
-      .writeStream
+    val query = pulsar.writeStream
       .format("memory")
       .queryName("pulsarColumnTypes")
       .trigger(defaultTrigger)
       .start()
     eventually(timeout(streamingTimeout)) {
-      assert(spark.table("pulsarColumnTypes").count == 1,
+      assert(
+        spark.table("pulsarColumnTypes").count == 1,
         s"Unexpected results: ${spark.table("pulsarColumnTypes").collectAsList()}")
     }
     val row = spark.table("pulsarColumnTypes").head()
@@ -215,19 +212,24 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     assert(row.getAs[Array[Byte]]("__messageId") === mid.toByteArray, s"Unexpected results: $row")
     // We cannot check the exact timestamp as it's the time that messages were inserted by the
     // producer. So here we just use a low bound to make sure the internal conversion works.
-    assert(row.getAs[java.sql.Timestamp]("__publishTime").getTime >= now, s"Unexpected results: $row")
+    assert(
+      row.getAs[java.sql.Timestamp]("__publishTime").getTime >= now,
+      s"Unexpected results: $row")
     assert(row.getAs[java.sql.Timestamp]("__eventTime") === null, s"Unexpected results: $row")
     query.stop()
   }
 
-  private def check[T: ClassTag](schemaInfo: SchemaInfo, datas: Seq[T], encoder: Encoder[T], str: T => String) = {
+  private def check[T: ClassTag](
+      schemaInfo: SchemaInfo,
+      datas: Seq[T],
+      encoder: Encoder[T],
+      str: T => String) = {
     val topic = newTopic()
     createPulsarSchema(topic, schemaInfo)
 
     val tpe = schemaInfo.getType
 
-    val reader = spark
-      .readStream
+    val reader = spark.readStream
       .format("pulsar")
       .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
@@ -236,7 +238,8 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       .option(TOPIC_SINGLE, topic)
 
     if (str == null) {
-      val pulsar = reader.load()
+      val pulsar = reader
+        .load()
         .selectExpr("value")
         .as[T](encoder)
 
@@ -245,7 +248,8 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
         CheckAnswer(datas: _*)(encoder)
       )
     } else {
-      val pulsar = reader.load()
+      val pulsar = reader
+        .load()
         .selectExpr("CAST(value as String)")
         .as[String]
       testStream(pulsar)(
@@ -288,20 +292,25 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
   }
 
   test("test byte array stream") {
-    check[Array[Byte]](Schema.BYTES.getSchemaInfo, bytesSeq,
-      Encoders.BINARY, new String(_))
+    check[Array[Byte]](Schema.BYTES.getSchemaInfo, bytesSeq, Encoders.BINARY, new String(_))
   }
 
   test("test date stream") {
     val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
-    check[Date](Schema.DATE.getSchemaInfo, dateSeq,
-      Encoders.bean(classOf[Date]), dateFormat.format(_))
+    check[Date](
+      Schema.DATE.getSchemaInfo,
+      dateSeq,
+      Encoders.bean(classOf[Date]),
+      dateFormat.format(_))
   }
 
   test("test timestamp stream") {
     val tsFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-    check[java.sql.Timestamp](Schema.TIMESTAMP.getSchemaInfo, timestampSeq,
-      Encoders.kryo(classOf[java.sql.Timestamp]), tsFormat.format(_))
+    check[java.sql.Timestamp](
+      Schema.TIMESTAMP.getSchemaInfo,
+      timestampSeq,
+      Encoders.kryo(classOf[java.sql.Timestamp]),
+      tsFormat.format(_))
   }
 
   test("test struct types in avro") {
@@ -310,8 +319,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     val topic = newTopic()
     val si = Schema.AVRO(classOf[Foo]).getSchemaInfo
     createPulsarSchema(topic, si)
-    val reader = spark
-      .readStream
+    val reader = spark.readStream
       .format("pulsar")
       .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
@@ -332,8 +340,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     val topic = newTopic()
     val si = Schema.JSON(classOf[F1]).getSchemaInfo
     createPulsarSchema(topic, si)
-    val reader = spark
-      .readStream
+    val reader = spark.readStream
       .format("pulsar")
       .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
@@ -358,8 +365,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     sendMessages(topic, Array("-1"))
     require(getLatestOffsets(Set(topic)).size === 1)
 
-    val reader = spark
-      .readStream
+    val reader = spark.readStream
       .format("pulsar")
       .option(STARTING_OFFSETS_OPTION_KEY, "latest")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
@@ -367,7 +373,8 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       .option(FAIL_ON_DATA_LOSS_OPTION_KEY, failOnDataLoss.toString)
 
     options.foreach { case (k, v) => reader.option(k, v) }
-    val pulsar = reader.load()
+    val pulsar = reader
+      .load()
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
@@ -410,7 +417,8 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(FAIL_ON_DATA_LOSS_OPTION_KEY, failOnDataLoss.toString)
     options.foreach { case (k, v) => reader.option(k, v) }
-    val pulsar = reader.load()
+    val pulsar = reader
+      .load()
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
@@ -438,21 +446,24 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       failOnDataLoss: Boolean,
       options: (String, String)*): Unit = {
 
-    val mids = sendMessages(topic, Array(
-    //  0,   1,   2, 3, 4, 5,  6,  7,  8
-      -20, -21, -22, 1, 2, 3, 10, 11, 12).map(_.toString), None).map(_._2)
+    val mids = sendMessages(
+      topic,
+      Array(
+          //  0,   1,   2, 3, 4, 5,  6,  7,  8
+          -20, -21, -22, 1, 2, 3, 10, 11, 12).map(_.toString),
+      None).map(_._2)
 
     val s1 = JsonUtils.topicOffsets(Map(topic -> mids(3)))
 
-    val reader = spark
-      .readStream
+    val reader = spark.readStream
       .format("pulsar")
       .option(STARTING_OFFSETS_OPTION_KEY, s1)
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(FAIL_ON_DATA_LOSS_OPTION_KEY, failOnDataLoss.toString)
     options.foreach { case (k, v) => reader.option(k, v) }
-    val pulsar = reader.load()
+    val pulsar = reader
+      .load()
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
     val mapped = pulsar.map(kv => kv._2.toInt)

@@ -21,25 +21,25 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
 
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
-import org.apache.pulsar.client.api.schema.{GenericRecord, GenericSchema}
 import org.apache.pulsar.client.api.{Schema => PSchema}
+import org.apache.pulsar.client.api.schema.{GenericRecord, GenericSchema}
 import org.apache.pulsar.client.impl.schema._
 import org.apache.pulsar.client.impl.schema.generic.GenericSchemaImpl
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.protocol.schema.PostSchemaPayload
 import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
+import org.apache.pulsar.shade.org.apache.avro.{LogicalTypes, Schema => ASchema, SchemaBuilder}
 import org.apache.pulsar.shade.org.apache.avro.LogicalTypes.{Date, Decimal, TimestampMicros, TimestampMillis}
 import org.apache.pulsar.shade.org.apache.avro.Schema.Type._
-import org.apache.pulsar.shade.org.apache.avro.{LogicalTypes, SchemaBuilder, Schema => ASchema}
 
-import org.apache.spark.sql.types.Decimal.minBytesForPrecision
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.types.Decimal.minBytesForPrecision
 
 class IncompatibleSchemaException(msg: String, ex: Throwable = null) extends Exception(msg, ex)
 
 class SchemaInfoSerializable(var si: SchemaInfo) extends Externalizable {
 
-  def this() = this(null)  // For deserialization only
+  def this() = this(null) // For deserialization only
 
   override def writeExternal(out: ObjectOutput): Unit = {
     val schema = si.getSchema
@@ -83,8 +83,10 @@ private[pulsar] object SchemaUtils {
     } catch {
       case e: PulsarAdminException if e.getStatusCode == 404 =>
         null
-      case e: Throwable => throw new RuntimeException(
-        s"Failed to get schema information for ${TopicName.get(topic).toString}", e)
+      case e: Throwable =>
+        throw new RuntimeException(
+          s"Failed to get schema information for ${TopicName.get(topic).toString}",
+          e)
     }
 
     if (existingSchema == null) {
@@ -96,9 +98,12 @@ private[pulsar] object SchemaUtils {
         admin.schemas().createSchema(TopicName.get(topic).toString, pl)
       } catch {
         case e: PulsarAdminException if e.getStatusCode == 404 =>
-          throw new RuntimeException(s"Create schema for ${TopicName.get(topic).toString} got 404")
-        case e: Throwable => throw new RuntimeException(
-          s"Failed to create schema for ${TopicName.get(topic).toString}", e)
+          throw new RuntimeException(
+            s"Create schema for ${TopicName.get(topic).toString} got 404")
+        case e: Throwable =>
+          throw new RuntimeException(
+            s"Failed to create schema for ${TopicName.get(topic).toString}",
+            e)
       }
     } else if (existingSchema.equals(schemaInfo) || compatibleSchema(existingSchema, schemaInfo)) {
       // no need to upload again
@@ -150,8 +155,9 @@ private[pulsar] object SchemaUtils {
     case SchemaType.AVRO | SchemaType.JSON =>
       GenericSchemaImpl.of(schemaInfo)
     case _ =>
-      throw new IllegalArgumentException("Retrieve schema instance from schema info for type '" +
-        schemaInfo.getType + "' is not supported yet")
+      throw new IllegalArgumentException(
+        "Retrieve schema instance from schema info for type '" +
+          schemaInfo.getType + "' is not supported yet")
   }
 
   case class TypeNullable(dataType: DataType, nullable: Boolean)
@@ -161,7 +167,7 @@ private[pulsar] object SchemaUtils {
     val typeNullable = si2SqlType(si)
     typeNullable.dataType match {
       case st: StructType =>
-        mainSchema ++=  st.fields
+        mainSchema ++= st.fields
       case t =>
         mainSchema += StructField("value", t, nullable = typeNullable.nullable)
     }
@@ -184,8 +190,8 @@ private[pulsar] object SchemaUtils {
       case SchemaType.INT64 => TypeNullable(LongType, nullable = false)
       case SchemaType.INT16 => TypeNullable(ShortType, nullable = false)
       case SchemaType.AVRO | SchemaType.JSON =>
-        val avroSchema: ASchema = new ASchema.Parser().parse(
-          new String(si.getSchema, StandardCharsets.UTF_8))
+        val avroSchema: ASchema =
+          new ASchema.Parser().parse(new String(si.getSchema, StandardCharsets.UTF_8))
         avro2SqlType(avroSchema, Set.empty)
       case si =>
         throw new NotImplementedError(s"We do not support $si currently.")
@@ -194,25 +200,30 @@ private[pulsar] object SchemaUtils {
 
   def avro2SqlType(avroSchema: ASchema, existingRecordNames: Set[String]): TypeNullable = {
     avroSchema.getType match {
-      case INT => avroSchema.getLogicalType match {
-        case _: Date => TypeNullable(DateType, nullable = false)
-        case _ => TypeNullable(IntegerType, nullable = false)
-      }
+      case INT =>
+        avroSchema.getLogicalType match {
+          case _: Date => TypeNullable(DateType, nullable = false)
+          case _ => TypeNullable(IntegerType, nullable = false)
+        }
       case STRING => TypeNullable(StringType, nullable = false)
       case BOOLEAN => TypeNullable(BooleanType, nullable = false)
-      case BYTES | FIXED => avroSchema.getLogicalType match {
-        // For FIXED type, if the precision requires more bytes than fixed size, the logical
-        // type will be null, which is handled by Avro library.
-        case d: Decimal => TypeNullable(DecimalType(d.getPrecision, d.getScale), nullable = false)
-        case _ => TypeNullable(BinaryType, nullable = false)
-      }
+      case BYTES | FIXED =>
+        avroSchema.getLogicalType match {
+          // For FIXED type, if the precision requires more bytes than fixed size, the logical
+          // type will be null, which is handled by Avro library.
+          case d: Decimal =>
+            TypeNullable(DecimalType(d.getPrecision, d.getScale), nullable = false)
+          case _ => TypeNullable(BinaryType, nullable = false)
+        }
 
       case DOUBLE => TypeNullable(DoubleType, nullable = false)
       case FLOAT => TypeNullable(FloatType, nullable = false)
-      case LONG => avroSchema.getLogicalType match {
-        case _: TimestampMillis | _: TimestampMicros => TypeNullable(TimestampType, nullable = false)
-        case _ => TypeNullable(LongType, nullable = false)
-      }
+      case LONG =>
+        avroSchema.getLogicalType match {
+          case _: TimestampMillis | _: TimestampMicros =>
+            TypeNullable(TimestampType, nullable = false)
+          case _ => TypeNullable(LongType, nullable = false)
+        }
 
       case ENUM => TypeNullable(StringType, nullable = false)
 
@@ -232,7 +243,8 @@ private[pulsar] object SchemaUtils {
         TypeNullable(StructType(fields), nullable = false)
 
       case ARRAY =>
-        val typeNullable: TypeNullable = avro2SqlType(avroSchema.getElementType, existingRecordNames)
+        val typeNullable: TypeNullable =
+          avro2SqlType(avroSchema.getElementType, existingRecordNames)
         TypeNullable(
           ArrayType(typeNullable.dataType, containsNull = typeNullable.nullable),
           nullable = false)
@@ -253,26 +265,27 @@ private[pulsar] object SchemaUtils {
             avro2SqlType(ASchema.createUnion(remainingUnionTypes.asJava), existingRecordNames)
               .copy(nullable = true)
           }
-        } else avroSchema.getTypes.asScala.map(_.getType) match {
-          case Seq(t1) =>
-            avro2SqlType(avroSchema.getTypes.get(0), existingRecordNames)
-          case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
-            TypeNullable(LongType, nullable = false)
-          case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
-            TypeNullable(DoubleType, nullable = false)
-          case _ =>
-            // Convert complex unions to struct types where field names are member0, member1, etc.
-            // This is consistent with the behavior when converting between Avro and Parquet.
-            val fields = avroSchema.getTypes.asScala.zipWithIndex.map {
-              case (s, i) =>
-                val TypeNullable = avro2SqlType(s, existingRecordNames)
-                // All fields are nullable because only one of them is set at a time
-                StructField(s"member$i", TypeNullable.dataType, nullable = true)
-            }
+        } else {
+          avroSchema.getTypes.asScala.map(_.getType) match {
+            case Seq(t1) =>
+              avro2SqlType(avroSchema.getTypes.get(0), existingRecordNames)
+            case Seq(t1, t2) if Set(t1, t2) == Set(INT, LONG) =>
+              TypeNullable(LongType, nullable = false)
+            case Seq(t1, t2) if Set(t1, t2) == Set(FLOAT, DOUBLE) =>
+              TypeNullable(DoubleType, nullable = false)
+            case _ =>
+              // Convert complex unions to struct types where field names are member0, member1, etc.
+              // This is consistent with the behavior when converting between Avro and Parquet.
+              val fields = avroSchema.getTypes.asScala.zipWithIndex.map {
+                case (s, i) =>
+                  val TypeNullable = avro2SqlType(s, existingRecordNames)
+                  // All fields are nullable because only one of them is set at a time
+                  StructField(s"member$i", TypeNullable.dataType, nullable = true)
+              }
 
-            TypeNullable(StructType(fields), nullable = false)
+              TypeNullable(StructType(fields), nullable = false)
+          }
         }
-
       case other => throw new IncompatibleSchemaException(s"Unsupported type $other")
     }
   }
@@ -286,9 +299,7 @@ private[pulsar] object SchemaUtils {
     PSchema.generic(si)
   }
 
-  def sqlType2PSchema(
-      catalystType: DataType,
-      nullable: Boolean = false): PSchema[_] = {
+  def sqlType2PSchema(catalystType: DataType, nullable: Boolean = false): PSchema[_] = {
 
     catalystType match {
       case BooleanType => BooleanSchema.of()
@@ -340,11 +351,13 @@ private[pulsar] object SchemaUtils {
         avroType.addToSchema(SchemaBuilder.fixed(name).size(fixedSize))
 
       case ArrayType(et, containsNull) =>
-        builder.array()
+        builder
+          .array()
           .items(sqlType2ASchema(et, containsNull, recordName, nameSpace))
 
       case MapType(StringType, vt, valueContainsNull) =>
-        builder.map()
+        builder
+          .map()
           .values(sqlType2ASchema(vt, valueContainsNull, recordName, nameSpace))
 
       case st: StructType =>

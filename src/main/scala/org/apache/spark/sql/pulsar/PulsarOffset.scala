@@ -16,7 +16,7 @@ package org.apache.spark.sql.pulsar
 import org.apache.pulsar.client.api.MessageId
 
 import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset}
-import org.apache.spark.sql.sources.v2.reader.streaming.{PartitionOffset, Offset => OffsetV2}
+import org.apache.spark.sql.sources.v2.reader.streaming.{Offset => OffsetV2, PartitionOffset}
 
 private[pulsar] sealed trait PulsarOffset
 
@@ -25,13 +25,14 @@ private[pulsar] case object EarliestOffset extends PulsarOffset
 private[pulsar] case object LatestOffset extends PulsarOffset
 
 private[pulsar] case class SpecificPulsarOffset(topicOffsets: Map[String, MessageId])
-  extends OffsetV2 with PulsarOffset {
+    extends OffsetV2
+    with PulsarOffset {
 
   override val json = JsonUtils.topicOffsets(topicOffsets)
 }
 
 private[pulsar] case class PulsarPartitionOffset(topic: String, messageId: MessageId)
-  extends PartitionOffset
+    extends PartitionOffset
 
 private[pulsar] object SpecificPulsarOffset {
 
@@ -48,7 +49,7 @@ private[pulsar] object SpecificPulsarOffset {
   def apply(offset: SerializedOffset): SpecificPulsarOffset =
     SpecificPulsarOffset(JsonUtils.topicOffsets(offset.json))
 
-  def apply(offsetTuples: (String, MessageId)*): SpecificPulsarOffset = {   
+  def apply(offsetTuples: (String, MessageId)*): SpecificPulsarOffset = {
     SpecificPulsarOffset(offsetTuples.toMap)
   }
 }

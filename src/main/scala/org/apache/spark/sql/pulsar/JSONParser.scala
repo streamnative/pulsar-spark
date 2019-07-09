@@ -25,7 +25,7 @@ import org.apache.spark.SparkException
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
-import org.apache.spark.sql.catalyst.json.{JSONOptions, JacksonUtils}
+import org.apache.spark.sql.catalyst.json.{JacksonUtils, JSONOptions}
 import org.apache.spark.sql.catalyst.util._
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
@@ -45,7 +45,6 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
 
   assert(schema.isInstanceOf[StructType])
 
-
   // A `ValueConverter` is responsible for converting a value from `JsonParser`
   // to a value in a field for `InternalRow`.
   private type ValueConverter = JsonParser => AnyRef
@@ -57,162 +56,180 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
   private val factory = new JsonFactory()
   options.setJacksonOptions(factory)
 
-  private def makeStructRootConverter(st: StructType): (JsonParser, InternalRow) => InternalRow = {
+  private def makeStructRootConverter(
+      st: StructType): (JsonParser, InternalRow) => InternalRow = {
     val fieldConverters = st.map(_.dataType).map(makeConverter).toArray
-    (parser: JsonParser, row: InternalRow) => parseJsonToken[InternalRow](parser, st) {
-      case START_OBJECT => convertObject(parser, st, fieldConverters, row)
-      case START_ARRAY =>
-        throw new IllegalStateException("Message should be a single JSON object")
-    }
+    (parser: JsonParser, row: InternalRow) =>
+      parseJsonToken[InternalRow](parser, st) {
+        case START_OBJECT => convertObject(parser, st, fieldConverters, row)
+        case START_ARRAY =>
+          throw new IllegalStateException("Message should be a single JSON object")
+      }
   }
 
   /**
-    * Create a converter which converts the JSON documents held by the `JsonParser`
-    * to a value according to a desired schema.
-    */
+   * Create a converter which converts the JSON documents held by the `JsonParser`
+   * to a value according to a desired schema.
+   */
   def makeConverter(dataType: DataType): ValueConverter = dataType match {
     case BooleanType =>
-      (parser: JsonParser) => parseJsonToken[java.lang.Boolean](parser, dataType) {
-        case VALUE_TRUE => true
-        case VALUE_FALSE => false
-      }
+      (parser: JsonParser) =>
+        parseJsonToken[java.lang.Boolean](parser, dataType) {
+          case VALUE_TRUE => true
+          case VALUE_FALSE => false
+        }
 
     case ByteType =>
-      (parser: JsonParser) => parseJsonToken[java.lang.Byte](parser, dataType) {
-        case VALUE_NUMBER_INT => parser.getByteValue
-      }
+      (parser: JsonParser) =>
+        parseJsonToken[java.lang.Byte](parser, dataType) {
+          case VALUE_NUMBER_INT => parser.getByteValue
+        }
 
     case ShortType =>
-      (parser: JsonParser) => parseJsonToken[java.lang.Short](parser, dataType) {
-        case VALUE_NUMBER_INT => parser.getShortValue
-      }
+      (parser: JsonParser) =>
+        parseJsonToken[java.lang.Short](parser, dataType) {
+          case VALUE_NUMBER_INT => parser.getShortValue
+        }
 
     case IntegerType =>
-      (parser: JsonParser) => parseJsonToken[java.lang.Integer](parser, dataType) {
-        case VALUE_NUMBER_INT => parser.getIntValue
-      }
+      (parser: JsonParser) =>
+        parseJsonToken[java.lang.Integer](parser, dataType) {
+          case VALUE_NUMBER_INT => parser.getIntValue
+        }
 
     case LongType =>
-      (parser: JsonParser) => parseJsonToken[java.lang.Long](parser, dataType) {
-        case VALUE_NUMBER_INT => parser.getLongValue
-      }
+      (parser: JsonParser) =>
+        parseJsonToken[java.lang.Long](parser, dataType) {
+          case VALUE_NUMBER_INT => parser.getLongValue
+        }
 
     case FloatType =>
-      (parser: JsonParser) => parseJsonToken[java.lang.Float](parser, dataType) {
-        case VALUE_NUMBER_INT | VALUE_NUMBER_FLOAT =>
-          parser.getFloatValue
+      (parser: JsonParser) =>
+        parseJsonToken[java.lang.Float](parser, dataType) {
+          case VALUE_NUMBER_INT | VALUE_NUMBER_FLOAT =>
+            parser.getFloatValue
 
-        case VALUE_STRING =>
-          // Special case handling for NaN and Infinity.
-          parser.getText match {
-            case "NaN" => Float.NaN
-            case "Infinity" => Float.PositiveInfinity
-            case "-Infinity" => Float.NegativeInfinity
-            case other => throw new RuntimeException(
-              s"Cannot parse $other as ${FloatType.catalogString}.")
-          }
-      }
+          case VALUE_STRING =>
+            // Special case handling for NaN and Infinity.
+            parser.getText match {
+              case "NaN" => Float.NaN
+              case "Infinity" => Float.PositiveInfinity
+              case "-Infinity" => Float.NegativeInfinity
+              case other =>
+                throw new RuntimeException(s"Cannot parse $other as ${FloatType.catalogString}.")
+            }
+        }
 
     case DoubleType =>
-      (parser: JsonParser) => parseJsonToken[java.lang.Double](parser, dataType) {
-        case VALUE_NUMBER_INT | VALUE_NUMBER_FLOAT =>
-          parser.getDoubleValue
+      (parser: JsonParser) =>
+        parseJsonToken[java.lang.Double](parser, dataType) {
+          case VALUE_NUMBER_INT | VALUE_NUMBER_FLOAT =>
+            parser.getDoubleValue
 
-        case VALUE_STRING =>
-          // Special case handling for NaN and Infinity.
-          parser.getText match {
-            case "NaN" => Double.NaN
-            case "Infinity" => Double.PositiveInfinity
-            case "-Infinity" => Double.NegativeInfinity
-            case other =>
-              throw new RuntimeException(s"Cannot parse $other as ${DoubleType.catalogString}.")
-          }
-      }
+          case VALUE_STRING =>
+            // Special case handling for NaN and Infinity.
+            parser.getText match {
+              case "NaN" => Double.NaN
+              case "Infinity" => Double.PositiveInfinity
+              case "-Infinity" => Double.NegativeInfinity
+              case other =>
+                throw new RuntimeException(s"Cannot parse $other as ${DoubleType.catalogString}.")
+            }
+        }
 
     case StringType =>
-      (parser: JsonParser) => parseJsonToken[UTF8String](parser, dataType) {
-        case VALUE_STRING =>
-          UTF8String.fromString(parser.getText)
+      (parser: JsonParser) =>
+        parseJsonToken[UTF8String](parser, dataType) {
+          case VALUE_STRING =>
+            UTF8String.fromString(parser.getText)
 
-        case _ =>
-          // Note that it always tries to convert the data as string without the case of failure.
-          val writer = new ByteArrayOutputStream()
-          Utils.tryWithResource(factory.createGenerator(writer, JsonEncoding.UTF8)) {
-            generator => generator.copyCurrentStructure(parser)
-          }
-          UTF8String.fromBytes(writer.toByteArray)
-      }
+          case _ =>
+            // Note that it always tries to convert the data as string without the case of failure.
+            val writer = new ByteArrayOutputStream()
+            Utils.tryWithResource(factory.createGenerator(writer, JsonEncoding.UTF8)) {
+              generator =>
+                generator.copyCurrentStructure(parser)
+            }
+            UTF8String.fromBytes(writer.toByteArray)
+        }
 
     case TimestampType =>
-      (parser: JsonParser) => parseJsonToken[java.lang.Long](parser, dataType) {
-        case VALUE_STRING =>
-          val stringValue = parser.getText
-          // This one will lose microseconds parts.
-          // See https://issues.apache.org/jira/browse/SPARK-10681.
-          Long.box {
-            Try(options.timestampFormat.parse(stringValue).getTime * 1000L)
-              .getOrElse {
-                // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
-                // compatibility.
-                DateTimeUtils.stringToTime(stringValue).getTime * 1000L
-              }
-          }
+      (parser: JsonParser) =>
+        parseJsonToken[java.lang.Long](parser, dataType) {
+          case VALUE_STRING =>
+            val stringValue = parser.getText
+            // This one will lose microseconds parts.
+            // See https://issues.apache.org/jira/browse/SPARK-10681.
+            Long.box {
+              Try(options.timestampFormat.parse(stringValue).getTime * 1000L)
+                .getOrElse {
+                  // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
+                  // compatibility.
+                  DateTimeUtils.stringToTime(stringValue).getTime * 1000L
+                }
+            }
 
-        case VALUE_NUMBER_INT =>
-          parser.getLongValue * 1000000L
-      }
+          case VALUE_NUMBER_INT =>
+            parser.getLongValue * 1000000L
+        }
 
     case DateType =>
-      (parser: JsonParser) => parseJsonToken[java.lang.Integer](parser, dataType) {
-        case VALUE_STRING =>
-          val stringValue = parser.getText
-          // This one will lose microseconds parts.
-          // See https://issues.apache.org/jira/browse/SPARK-10681.x
-          Int.box {
-            Try(DateTimeUtils.millisToDays(options.dateFormat.parse(stringValue).getTime))
-              .orElse {
-                // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
-                // compatibility.
-                Try(DateTimeUtils.millisToDays(DateTimeUtils.stringToTime(stringValue).getTime))
-              }
-              .getOrElse {
-                // In Spark 1.5.0, we store the data as number of days since epoch in string.
-                // So, we just convert it to Int.
-                stringValue.toInt
-              }
-          }
-      }
+      (parser: JsonParser) =>
+        parseJsonToken[java.lang.Integer](parser, dataType) {
+          case VALUE_STRING =>
+            val stringValue = parser.getText
+            // This one will lose microseconds parts.
+            // See https://issues.apache.org/jira/browse/SPARK-10681.x
+            Int.box {
+              Try(DateTimeUtils.millisToDays(options.dateFormat.parse(stringValue).getTime))
+                .orElse {
+                  // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
+                  // compatibility.
+                  Try(DateTimeUtils.millisToDays(DateTimeUtils.stringToTime(stringValue).getTime))
+                }
+                .getOrElse {
+                  // In Spark 1.5.0, we store the data as number of days since epoch in string.
+                  // So, we just convert it to Int.
+                  stringValue.toInt
+                }
+            }
+        }
 
     case BinaryType =>
-      (parser: JsonParser) => parseJsonToken[Array[Byte]](parser, dataType) {
-        case VALUE_STRING => parser.getBinaryValue
-      }
+      (parser: JsonParser) =>
+        parseJsonToken[Array[Byte]](parser, dataType) {
+          case VALUE_STRING => parser.getBinaryValue
+        }
 
     case dt: DecimalType =>
-      (parser: JsonParser) => parseJsonToken[Decimal](parser, dataType) {
-        case (VALUE_NUMBER_INT | VALUE_NUMBER_FLOAT) =>
-          Decimal(parser.getDecimalValue, dt.precision, dt.scale)
-      }
+      (parser: JsonParser) =>
+        parseJsonToken[Decimal](parser, dataType) {
+          case (VALUE_NUMBER_INT | VALUE_NUMBER_FLOAT) =>
+            Decimal(parser.getDecimalValue, dt.precision, dt.scale)
+        }
 
     case st: StructType =>
       val fieldConverters = st.map(_.dataType).map(makeConverter).toArray
-      (parser: JsonParser) => parseJsonToken[InternalRow](parser, dataType) {
-        case START_OBJECT =>
-          val record = new GenericInternalRow(st.length)
-          convertObject(parser, st, fieldConverters, record)
-      }
+      (parser: JsonParser) =>
+        parseJsonToken[InternalRow](parser, dataType) {
+          case START_OBJECT =>
+            val record = new GenericInternalRow(st.length)
+            convertObject(parser, st, fieldConverters, record)
+        }
 
     case at: ArrayType =>
       val elementConverter = makeConverter(at.elementType)
-      (parser: JsonParser) => parseJsonToken[ArrayData](parser, dataType) {
-        case START_ARRAY => convertArray(parser, elementConverter)
-      }
+      (parser: JsonParser) =>
+        parseJsonToken[ArrayData](parser, dataType) {
+          case START_ARRAY => convertArray(parser, elementConverter)
+        }
 
     case mt: MapType =>
       val valueConverter = makeConverter(mt.valueType)
-      (parser: JsonParser) => parseJsonToken[MapData](parser, dataType) {
-        case START_OBJECT => convertMap(parser, valueConverter)
-      }
+      (parser: JsonParser) =>
+        parseJsonToken[MapData](parser, dataType) {
+          case START_OBJECT => convertMap(parser, valueConverter)
+        }
 
     case udt: UserDefinedType[_] =>
       makeConverter(udt.sqlType)
@@ -226,13 +243,12 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
   }
 
   /**
-    * This method skips `FIELD_NAME`s at the beginning, and handles nulls ahead before trying
-    * to parse the JSON token using given function `f`. If the `f` failed to parse and convert the
-    * token, call `failedConversion` to handle the token.
-    */
-  private def parseJsonToken[R >: Null](
-      parser: JsonParser,
-      dataType: DataType)(f: PartialFunction[JsonToken, R]): R = {
+   * This method skips `FIELD_NAME`s at the beginning, and handles nulls ahead before trying
+   * to parse the JSON token using given function `f`. If the `f` failed to parse and convert the
+   * token, call `failedConversion` to handle the token.
+   */
+  private def parseJsonToken[R >: Null](parser: JsonParser, dataType: DataType)(
+      f: PartialFunction[JsonToken, R]): R = {
     parser.getCurrentToken match {
       case FIELD_NAME =>
         // There are useless FIELD_NAMEs between START_OBJECT and END_OBJECT tokens
@@ -246,9 +262,9 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
   }
 
   /**
-    * This function throws an exception for failed conversion, but returns null for empty string,
-    * to guard the non string types.
-    */
+   * This function throws an exception for failed conversion, but returns null for empty string,
+   * to guard the non string types.
+   */
   private def failedConversion[R >: Null](
       parser: JsonParser,
       dataType: DataType): PartialFunction[JsonToken, R] = {
@@ -265,9 +281,9 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
   }
 
   /**
-    * Parse an object from the token stream into a new Row representing the schema.
-    * Fields in the json that are not defined in the requested schema will be dropped.
-    */
+   * Parse an object from the token stream into a new Row representing the schema.
+   * Fields in the json that are not defined in the requested schema will be dropped.
+   */
   private def convertObject(
       parser: JsonParser,
       schema: StructType,
@@ -291,11 +307,9 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
   }
 
   /**
-    * Parse an object as a Map, preserving all fields.
-    */
-  private def convertMap(
-      parser: JsonParser,
-      fieldConverter: ValueConverter): MapData = {
+   * Parse an object as a Map, preserving all fields.
+   */
+  private def convertMap(parser: JsonParser, fieldConverter: ValueConverter): MapData = {
     val keys = ArrayBuffer.empty[UTF8String]
     val values = ArrayBuffer.empty[Any]
     while (nextUntil(parser, JsonToken.END_OBJECT)) {
@@ -307,11 +321,9 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
   }
 
   /**
-    * Parse an object as a Array.
-    */
-  private def convertArray(
-      parser: JsonParser,
-      fieldConverter: ValueConverter): ArrayData = {
+   * Parse an object as a Array.
+   */
+  private def convertArray(parser: JsonParser, fieldConverter: ValueConverter): ArrayData = {
     val values = ArrayBuffer.empty[Any]
     while (nextUntil(parser, JsonToken.END_ARRAY)) {
       values += fieldConverter.apply(parser)
@@ -321,11 +333,11 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
   }
 
   /**
-    * Parse the JSON input to [[InternalRow]].
-    *
-    * @param recordLiteral an optional function that will be used to generate
-    *   the corrupt record text instead of record.toString
-    */
+   * Parse the JSON input to [[InternalRow]].
+   *
+   * @param recordLiteral an optional function that will be used to generate
+   *   the corrupt record text instead of record.toString
+   */
   def parse[T](
       record: T,
       createParser: (JsonFactory, T) => JsonParser,
@@ -337,10 +349,11 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
         // but it works on any token stream and not just strings
         parser.nextToken() match {
           case null => InternalRow.empty
-          case _ => rootConverter.apply(parser, row) match {
-            case null => throw new RuntimeException("Root converter returned null")
-            case row => row
-          }
+          case _ =>
+            rootConverter.apply(parser, row) match {
+              case null => throw new RuntimeException("Root converter returned null")
+              case row => row
+            }
         }
       }
     } catch {
@@ -369,16 +382,18 @@ class FailureSafeRecordParser[IN](
     try {
       rawParser.apply(input, row)
     } catch {
-      case e: BadRecordException => mode match {
-        case PermissiveMode =>
-          row
-        case DropMalformedMode =>
-          null
-        case FailFastMode =>
-          throw new SparkException("Malformed records are detected in record parsing. " +
-            s"Parse Mode: ${FailFastMode.name}.", e.cause)
-      }
+      case e: BadRecordException =>
+        mode match {
+          case PermissiveMode =>
+            row
+          case DropMalformedMode =>
+            null
+          case FailFastMode =>
+            throw new SparkException(
+              "Malformed records are detected in record parsing. " +
+                s"Parse Mode: ${FailFastMode.name}.",
+              e.cause)
+        }
     }
   }
 }
-

@@ -28,26 +28,37 @@ class PulsarSourceOffsetSuite extends OffsetSuite with SharedSQLContext {
     two = SpecificPulsarOffset(("t", new MessageIdImpl(1, 2, -1))))
 
   compare(
-    one = SpecificPulsarOffset(("t", new MessageIdImpl(1, 1, -1)), ("t1", new MessageIdImpl(1, 1, -1))),
-    two = SpecificPulsarOffset(("t", new MessageIdImpl(1, 2, -1)), ("t1", new MessageIdImpl(1, 2, -1))))
+    one = SpecificPulsarOffset(
+      ("t", new MessageIdImpl(1, 1, -1)),
+      ("t1", new MessageIdImpl(1, 1, -1))),
+    two = SpecificPulsarOffset(
+      ("t", new MessageIdImpl(1, 2, -1)),
+      ("t1", new MessageIdImpl(1, 2, -1)))
+  )
 
   compare(
     one = SpecificPulsarOffset(("t", new MessageIdImpl(1, 1, -1))),
-    two = SpecificPulsarOffset(("t", new MessageIdImpl(1, 2, -1)), ("t1", new MessageIdImpl(1, 1, -1))))
-
+    two = SpecificPulsarOffset(
+      ("t", new MessageIdImpl(1, 2, -1)),
+      ("t1", new MessageIdImpl(1, 1, -1))))
 
   val kso1 = SpecificPulsarOffset(("t", new MessageIdImpl(1, 1, -1)))
-  val kso2 = SpecificPulsarOffset(("t", new MessageIdImpl(1, 2, -1)), ("t1", new MessageIdImpl(1, 3, -1)))
-  val kso3 = SpecificPulsarOffset(("t", new MessageIdImpl(1, 2, -1)), ("t1", new MessageIdImpl(1, 3, -1)), ("t2", new MessageIdImpl(1, 4, -1)))
+  val kso2 =
+    SpecificPulsarOffset(("t", new MessageIdImpl(1, 2, -1)), ("t1", new MessageIdImpl(1, 3, -1)))
+  val kso3 = SpecificPulsarOffset(
+    ("t", new MessageIdImpl(1, 2, -1)),
+    ("t1", new MessageIdImpl(1, 3, -1)),
+    ("t2", new MessageIdImpl(1, 4, -1)))
 
-  compare(SpecificPulsarOffset(SerializedOffset(kso1.json)),
+  compare(
+    SpecificPulsarOffset(SerializedOffset(kso1.json)),
     SpecificPulsarOffset(SerializedOffset(kso2.json)))
 
   test("basic serialization - deserialization") {
-    assert(SpecificPulsarOffset.getTopicOffsets(kso1) ==
-      SpecificPulsarOffset.getTopicOffsets(SerializedOffset(kso1.json)))
+    assert(
+      SpecificPulsarOffset.getTopicOffsets(kso1) ==
+        SpecificPulsarOffset.getTopicOffsets(SerializedOffset(kso1.json)))
   }
-
 
   test("OffsetSeqLog serialization - deserialization") {
     withTempDir { temp =>
@@ -57,11 +68,11 @@ class PulsarSourceOffsetSuite extends OffsetSuite with SharedSQLContext {
       val batch0 = OffsetSeq.fill(kso1)
       val batch1 = OffsetSeq.fill(kso2, kso3)
 
-      val batch0Serialized = OffsetSeq.fill(batch0.offsets.flatMap(_.map(o =>
-        SerializedOffset(o.json))): _*)
+      val batch0Serialized =
+        OffsetSeq.fill(batch0.offsets.flatMap(_.map(o => SerializedOffset(o.json))): _*)
 
-      val batch1Serialized = OffsetSeq.fill(batch1.offsets.flatMap(_.map(o =>
-        SerializedOffset(o.json))): _*)
+      val batch1Serialized =
+        OffsetSeq.fill(batch1.offsets.flatMap(_.map(o => SerializedOffset(o.json))): _*)
 
       assert(metadataLog.add(0, batch0))
       assert(metadataLog.getLatest() === Some(0 -> batch0Serialized))
@@ -71,19 +82,19 @@ class PulsarSourceOffsetSuite extends OffsetSuite with SharedSQLContext {
       assert(metadataLog.get(0) === Some(batch0Serialized))
       assert(metadataLog.get(1) === Some(batch1Serialized))
       assert(metadataLog.getLatest() === Some(1 -> batch1Serialized))
-      assert(metadataLog.get(None, Some(1)) ===
-        Array(0 -> batch0Serialized, 1 -> batch1Serialized))
+      assert(
+        metadataLog.get(None, Some(1)) ===
+          Array(0 -> batch0Serialized, 1 -> batch1Serialized))
 
       // Adding the same batch does nothing
       metadataLog.add(1, OffsetSeq.fill(LongOffset(3)))
       assert(metadataLog.get(0) === Some(batch0Serialized))
       assert(metadataLog.get(1) === Some(batch1Serialized))
       assert(metadataLog.getLatest() === Some(1 -> batch1Serialized))
-      assert(metadataLog.get(None, Some(1)) ===
-        Array(0 -> batch0Serialized, 1 -> batch1Serialized))
+      assert(
+        metadataLog.get(None, Some(1)) ===
+          Array(0 -> batch0Serialized, 1 -> batch1Serialized))
     }
   }
 
 }
-
-

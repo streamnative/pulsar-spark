@@ -17,8 +17,8 @@ import java.{util => ju}
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
 import org.apache.spark.sql.sources.v2.writer.{DataWriter, DataWriterFactory, WriterCommitMessage}
+import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
 import org.apache.spark.sql.types.StructType
 
 /**
@@ -41,7 +41,7 @@ class PulsarStreamWriter(
     producerConf: ju.Map[String, Object],
     topic: Option[String],
     adminUrl: String)
-  extends StreamWriter {
+    extends StreamWriter {
 
   override def createWriterFactory(): PulsarStreamWriterFactory =
     PulsarStreamWriterFactory(schema, clientConf, producerConf, topic, adminUrl)
@@ -64,18 +64,13 @@ case class PulsarStreamWriterFactory(
     producerConf: ju.Map[String, Object],
     topic: Option[String],
     adminUrl: String)
-  extends DataWriterFactory[InternalRow] {
+    extends DataWriterFactory[InternalRow] {
 
   override def createDataWriter(
       partitionId: Int,
       taskId: Long,
       epochId: Long): DataWriter[InternalRow] = {
-    new PulsarStreamDataWriter(
-      schema.toAttributes,
-      clientConf,
-      producerConf,
-      topic,
-      adminUrl)
+    new PulsarStreamDataWriter(schema.toAttributes, clientConf, producerConf, topic, adminUrl)
   }
 }
 
@@ -94,7 +89,8 @@ class PulsarStreamDataWriter(
     producerConf: ju.Map[String, Object],
     topic: Option[String],
     adminUrl: String)
-  extends PulsarRowWriter(inputSchema, clientConf, producerConf, topic, adminUrl) with DataWriter[InternalRow] {
+    extends PulsarRowWriter(inputSchema, clientConf, producerConf, topic, adminUrl)
+    with DataWriter[InternalRow] {
 
   def write(row: InternalRow): Unit = {
     checkForErrors()

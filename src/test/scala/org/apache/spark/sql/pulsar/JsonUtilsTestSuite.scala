@@ -23,82 +23,107 @@ import org.apache.spark.SparkFunSuite
 class JsonUtilsTestSuite extends SparkFunSuite with BeforeAndAfterEach {
 
   test("serialize and deserialize topics") {
-    val topics : Array[String] = 0.to(9).map { i =>
-      s"topic-${i}"
-    }.toArray
+    val topics: Array[String] = 0
+      .to(9)
+      .map { i =>
+        s"topic-${i}"
+      }
+      .toArray
 
     val str = JsonUtils.topics(topics)
     val readTopics = JsonUtils.topics(str).toSeq.sorted.toArray
 
     assert(10 == readTopics.size)
-    0.to(9) map { i => {
-      assert(s"topic-${i}" == readTopics(i))
-    }}
+    0.to(9) map { i =>
+      {
+        assert(s"topic-${i}" == readTopics(i))
+      }
+    }
   }
 
   test("serialize and deserialize topic earliest offsets") {
-    val topicOffsets : Map[String, MessageId] = 0.to(9).map { i =>
-      (s"topic-${i}", MessageId.earliest)
-    }.toMap
+    val topicOffsets: Map[String, MessageId] = 0
+      .to(9)
+      .map { i =>
+        (s"topic-${i}", MessageId.earliest)
+      }
+      .toMap
 
     val str = JsonUtils.topicOffsets(topicOffsets)
     val readTopicOffsets = JsonUtils.topicOffsets(str)
 
     assert(10 == readTopicOffsets.size)
-    0.to(9) map { i => {
-      val topic = s"topic-${i}"
-      val offset = readTopicOffsets(topic)
-      assert(MessageId.earliest.compareTo(offset) == 0)
-    }}
+    0.to(9) map { i =>
+      {
+        val topic = s"topic-${i}"
+        val offset = readTopicOffsets(topic)
+        assert(MessageId.earliest.compareTo(offset) == 0)
+      }
+    }
   }
 
   test("serialize and deserialize topic latest offsets") {
-    val topicOffsets : Map[String, MessageId] = 0.to(9).map { i =>
-      (s"topic-${i}", MessageId.latest)
-    }.toMap
+    val topicOffsets: Map[String, MessageId] = 0
+      .to(9)
+      .map { i =>
+        (s"topic-${i}", MessageId.latest)
+      }
+      .toMap
 
     val str = JsonUtils.topicOffsets(topicOffsets)
     val readTopicOffsets = JsonUtils.topicOffsets(str)
 
     assert(10 == readTopicOffsets.size)
-    0.to(9) map { i => {
-      val topic = s"topic-${i}"
-      val offset = readTopicOffsets(topic)
-      assert(MessageId.latest.compareTo(offset) == 0)
-    }}
+    0.to(9) map { i =>
+      {
+        val topic = s"topic-${i}"
+        val offset = readTopicOffsets(topic)
+        assert(MessageId.latest.compareTo(offset) == 0)
+      }
+    }
   }
 
   test("serialize and deserialize topic specific offsets") {
-    val topicOffsets : Map[String, MessageId] = 0.to(9).map { i =>
-      (s"topic-${i}", new MessageIdImpl(10 + i, 100 + i, i))
-    }.toMap
+    val topicOffsets: Map[String, MessageId] = 0
+      .to(9)
+      .map { i =>
+        (s"topic-${i}", new MessageIdImpl(10 + i, 100 + i, i))
+      }
+      .toMap
 
     val str = JsonUtils.topicOffsets(topicOffsets)
     val readTopicOffsets = JsonUtils.topicOffsets(str)
 
     assert(10 == readTopicOffsets.size)
-    0.to(9) map { i => {
-      val topic = s"topic-${i}"
-      val offset = readTopicOffsets(topic)
-      val messageId = new MessageIdImpl(10 + i, 100 + i, i)
-      assert(messageId.compareTo(offset) == 0)
-    }}
+    0.to(9) map { i =>
+      {
+        val topic = s"topic-${i}"
+        val offset = readTopicOffsets(topic)
+        val messageId = new MessageIdImpl(10 + i, 100 + i, i)
+        assert(messageId.compareTo(offset) == 0)
+      }
+    }
   }
 
   test("serialize and deserialize topic specific batch offsets") {
-    val topicOffsets : Map[String, MessageId] = 0.to(9).map { i =>
-      (s"topic-${i}", new BatchMessageIdImpl(10 + i, 100 + i, i, i))
-    }.toMap
+    val topicOffsets: Map[String, MessageId] = 0
+      .to(9)
+      .map { i =>
+        (s"topic-${i}", new BatchMessageIdImpl(10 + i, 100 + i, i, i))
+      }
+      .toMap
 
     val str = JsonUtils.topicOffsets(topicOffsets)
     val readTopicOffsets = JsonUtils.topicOffsets(str)
 
     assert(10 == readTopicOffsets.size)
-    0.to(9) map { i => {
-      val topic = s"topic-${i}"
-      val offset = readTopicOffsets(topic)
-      val messageId = new BatchMessageIdImpl(10 + i, 100 + i, i, i)
-      assert(messageId.compareTo(offset) == 0)
-    }}
+    0.to(9) map { i =>
+      {
+        val topic = s"topic-${i}"
+        val offset = readTopicOffsets(topic)
+        val messageId = new BatchMessageIdImpl(10 + i, 100 + i, i, i)
+        assert(messageId.compareTo(offset) == 0)
+      }
+    }
   }
 }
