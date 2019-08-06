@@ -13,16 +13,19 @@
  */
 package org.apache.spark.sql.pulsar
 
+import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.{Date, Locale}
 
+import org.apache.avro.{Schema => ASchema}
+import org.apache.pulsar.client.api.schema.GenericRecordBuilder
+
 import scala.reflect.ClassTag
-
-import org.apache.pulsar.client.api.MessageId
+import org.apache.pulsar.client.api.{MessageId, Producer, PulsarClient, Schema => PSchema}
+import org.apache.pulsar.client.impl.schema.generic.GenericAvroSchema
 import org.apache.pulsar.common.naming.TopicName
-import org.apache.pulsar.common.schema.SchemaType
-
+import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
 import org.apache.spark.sql.test.SharedSQLContext
 import org.apache.spark.sql.{DataFrame, Encoder, Encoders, QueryTest}
 
@@ -289,5 +292,119 @@ class PulsarRelationSuite extends QueryTest with SharedSQLContext with PulsarTes
     testBadOptions(TOPIC_SINGLE -> "")("no topic is specified")
     testBadOptions(TOPIC_MULTI -> "")("No topics is specified")
     testBadOptions(TOPIC_PATTERN -> "")("TopicsPattern is empty")
+  }
+
+  test("schema versions") {
+    val s1 = new ASchema.Parser().parse("{\n" +
+      "    \"type\": \"record\",\n" +
+      "    \"name\": \"User\",\n" +
+      "    \"namespace\": \"io.streamnative.connectors.kafka.example\",\n" +
+      "    \"fields\": [\n" +
+      "      {\n" +
+      "        \"name\": \"name\",\n" +
+      "        \"type\": [\n" +
+      "          \"string\",\n" +
+      "          \"null\"\n" +
+      "        ]\n" +
+      "      },\n" +
+      "      {\n" +
+      "        \"name\": \"age\",\n" +
+      "        \"type\": [\n" +
+      "          \"string\",\n" +
+      "          \"null\"\n" +
+      "        ]\n" +
+      "      },\n" +
+      "      {\n" +
+      "        \"name\": \"gpa\",\n" +
+      "        \"type\": [\n" +
+      "          \"string\",\n" +
+      "          \"null\"\n" +
+      "        ]\n" +
+      "      }\n" +
+      "    ]\n" +
+      "  }")
+
+
+    val s2 = new ASchema.Parser().parse("{\n" +
+      "    \"type\": \"record\",\n" +
+      "    \"name\": \"User\",\n" +
+      "    \"namespace\": \"io.streamnative.connectors.kafka.example\",\n" +
+      "    \"fields\": [\n" +
+      "      {\n" +
+      "        \"name\": \"name\",\n" +
+      "        \"type\": [\n" +
+      "          \"null\",\n" +
+      "          \"string\"\n" +
+      "        ]\n" +
+      "      },\n" +
+      "      {\n" +
+      "        \"name\": \"age\",\n" +
+      "        \"type\": [\n" +
+      "          \"null\",\n" +
+      "          \"string\"\n" +
+      "        ]\n" +
+      "      },\n" +
+      "      {\n" +
+      "        \"name\": \"gpa\",\n" +
+      "        \"type\": [\n" +
+      "          \"null\",\n" +
+      "          \"string\"\n" +
+      "        ]\n" +
+      "      }\n" +
+      "    ]\n" +
+      "  }")
+
+    val ps1 = new SchemaInfo()
+    ps1.setName("Avro1")
+    ps1.setSchema(s1.toString.getBytes(StandardCharsets.UTF_8))
+    ps1.setType(SchemaType.AVRO)
+
+    val ps2 = new SchemaInfo()
+    ps2.setName("Avro2")
+    ps2.setSchema(s2.toString.getBytes(StandardCharsets.UTF_8))
+    ps2.setType(SchemaType.AVRO)
+
+    val r1 = new GenericAvroSchema(ps1).newRecordBuilder()
+      .set("name", "s1")
+      .set("age", "10")
+      .set("gpa", "1")
+      .build()
+
+    val r2 = new GenericAvroSchema(ps2).newRecordBuilder()
+      .set("name", "s2")
+      .set("age", "20")
+      .set("gpa", "2")
+      .build()
+
+    val client = PulsarClient
+      .builder()
+      .serviceUrl(serviceUrl)
+      .build()
+
+    val topic = "tp"
+
+    val producer1 = client.newProducer(PSchema.generic(ps1)).topic(topic).create()
+    val producer2 = client.newProducer(PSchema.generic(ps2)).topic(topic).create()
+
+    producer1.send(r1)
+    producer1.flush()
+    producer1.close()
+
+    producer2.send(r2)
+    producer2.flush()
+    producer2.close()
+
+    client.close()
+
+    val result = spark.read
+      .format("pulsar")
+      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(ADMIN_URL_OPTION_KEY, adminUrl)
+      .option(TOPIC_MULTI, topic)
+      .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
+      .option(ENDING_OFFSETS_OPTION_KEY, "latest")
+      .load()
+
+    result.show()
   }
 }
