@@ -494,6 +494,64 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
         .contains("__eventtime attribute type must be a bigint or timestamp"))
   }
 
+  test("batch - write to pulsar with producer conf case sensitive") {
+    val topic = newTopic()
+    val df = Seq("1", "2", "3", "4", "5") map { v =>
+      (v, v)
+    } toDF ("key", "value")
+    df.write
+      .format("pulsar")
+      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(ADMIN_URL_OPTION_KEY, adminUrl)
+      .option(TOPIC_SINGLE, topic)
+      .option("pulsar.producer.blockIfQueueFull", "true")
+      .option("pulsar.producer.maxPendingMessages", "100000")
+      .option("pulsar.producer.maxPendingMessagesAcrossPartitions", "5000000")
+      .option("pulsar.producer.sendTimeoutMs", "30000")
+      .save()
+
+    checkAnswer(
+      createPulsarReader(topic).selectExpr("CAST(value as STRING) value"),
+      Row("1") :: Row("2") :: Row("3") :: Row("4") :: Row("5") :: Nil)
+  }
+
+  test("streaming - write to pulsar with producer case sensitive conf") {
+    val input = MemoryStream[String]
+    val topic = newTopic()
+
+    val writer = createPulsarWriter(
+      input.toDF(),
+      withTopic = None,
+      withOutputMode = Some(OutputMode.Append),
+      withOptions = Map(
+        "pulsar.producer.blockIfQueueFull" -> "true",
+        "pulsar.producer.maxPendingMessages" -> "100000",
+        "pulsar.producer.maxPendingMessagesAcrossPartitions" -> "5000000",
+        "pulsar.producer.sendTimeoutMs" -> "30000")
+    )(withSelectExpr = s"'$topic' as __topic", "value")
+
+    val reader = createPulsarReader(topic)
+      .selectExpr("CAST(__key as STRING) __key", "CAST(value as STRING) value")
+      .selectExpr("CAST(__key as INT) __key", "CAST(value as INT) value")
+      .as[(Option[Int], Int)]
+      .map(_._2)
+
+    try {
+      input.addData("1", "2", "3", "4", "5")
+      failAfter(streamingTimeout) {
+        writer.processAllAvailable()
+      }
+      checkDatasetUnorderly(reader, 1, 2, 3, 4, 5)
+      input.addData("6", "7", "8", "9", "10")
+      failAfter(streamingTimeout) {
+        writer.processAllAvailable()
+      }
+      checkDatasetUnorderly(reader, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+    } finally {
+      writer.stop()
+    }
+  }
+
   ignore("generic - write big data with small producer buffer") {
     /* This test ensures that we understand the semantics of Pulsar when
      * is comes to blocking on a call to send when the send buffer is full.

@@ -250,7 +250,7 @@ private[pulsar] class PulsarProvider
 
     val caseInsensitiveParams = validateSinkOptions(parameters)
 
-    val parsedConf = prepareConfForProducer(caseInsensitiveParams)
+    val parsedConf = prepareConfForProducer(parameters)
     PulsarSinks.validateQuery(data.schema.toAttributes, parsedConf._3)
 
     PulsarSinks.write(
@@ -290,7 +290,7 @@ private[pulsar] class PulsarProvider
 
     val caseInsensitiveParams = validateSinkOptions(parameters)
 
-    val parsedConf = prepareConfForProducer(caseInsensitiveParams)
+    val parsedConf = prepareConfForProducer(parameters)
 
     new PulsarSink(
       sqlContext,
@@ -311,7 +311,7 @@ private[pulsar] class PulsarProvider
     val parameters = options.asMap().asScala.toMap
     val caseInsensitiveParams = validateSinkOptions(parameters)
 
-    val parsedConf = prepareConfForProducer(caseInsensitiveParams)
+    val parsedConf = prepareConfForProducer(parameters)
     PulsarSinks.validateQuery(schema.toAttributes, parsedConf._3)
 
     new PulsarStreamWriter(schema, parsedConf._1, parsedConf._2, parsedConf._3, parsedConf._4)
@@ -320,41 +320,58 @@ private[pulsar] class PulsarProvider
 
 private[pulsar] object PulsarProvider extends Logging {
   import PulsarOptions._
+  import PulsarConfigurationUtils._
 
   private def getClientParams(parameters: Map[String, String]): Map[String, String] = {
-    parameters.keySet
+    val lowercaseKeyMap = parameters.keySet
       .filter(_.startsWith(PULSAR_CLIENT_OPTION_KEY_PREFIX))
       .map { k =>
         k.drop(PULSAR_CLIENT_OPTION_KEY_PREFIX.length).toString -> parameters(k)
       }
       .toMap
+    lowercaseKeyMap.map { case (k, v) =>
+      clientConfKeys.getOrElse(
+        k, throw new IllegalArgumentException(s"$k not supported by pulsar")) -> v
+    }
   }
 
   private def getProducerParams(parameters: Map[String, String]): Map[String, String] = {
-    parameters.keySet
+    val lowercaseKeyMap = parameters.keySet
       .filter(_.startsWith(PULSAR_PRODUCER_OPTION_KEY_PREFIX))
       .map { k =>
         k.drop(PULSAR_PRODUCER_OPTION_KEY_PREFIX.length).toString -> parameters(k)
       }
       .toMap
+    lowercaseKeyMap.map { case (k, v) =>
+      producerConfKeys.getOrElse(
+        k, throw new IllegalArgumentException(s"$k not supported by pulsar")) -> v
+    }
   }
 
   private def getConsumerParams(parameters: Map[String, String]): Map[String, String] = {
-    parameters.keySet
+    val lowercaseKeyMap = parameters.keySet
       .filter(_.startsWith(PULSAR_CONSUMER_OPTION_KEY_PREFIX))
       .map { k =>
         k.drop(PULSAR_CONSUMER_OPTION_KEY_PREFIX.length).toString -> parameters(k)
       }
       .toMap
+    lowercaseKeyMap.map { case (k, v) =>
+      consumerConfKeys.getOrElse(
+        k, throw new IllegalArgumentException(s"$k not supported by pulsar")) -> v
+    }
   }
 
   private def getReaderParams(parameters: Map[String, String]): Map[String, String] = {
-    parameters.keySet
+    val lowercaseKeyMap = parameters.keySet
       .filter(_.startsWith(PULSAR_READER_OPTION_KEY_PREFIX))
       .map { k =>
         k.drop(PULSAR_READER_OPTION_KEY_PREFIX.length).toString -> parameters(k)
       }
       .toMap
+    lowercaseKeyMap.map { case (k, v) =>
+      readerConfKeys.getOrElse(
+        k, throw new IllegalArgumentException(s"$k not supported by pulsar")) -> v
+    }
   }
 
   def getPulsarOffset(
