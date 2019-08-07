@@ -506,6 +506,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       .option(TOPIC_SINGLE, topic)
       .option("pulsar.producer.blockIfQueueFull", "true")
       .option("pulsar.producer.maxPendingMessages", "100000")
+      .option("pulsar.producer.maxPendingMessagesAcrossPartitions", "5000000")
       .option("pulsar.producer.sendTimeoutMs", "30000")
       .save()
 
@@ -525,6 +526,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       withOptions = Map(
         "pulsar.producer.blockIfQueueFull" -> "true",
         "pulsar.producer.maxPendingMessages" -> "100000",
+        "pulsar.producer.maxPendingMessagesAcrossPartitions" -> "5000000",
         "pulsar.producer.sendTimeoutMs" -> "30000")
     )(withSelectExpr = s"'$topic' as __topic", "value")
 
