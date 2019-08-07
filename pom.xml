@@ -24,7 +24,7 @@
 
   <groupId>io.streamnative.connectors</groupId>
   <artifactId>pulsar-spark-connector_${scala.binary.version}</artifactId>
-  <version>2.4.1</version>
+  <version>2.4.1-SNAPSHOT</version>
   <name>StreamNative :: Pulsar Spark Connector</name>
   <url>http://pulsar.apache.org</url>
   <inceptionYear>2019</inceptionYear>
@@ -39,7 +39,7 @@
     <connection>scm:git:https://github.com/streamnative/pulsar-spark.git</connection>
     <developerConnection>scm:git:https://github.com/streamnative/pulsar-spark.git</developerConnection>
     <url>https://github.com/streamnative/pulsar-spark</url>
-    <tag>release-2.4.1</tag>
+    <tag>branch-2.4.1</tag>
   </scm>
   <issueManagement>
     <system>Github</system>
