@@ -40,7 +40,7 @@ class PulsarContinuousReader(
     metadataReader: PulsarMetadataReader,
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
-    initialOffset: SpecificPulsarOffset,
+    initialOffset: PerTopicOffset,
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
@@ -63,7 +63,7 @@ class PulsarContinuousReader(
   override def setStartOffset(start: ju.Optional[Offset]): Unit = {
     offset = start.orElse {
       val actualOffsets = SpecificPulsarOffset(
-        metadataReader.fetchCurrentOffsets(initialOffset, None, reportDataLoss))
+        metadataReader.actualOffsets(initialOffset, None, reportDataLoss))
       logInfo(s"Initial Offsets: $actualOffsets")
       actualOffsets
     }

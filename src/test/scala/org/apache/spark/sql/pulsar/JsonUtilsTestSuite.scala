@@ -126,4 +126,16 @@ class JsonUtilsTestSuite extends SparkFunSuite with BeforeAndAfterEach {
       }
     }
   }
+
+  test("serialize and deserialize topic starting times") {
+    val topicTimes: Map[String, Long] =
+      (0 to 9).map { i =>
+        s"topic-$i" -> i.toLong
+      }.toMap
+
+    val str = JsonUtils.topicTimes(topicTimes)
+    val readTimes = JsonUtils.topicTimes(str)
+
+    assert(topicTimes == readTimes)
+  }
 }

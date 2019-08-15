@@ -24,11 +24,22 @@ private[pulsar] case object EarliestOffset extends PulsarOffset
 
 private[pulsar] case object LatestOffset extends PulsarOffset
 
+private[pulsar] case class TimeOffset(ts: Long) extends PulsarOffset
+
+private[pulsar] sealed trait PerTopicOffset extends PulsarOffset
+
 private[pulsar] case class SpecificPulsarOffset(topicOffsets: Map[String, MessageId])
     extends OffsetV2
-    with PulsarOffset {
+    with PerTopicOffset {
 
   override val json = JsonUtils.topicOffsets(topicOffsets)
+}
+
+private[pulsar] case class SpecificPulsarStartingTime(topicTimes: Map[String, Long])
+    extends OffsetV2
+    with PerTopicOffset {
+
+  override def json(): String = JsonUtils.topicTimes(topicTimes)
 }
 
 private[pulsar] case class PulsarPartitionOffset(topic: String, messageId: MessageId)

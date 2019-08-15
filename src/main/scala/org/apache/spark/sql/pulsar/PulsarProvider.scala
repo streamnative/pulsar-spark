@@ -23,10 +23,11 @@ import org.apache.pulsar.common.naming.TopicName
 
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{AnalysisException, DataFrame, SaveMode, SparkSession, SQLContext}
+import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SaveMode, SparkSession}
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.execution.streaming.{Sink, Source}
+import org.apache.spark.sql.pulsar.PulsarSourceUtils.reportDataLossFunc
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.sources.v2.{ContinuousReadSupport, DataSourceOptions, MicroBatchReadSupport, StreamWriteSupport}
 import org.apache.spark.sql.sources.v2.reader.streaming.MicroBatchReader
@@ -98,9 +99,8 @@ private[pulsar] class PulsarProvider
     metadataReader.getAndCheckCompatible(schema)
 
     // start from latest offset if not specified to be consistent with Pulsar source
-    val offset = metadataReader.offsetForEachTopic(
+    val offset = metadataReader.startingOffsetForEachTopic(
       caseInsensitiveParams,
-      STARTING_OFFSETS_OPTION_KEY,
       LatestOffset)
     metadataReader.setupCursor(offset)
 
@@ -137,9 +137,8 @@ private[pulsar] class PulsarProvider
     metadataReader.getAndCheckCompatible(schema)
 
     // start from latest offset if not specified to be consistent with Pulsar source
-    val offset: SpecificPulsarOffset = metadataReader.offsetForEachTopic(
+    val offset = metadataReader.startingOffsetForEachTopic(
       caseInsensitiveParams,
-      STARTING_OFFSETS_OPTION_KEY,
       LatestOffset)
     metadataReader.setupCursor(offset)
 
@@ -174,9 +173,8 @@ private[pulsar] class PulsarProvider
 
     metadataReader.getAndCheckCompatible(schema)
 
-    val offset = metadataReader.offsetForEachTopic(
+    val offset = metadataReader.startingOffsetForEachTopic(
       caseInsensitiveParams,
-      STARTING_OFFSETS_OPTION_KEY,
       LatestOffset)
     metadataReader.setupCursor(offset)
 
@@ -206,12 +204,18 @@ private[pulsar] class PulsarProvider
         confs._1,
         subscriptionNamePrefix,
         caseInsensitiveParams)) { reader =>
-      val startingOffset = reader.offsetForEachTopic(
+      val perTopicStarts = reader.startingOffsetForEachTopic(
         caseInsensitiveParams,
-        STARTING_OFFSETS_OPTION_KEY,
         EarliestOffset)
+      val startingOffset = SpecificPulsarOffset(
+        reader.actualOffsets(
+          perTopicStarts,
+          Some(pollTimeoutMs(caseInsensitiveParams)),
+          reportDataLossFunc(failOnDataLoss(caseInsensitiveParams))))
+
       val endingOffset =
-        reader.offsetForEachTopic(caseInsensitiveParams, ENDING_OFFSETS_OPTION_KEY, LatestOffset)
+        reader.offsetForEachTopic(
+          caseInsensitiveParams, ENDING_OFFSETS_OPTION_KEY, LatestOffset)
 
       val pulsarSchema = reader.getPulsarSchema()
       val schema = SchemaUtils.pulsarSourceSchema(pulsarSchema)
@@ -322,6 +326,9 @@ private[pulsar] object PulsarProvider extends Logging {
   import PulsarOptions._
   import PulsarConfigurationUtils._
 
+  val LATEST_TIME = -2L
+  val EARLIEST_TIME = -1L
+
   private def getClientParams(parameters: Map[String, String]): Map[String, String] = {
     val lowercaseKeyMap = parameters.keySet
       .filter(_.startsWith(PULSAR_CLIENT_OPTION_KEY_PREFIX))
@@ -372,6 +379,47 @@ private[pulsar] object PulsarProvider extends Logging {
       readerConfKeys.getOrElse(
         k, throw new IllegalArgumentException(s"$k not supported by pulsar")) -> v
     }
+  }
+
+  def getPulsarStartingOffset(
+      params: Map[String, String],
+      defaultOffsets: PulsarOffset): PulsarOffset = {
+
+    val startingOffsets = params.get(STARTING_OFFSETS_OPTION_KEY).map(_.trim)
+    val startingTime = params.get(STARTING_TIME).map(_.trim)
+
+    if (startingOffsets.isDefined && startingTime.isDefined) {
+      throw new IllegalArgumentException(
+        "You can only specify starting position through " +
+          s"either $STARTING_OFFSETS_OPTION_KEY or $STARTING_TIME, not both.")
+    }
+
+    var result: PulsarOffset = null
+
+    result = startingOffsets match {
+      case Some(offset) if offset.toLowerCase(Locale.ROOT) == "latest" =>
+        LatestOffset
+      case Some(offset) if offset.toLowerCase(Locale.ROOT) == "earliest" =>
+        EarliestOffset
+      case Some(json) =>
+        SpecificPulsarOffset(JsonUtils.topicOffsets(json))
+      case None => defaultOffsets
+    }
+
+    result = startingTime match {
+      case Some(json) if json.startsWith("{") =>
+        SpecificPulsarStartingTime(JsonUtils.topicTimes(json))
+      case Some(t) => // try to convert it as long if it's not a map
+        try {
+          TimeOffset(t.toLong)
+        } catch {
+          case e: NumberFormatException =>
+            throw new IllegalArgumentException(s"starting time $t cannot be converted to Long")
+        }
+      case None => defaultOffsets
+    }
+
+    result
   }
 
   def getPulsarOffset(

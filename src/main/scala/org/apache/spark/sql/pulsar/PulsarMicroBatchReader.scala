@@ -37,7 +37,7 @@ private[pulsar] class PulsarMicroBatchReader(
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
     metadataPath: String,
-    startingOffsets: SpecificPulsarOffset,
+    startingOffsets: PerTopicOffset,
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
