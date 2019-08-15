@@ -23,7 +23,7 @@ import org.apache.pulsar.common.naming.TopicName
 
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SaveMode, SparkSession}
+import org.apache.spark.sql.{AnalysisException, DataFrame, SaveMode, SparkSession, SQLContext}
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.execution.streaming.{Sink, Source}
@@ -210,7 +210,7 @@ private[pulsar] class PulsarProvider
       val startingOffset = SpecificPulsarOffset(
         reader.actualOffsets(
           perTopicStarts,
-          Some(pollTimeoutMs(caseInsensitiveParams)),
+          pollTimeoutMs(caseInsensitiveParams),
           reportDataLossFunc(failOnDataLoss(caseInsensitiveParams))))
 
       val endingOffset =
@@ -394,29 +394,31 @@ private[pulsar] object PulsarProvider extends Logging {
           s"either $STARTING_OFFSETS_OPTION_KEY or $STARTING_TIME, not both.")
     }
 
-    var result: PulsarOffset = null
-
-    result = startingOffsets match {
-      case Some(offset) if offset.toLowerCase(Locale.ROOT) == "latest" =>
-        LatestOffset
-      case Some(offset) if offset.toLowerCase(Locale.ROOT) == "earliest" =>
-        EarliestOffset
-      case Some(json) =>
-        SpecificPulsarOffset(JsonUtils.topicOffsets(json))
-      case None => defaultOffsets
-    }
-
-    result = startingTime match {
-      case Some(json) if json.startsWith("{") =>
-        SpecificPulsarStartingTime(JsonUtils.topicTimes(json))
-      case Some(t) => // try to convert it as long if it's not a map
-        try {
-          TimeOffset(t.toLong)
-        } catch {
-          case e: NumberFormatException =>
-            throw new IllegalArgumentException(s"starting time $t cannot be converted to Long")
-        }
-      case None => defaultOffsets
+    val result = if (startingOffsets.isDefined) {
+      startingOffsets match {
+        case Some(offset) if offset.toLowerCase(Locale.ROOT) == "latest" =>
+          LatestOffset
+        case Some(offset) if offset.toLowerCase(Locale.ROOT) == "earliest" =>
+          EarliestOffset
+        case Some(json) =>
+          SpecificPulsarOffset(JsonUtils.topicOffsets(json))
+        case None => defaultOffsets
+      }
+    } else if (startingTime.isDefined) {
+      startingTime match {
+        case Some(json) if json.startsWith("{") =>
+          SpecificPulsarStartingTime(JsonUtils.topicTimes(json))
+        case Some(t) => // try to convert it as long if it's not a map
+          try {
+            TimeOffset(t.toLong)
+          } catch {
+            case e: NumberFormatException =>
+              throw new IllegalArgumentException(s"starting time $t cannot be converted to Long")
+          }
+        case None => defaultOffsets
+      }
+    } else {
+      defaultOffsets
     }
 
     result

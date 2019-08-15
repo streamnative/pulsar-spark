@@ -21,6 +21,7 @@ import scala.reflect.ClassTag
 
 import org.apache.pulsar.client.api.Schema
 import org.apache.pulsar.common.schema.SchemaInfo
+
 import org.apache.spark.sql.execution.streaming.StreamExecution
 import org.apache.spark.sql.{Encoder, Encoders}
 
@@ -65,6 +66,15 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     test(s"assign from earliest offsets (failOnDataLoss: $failOnDataLoss)") {
       val topic = newTopic()
       testFromEarliestOffsets(
+        topic,
+        addPartitions = false,
+        failOnDataLoss = failOnDataLoss,
+        TOPIC_SINGLE -> topic)
+    }
+
+    test(s"assign from time (failOnDataLoss: $failOnDataLoss)") {
+      val topic = newTopic()
+      testFromTime(
         topic,
         addPartitions = false,
         failOnDataLoss = failOnDataLoss,
@@ -438,6 +448,40 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       },
       AddPulsarData(Set(topic), 9, 10, 11, 12, 13, 14, 15, 16),
       CheckAnswer(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
+    )
+  }
+
+  private def testFromTime(
+    topic: String,
+    addPartitions: Boolean,
+    failOnDataLoss: Boolean,
+    options: (String, String)*): Unit = {
+
+    val time0 = System.currentTimeMillis()
+    Thread.sleep(5000)
+    sendMessages(topic, (1 to 3).map { _.toString }.toArray)
+    require(getLatestOffsets(Set(topic)).size === 1)
+
+    def dfAfter(ts: Long) = {
+      val reader = spark.readStream
+      reader
+        .format("pulsar")
+        .option(STARTING_TIME, time0)
+        .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+        .option(ADMIN_URL_OPTION_KEY, adminUrl)
+        .option(FAIL_ON_DATA_LOSS_OPTION_KEY, failOnDataLoss.toString)
+      options.foreach { case (k, v) => reader.option(k, v) }
+      val pulsar = reader
+        .load()
+        .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
+        .as[(String, String)]
+      val mapped = pulsar.map(kv => kv._2.toInt + 1)
+      mapped
+    }
+
+    testStream(dfAfter(time0))(
+      AddPulsarData(Set(topic), 7, 8, 9),
+      CheckAnswer(2, 3, 4, 8, 9, 10)
     )
   }
 

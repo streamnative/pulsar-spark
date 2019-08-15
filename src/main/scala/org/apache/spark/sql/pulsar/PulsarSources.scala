@@ -159,7 +159,7 @@ class PulsarSourceInitialOffsetWriter(sparkSession: SparkSession, metadataPath: 
   def getInitialOffset(
       metadataReader: PulsarMetadataReader,
       startingOffsets: PerTopicOffset,
-      poolTimeoutMs: Option[Int],
+      poolTimeoutMs: Int,
       reportDataLoss: String => Unit): SpecificPulsarOffset = {
     get(0).getOrElse {
       val actualOffsets = SpecificPulsarOffset(

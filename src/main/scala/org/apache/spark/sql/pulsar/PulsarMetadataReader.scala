@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
-import org.apache.pulsar.client.api.{Message, MessageId, PulsarClient, SubscriptionType}
+import org.apache.pulsar.client.api.{Message, MessageId, PulsarClient, SubscriptionInitialPosition, SubscriptionType}
 import org.apache.pulsar.client.impl.schema.BytesSchema
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
@@ -364,7 +364,7 @@ private[pulsar] case class PulsarMetadataReader(
 
   def actualOffsets(
       offset: PerTopicOffset,
-      pollTimeoutMs: Option[Int],
+      pollTimeoutMs: Int,
       reportDataLoss: String => Unit): Map[String, MessageId] = {
 
     offset match {
@@ -376,7 +376,7 @@ private[pulsar] case class PulsarMetadataReader(
 
   def fetchCurrentOffsets(
       time: SpecificPulsarStartingTime,
-      pollTimeoutMs: Option[Int],
+      pollTimeoutMs: Int,
       reportDataLoss: String => Unit): Map[String, MessageId] = {
 
     time.topicTimes.map { case (tp, time) =>
@@ -395,19 +395,28 @@ private[pulsar] case class PulsarMetadataReader(
             .topic(tp)
             .subscriptionName(s"spark-pulsar-${UUID.randomUUID()}")
             .subscriptionType(SubscriptionType.Exclusive)
+            .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
             .subscribe()
-          consumer.seek(time)
-          var msg: Message[Array[Byte]] = null
-          if (pollTimeoutMs.isDefined) {
-            msg = consumer.receive(pollTimeoutMs.get, TimeUnit.MILLISECONDS)
-          } else {
-            msg = consumer.receive()
-          }
-          consumer.close()
-          if (msg == null) {
+
+          var earliestMessage: Message[Array[Byte]] = null
+          earliestMessage = consumer.receive(pollTimeoutMs, TimeUnit.MILLISECONDS)
+          if (earliestMessage == null) {
             MessageId.earliest
           } else {
-            PulsarSourceUtils.mid2Impl(msg.getMessageId)
+            val earliestId = earliestMessage.getMessageId
+
+            consumer.seek(time)
+            var msg: Message[Array[Byte]] = null
+            msg = consumer.receive(pollTimeoutMs, TimeUnit.MILLISECONDS)
+            if (msg == null) {
+              MessageId.earliest
+            } else {
+              if (msg.getMessageId == earliestId)  {
+                MessageId.earliest
+              } else {
+                PulsarSourceUtils.mid2Impl(msg.getMessageId)
+              }
+            }
           }
         }
       (tp, actualOffset)
@@ -416,7 +425,7 @@ private[pulsar] case class PulsarMetadataReader(
 
   def fetchCurrentOffsets(
       offset: SpecificPulsarOffset,
-      poolTimeoutMs: Option[Int],
+      poolTimeoutMs: Int,
       reportDataLoss: String => Unit): Map[String, MessageId] = {
 
     offset.topicOffsets.map {
@@ -438,11 +447,7 @@ private[pulsar] case class PulsarMetadataReader(
               .subscribe()
             consumer.seek(off)
             var msg: Message[Array[Byte]] = null
-            if (poolTimeoutMs.isDefined) {
-              msg = consumer.receive(poolTimeoutMs.get, TimeUnit.MILLISECONDS)
-            } else {
-              msg = consumer.receive()
-            }
+            msg = consumer.receive(poolTimeoutMs, TimeUnit.MILLISECONDS)
             consumer.close()
             if (msg == null) {
               MessageId.earliest

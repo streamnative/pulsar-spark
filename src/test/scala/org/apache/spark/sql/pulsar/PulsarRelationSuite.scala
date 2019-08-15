@@ -67,6 +67,23 @@ class PulsarRelationSuite extends QueryTest with SharedSQLContext with PulsarTes
     checkAnswer(df, (0 to 29).map(_.toString).toDF)
   }
 
+  test("explicit starting time") {
+    val topic = newTopic()
+    createTopic(topic, partitions = 3)
+    sendMessages(topic, (0 to 9).map(_.toString).toArray, Some(0))
+    sendMessages(topic, (10 to 19).map(_.toString).toArray, Some(1))
+    sendMessages(topic, Array("20"), Some(2))
+    Thread.sleep(5000)
+
+    val ts = System.currentTimeMillis()
+    val df = createDF(
+      topic,
+      withOptions = Map("startingTime" -> ts.toString, "polltimeoutms" -> "1000"))
+
+    sendMessages(topic, (21 to 29).map(_.toString).toArray, Some(2))
+    checkAnswer(df, (21 to 29).map(_.toString).toDF)
+  }
+
   test("default starting and ending offsets") {
     val topic = newTopic()
     createTopic(topic, partitions = 3)

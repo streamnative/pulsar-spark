@@ -50,7 +50,7 @@ private[pulsar] class PulsarSource(
     metadataLog.getInitialOffset(
       metadataReader,
       startingOffsets,
-      Some(pollTimeoutMs),
+      pollTimeoutMs,
       reportDataLoss)
   }
 

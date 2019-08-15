@@ -58,7 +58,7 @@ private[pulsar] class PulsarMicroBatchReader(
     metadataLog.getInitialOffset(
       metadataReader,
       startingOffsets,
-      Some(pollTimeoutMs),
+      pollTimeoutMs,
       reportDataLoss)
   }
 
