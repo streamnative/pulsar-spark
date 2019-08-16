@@ -255,7 +255,8 @@ class PulsarContinuousTopicReader(
   var currentMessage: Message[_] = _
   var currentId: MessageId = _
 
-  if (!startingOffsets.isInstanceOf[UserProvidedMessageId] && startingOffsets != MessageId.earliest) {
+  if (!startingOffsets.isInstanceOf[UserProvidedMessageId]
+      && startingOffsets != MessageId.earliest) {
     currentMessage = consumer.receive()
     currentId = currentMessage.getMessageId
     if (startingOffsets != MessageId.earliest && !messageIdRoughEquals(
