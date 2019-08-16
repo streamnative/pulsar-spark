@@ -515,14 +515,14 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     testStream(mapped)(
       makeSureGetOffsetCalled,
       AddPulsarData(Set(topic), 7),
-      CheckAnswer(2, 3, 10, 11, 12, 7),
+      CheckAnswer(1, 2, 3, 10, 11, 12, 7),
       StopStream,
       StartStream(),
-      CheckAnswer(2, 3, 10, 11, 12, 7), // Should get the data back on recovery
+      CheckAnswer(1, 2, 3, 10, 11, 12, 7), // Should get the data back on recovery
       StopStream,
       StartStream(),
       AddPulsarData(Set(topic), 30, 31, 32, 33, 34),
-      CheckAnswer(2, 3, 10, 11, 12, 7, 30, 31, 32, 33, 34)
+      CheckAnswer(1, 2, 3, 10, 11, 12, 7, 30, 31, 32, 33, 34)
     )
   }
 }

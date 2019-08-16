@@ -192,6 +192,11 @@ private[pulsar] class PulsarOffsetRange private (
     out.writeUTF(topic_)
 
     val fromBytes = fromOffset_.toByteArray
+    if (fromOffset_.isInstanceOf[UserProvidedMessageId]) {
+      out.writeBoolean(true)
+    } else {
+      out.writeBoolean(false)
+    }
     out.writeInt(fromBytes.length)
     out.write(fromBytes)
 
@@ -208,9 +213,14 @@ private[pulsar] class PulsarOffsetRange private (
   override def readExternal(in: ObjectInput): Unit = {
     topic_ = in.readUTF()
 
+    val isUserProvided = in.readBoolean()
     val fromBytes = new Array[Byte](in.readInt())
     in.readFully(fromBytes)
-    fromOffset_ = MessageId.fromByteArray(fromBytes)
+    fromOffset_ = if (isUserProvided) {
+      UserProvidedMessageId(MessageId.fromByteArray(fromBytes))
+    } else {
+      MessageId.fromByteArray(fromBytes)
+    }
 
     val toBytes = new Array[Byte](in.readInt())
     in.readFully(toBytes)

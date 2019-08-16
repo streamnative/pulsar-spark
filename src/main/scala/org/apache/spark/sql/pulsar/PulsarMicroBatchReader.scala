@@ -240,7 +240,7 @@ case class PulsarMicroBatchInputPartitionReader(
   private var nextMessage: Message[_] = _
   private var nextId: MessageId = _
 
-  if (start != MessageId.earliest) {
+  if (!start.isInstanceOf[UserProvidedMessageId] && start != MessageId.earliest) {
     nextMessage = consumer.receive(pollTimeoutMs, TimeUnit.MILLISECONDS)
     if (nextMessage == null) {
       isLast = true

@@ -70,8 +70,9 @@ private[pulsar] case class PulsarMetadataReader(
   def setupCursorByMid(offset: SpecificPulsarOffset): Unit = {
     offset.topicOffsets.foreach {
       case (tp, mid) =>
+        val umid = mid.asInstanceOf[UserProvidedMessageId]
         try {
-          admin.topics().createSubscription(tp, s"$driverGroupIdPrefix-$tp", mid)
+          admin.topics().createSubscription(tp, s"$driverGroupIdPrefix-$tp", umid.mid)
         } catch {
           case e: Throwable =>
             throw new RuntimeException(
@@ -287,11 +288,14 @@ private[pulsar] case class PulsarMetadataReader(
     val startingOffset = PulsarProvider.getPulsarStartingOffset(params, defaultOffsets)
     startingOffset match {
       case LatestOffset =>
-        SpecificPulsarOffset(topicPartitions.map(tp => (tp, MessageId.latest)).toMap)
+        SpecificPulsarOffset(
+          topicPartitions.map(tp => (tp, UserProvidedMessageId(MessageId.latest))).toMap)
       case EarliestOffset =>
-        SpecificPulsarOffset(topicPartitions.map(tp => (tp, MessageId.earliest)).toMap)
+        SpecificPulsarOffset(
+          topicPartitions.map(tp => (tp, UserProvidedMessageId(MessageId.earliest))).toMap)
       case so: SpecificPulsarOffset =>
-        val specified: Map[String, MessageId] = so.topicOffsets
+        val specified: Map[String, MessageId] = so.topicOffsets.map {
+          case (tp, mid) => (tp, UserProvidedMessageId(mid)) }
         assert(
           specified.keySet.subsetOf(topicPartitions.toSet),
           s"topics designated in startingOffsets/endingOffsets" +
@@ -301,8 +305,8 @@ private[pulsar] case class PulsarMetadataReader(
         val nonSpecifiedTopics = topicPartitions.toSet -- specified.keySet
         val nonSpecified = nonSpecifiedTopics.map { tp =>
           defaultOffsets match {
-            case LatestOffset => (tp, MessageId.latest)
-            case EarliestOffset => (tp, MessageId.earliest)
+            case LatestOffset => (tp, UserProvidedMessageId(MessageId.latest))
+            case EarliestOffset => (tp, UserProvidedMessageId(MessageId.earliest))
             case _ => throw new IllegalArgumentException("Defaults should be latest or earliest")
           }
         }.toMap
@@ -382,9 +386,10 @@ private[pulsar] case class PulsarMetadataReader(
     time.topicTimes.map { case (tp, time) =>
       val actualOffset =
         if (time == PulsarProvider.EARLIEST_TIME) {
-          MessageId.earliest
+          UserProvidedMessageId(MessageId.earliest)
         } else if (time == PulsarProvider.LATEST_TIME) {
-          PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp))
+          UserProvidedMessageId(
+            PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp)))
         } else {
           assert (time > 0, s"time less than 0: $time")
           if (client == null) {
@@ -401,7 +406,7 @@ private[pulsar] case class PulsarMetadataReader(
           var earliestMessage: Message[Array[Byte]] = null
           earliestMessage = consumer.receive(pollTimeoutMs, TimeUnit.MILLISECONDS)
           if (earliestMessage == null) {
-            MessageId.earliest
+            UserProvidedMessageId(MessageId.earliest)
           } else {
             val earliestId = earliestMessage.getMessageId
 
@@ -409,11 +414,13 @@ private[pulsar] case class PulsarMetadataReader(
             var msg: Message[Array[Byte]] = null
             msg = consumer.receive(pollTimeoutMs, TimeUnit.MILLISECONDS)
             if (msg == null) {
-              MessageId.earliest
+              UserProvidedMessageId(MessageId.earliest)
             } else {
               if (msg.getMessageId == earliestId)  {
-                MessageId.earliest
+                UserProvidedMessageId(MessageId.earliest)
               } else {
+                // intentionally leave this id from UserProvided since it's the last id
+                // less than time, need to skip this one at the beginning
                 PulsarSourceUtils.mid2Impl(msg.getMessageId)
               }
             }
@@ -432,9 +439,10 @@ private[pulsar] case class PulsarMetadataReader(
       case (tp, off) =>
         val actualOffset = off match {
           case MessageId.earliest =>
-            off
+            UserProvidedMessageId(off)
           case MessageId.latest =>
-            PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp))
+            UserProvidedMessageId(
+              PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp)))
           case _ =>
             if (client == null) {
               client = PulsarClient.builder().serviceUrl(serviceUrl).build()
@@ -450,9 +458,9 @@ private[pulsar] case class PulsarMetadataReader(
             msg = consumer.receive(poolTimeoutMs, TimeUnit.MILLISECONDS)
             consumer.close()
             if (msg == null) {
-              MessageId.earliest
+              UserProvidedMessageId(MessageId.earliest)
             } else {
-              PulsarSourceUtils.mid2Impl(msg.getMessageId)
+              UserProvidedMessageId(PulsarSourceUtils.mid2Impl(msg.getMessageId))
             }
         }
         (tp, actualOffset)

@@ -14,9 +14,9 @@
 package org.apache.spark.sql.pulsar
 
 import org.apache.pulsar.client.api.MessageId
-
+import org.apache.pulsar.client.impl.MessageIdImpl
 import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset}
-import org.apache.spark.sql.sources.v2.reader.streaming.{Offset => OffsetV2, PartitionOffset}
+import org.apache.spark.sql.sources.v2.reader.streaming.{PartitionOffset, Offset => OffsetV2}
 
 private[pulsar] sealed trait PulsarOffset
 
@@ -64,3 +64,9 @@ private[pulsar] object SpecificPulsarOffset {
     SpecificPulsarOffset(offsetTuples.toMap)
   }
 }
+
+private[pulsar] case class UserProvidedMessageId(mid: MessageId)
+    extends MessageIdImpl(
+      mid.asInstanceOf[MessageIdImpl].getLedgerId,
+      mid.asInstanceOf[MessageIdImpl].getEntryId,
+      mid.asInstanceOf[MessageIdImpl].getPartitionIndex)
