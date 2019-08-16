@@ -448,16 +448,16 @@ private[pulsar] case class PulsarMetadataReader(
               client = PulsarClient.builder().serviceUrl(serviceUrl).build()
             }
             val consumer = client
-              .newConsumer()
+              .newReader()
+              .startMessageId(off)
+              .startMessageIdInclusive()
               .topic(tp)
-              .subscriptionName(s"spark-pulsar-${UUID.randomUUID()}")
-              .subscriptionType(SubscriptionType.Exclusive)
-              .subscribe()
-            consumer.seek(off)
+              .create()
             var msg: Message[Array[Byte]] = null
-            msg = consumer.receive(poolTimeoutMs, TimeUnit.MILLISECONDS)
+            msg = consumer.readNext(poolTimeoutMs, TimeUnit.MILLISECONDS)
             consumer.close()
             if (msg == null) {
+              reportDataLoss(s"The starting offset provided is not available: $tp, $off")
               UserProvidedMessageId(MessageId.earliest)
             } else {
               UserProvidedMessageId(PulsarSourceUtils.mid2Impl(msg.getMessageId))

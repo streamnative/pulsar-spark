@@ -191,6 +191,11 @@ private[pulsar] class PulsarContinuousTopic(
     val bytes = startingOffsets.toByteArray
     out.writeInt(bytes.length)
     out.write(bytes)
+    if (startingOffsets.isInstanceOf[UserProvidedMessageId]) {
+      out.writeBoolean(true)
+    } else {
+      out.writeBoolean(false)
+    }
     out.writeObject(jsonOptions)
   }
 
@@ -205,9 +210,14 @@ private[pulsar] class PulsarContinuousTopic(
 
     val length = in.readInt()
     val bytes = new Array[Byte](length)
-    in.read(bytes)
+    in.readFully(bytes)
 
-    startingOffsets = MessageId.fromByteArray(bytes)
+    val userProvided = in.readBoolean()
+    startingOffsets = if (userProvided) {
+      UserProvidedMessageId(MessageId.fromByteArray(bytes))
+    } else {
+      MessageId.fromByteArray(bytes)
+    }
     jsonOptions = in.readObject().asInstanceOf[JSONOptionsInRead]
   }
 }
