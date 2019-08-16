@@ -116,6 +116,7 @@ private[pulsar] object PulsarSourceUtils extends Logging {
         new MessageIdImpl(bmid.getLedgerId, bmid.getEntryId, bmid.getPartitionIndex)
       case midi: MessageIdImpl => midi
       case t: TopicMessageIdImpl => mid2Impl(t.getInnerMessageId)
+      case up: UserProvidedMessageId => mid2Impl(up.mid)
     }
   }
 

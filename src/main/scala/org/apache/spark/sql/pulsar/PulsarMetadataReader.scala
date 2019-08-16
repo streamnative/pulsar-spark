@@ -437,33 +437,47 @@ private[pulsar] case class PulsarMetadataReader(
 
     offset.topicOffsets.map {
       case (tp, off) =>
-        val actualOffset = off match {
-          case MessageId.earliest =>
-            UserProvidedMessageId(off)
-          case MessageId.latest =>
-            UserProvidedMessageId(
-              PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp)))
-          case _ =>
-            if (client == null) {
-              client = PulsarClient.builder().serviceUrl(serviceUrl).build()
-            }
-            val consumer = client
-              .newReader()
-              .startMessageId(off)
-              .startMessageIdInclusive()
-              .topic(tp)
-              .create()
-            var msg: Message[Array[Byte]] = null
-            msg = consumer.readNext(poolTimeoutMs, TimeUnit.MILLISECONDS)
-            consumer.close()
-            if (msg == null) {
-              reportDataLoss(s"The starting offset provided is not available: $tp, $off")
-              UserProvidedMessageId(MessageId.earliest)
-            } else {
-              UserProvidedMessageId(PulsarSourceUtils.mid2Impl(msg.getMessageId))
-            }
-        }
+        val actualOffset = fetchOffsetForTopic(poolTimeoutMs, reportDataLoss, tp, off)
         (tp, actualOffset)
+    }
+  }
+
+  private def fetchOffsetForTopic(
+      poolTimeoutMs: Int,
+      reportDataLoss: String => Unit,
+      tp: String,
+      off: MessageId): MessageId = {
+    off match {
+      case UserProvidedMessageId(mid) if mid == MessageId.earliest =>
+        UserProvidedMessageId(mid)
+      case UserProvidedMessageId(mid) if mid == MessageId.latest =>
+        UserProvidedMessageId(mid)
+      case UserProvidedMessageId(mid) =>
+        fetchOffsetForTopic(poolTimeoutMs, reportDataLoss, tp, mid)
+      case MessageId.earliest =>
+        UserProvidedMessageId(off)
+      case MessageId.latest =>
+        UserProvidedMessageId(
+          PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp)))
+      case _ =>
+        if (client == null) {
+          client = PulsarClient.builder().serviceUrl(serviceUrl).build()
+        }
+        val consumer = client
+          .newReader()
+          .startMessageId(off)
+          .startMessageIdInclusive()
+          .topic(tp)
+          .create()
+        var msg: Message[Array[Byte]] = null
+        msg = consumer.readNext(poolTimeoutMs, TimeUnit.MILLISECONDS)
+        consumer.close()
+        if (msg == null) {
+          reportDataLoss(s"The starting offset provided is not available: $tp, $off")
+          UserProvidedMessageId(MessageId.earliest)
+        } else {
+          UserProvidedMessageId(PulsarSourceUtils.mid2Impl(msg.getMessageId))
+        }
     }
   }
 }

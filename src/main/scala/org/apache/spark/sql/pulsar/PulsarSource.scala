@@ -16,6 +16,7 @@ package org.apache.spark.sql.pulsar
 import java.{util => ju}
 
 import org.apache.pulsar.client.api.MessageId
+import org.apache.pulsar.client.impl.MessageIdImpl
 import org.apache.pulsar.common.schema.SchemaInfo
 
 import org.apache.spark.internal.Logging
@@ -125,11 +126,15 @@ private[pulsar] class PulsarSource(
         PulsarOffsetRange(tp, fromOffset, untilOffset, preferredLoc)
       }
       .filter { range =>
-        if (range.untilOffset.compareTo(range.fromOffset) < 0) {
+        if (range.untilOffset.compareTo(range.fromOffset) < 0 &&
+          range.fromOffset.asInstanceOf[MessageIdImpl] != MessageId.latest) {
           reportDataLoss(
             s"${range.topic}'s offset was changed " +
               s"from ${range.fromOffset} to ${range.untilOffset}, " +
               "some data might has been missed")
+          false
+        } else if (range.untilOffset.compareTo(range.fromOffset) < 0 &&
+          range.fromOffset.asInstanceOf[MessageIdImpl] == MessageId.latest) {
           false
         } else {
           true

@@ -44,7 +44,7 @@ import org.apache.spark.util.{SystemClock, Utils}
 
 class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest {
 
-  override val streamingTimeout = 10000.seconds
+  override val streamingTimeout = 30.seconds
 
   override def beforeAll(): Unit = {
     super.beforeAll()

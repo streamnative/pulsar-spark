@@ -17,6 +17,7 @@ import java.{util => ju}
 import java.io.{Externalizable, ObjectInput, ObjectOutput}
 import java.util.UUID
 
+import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.{Message, MessageId, Schema, SubscriptionType}
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
 import org.apache.pulsar.common.schema.SchemaInfo
@@ -28,6 +29,7 @@ import org.apache.spark.sql.pulsar.PulsarSourceUtils.{messageIdRoughEquals, repo
 import org.apache.spark.sql.sources.v2.reader.{ContinuousInputPartition, InputPartition, InputPartitionReader}
 import org.apache.spark.sql.sources.v2.reader.streaming.{ContinuousInputPartitionReader, ContinuousReader, Offset, PartitionOffset}
 import org.apache.spark.sql.types.StructType
+import org.apache.spark.util.Utils
 
 /**
  * A [[ContinuousReader]] for reading data from Pulsar.
@@ -94,6 +96,7 @@ class PulsarContinuousReader(
       case (topic, start) =>
         new PulsarContinuousTopic(
           topic,
+          metadataReader.adminUrl,
           new SchemaInfoSerializable(pulsarSchema),
           start,
           clientConf,
@@ -134,6 +137,7 @@ class PulsarContinuousReader(
 
 private[pulsar] class PulsarContinuousTopic(
     var topic: String,
+    var adminUrl: String,
     var schemaInfo: SchemaInfoSerializable,
     var startingOffsets: MessageId,
     var clientConf: ju.Map[String, Object],
@@ -146,7 +150,7 @@ private[pulsar] class PulsarContinuousTopic(
     with Externalizable {
 
   def this() =
-    this(null, null, null, null, null, 0, false, null, null) // For deserialization only
+    this(null, null, null, null, null, null, 0, false, null, null) // For deserialization only
 
   override def createContinuousReader(
       offset: PartitionOffset): InputPartitionReader[InternalRow] = {
@@ -156,6 +160,7 @@ private[pulsar] class PulsarContinuousTopic(
       s"Expected topic: $topic, but got: ${pulsarOffset.topic}")
     new PulsarContinuousTopicReader(
       topic,
+      adminUrl,
       schemaInfo,
       pulsarOffset.messageId,
       clientConf,
@@ -169,6 +174,7 @@ private[pulsar] class PulsarContinuousTopic(
   override def createPartitionReader(): InputPartitionReader[InternalRow] = {
     new PulsarContinuousTopicReader(
       topic,
+      adminUrl,
       schemaInfo,
       startingOffsets,
       clientConf,
@@ -181,6 +187,7 @@ private[pulsar] class PulsarContinuousTopic(
 
   override def writeExternal(out: ObjectOutput): Unit = {
     out.writeUTF(topic)
+    out.writeUTF(adminUrl)
     out.writeObject(schemaInfo)
     out.writeObject(clientConf)
     out.writeObject(consumerConf)
@@ -201,6 +208,7 @@ private[pulsar] class PulsarContinuousTopic(
 
   override def readExternal(in: ObjectInput): Unit = {
     topic = in.readUTF()
+    adminUrl = in.readUTF()
     schemaInfo = in.readObject().asInstanceOf[SchemaInfoSerializable]
     clientConf = in.readObject().asInstanceOf[ju.Map[String, Object]]
     consumerConf = in.readObject().asInstanceOf[ju.Map[String, Object]]
@@ -232,6 +240,7 @@ private[pulsar] class PulsarContinuousTopic(
  */
 class PulsarContinuousTopicReader(
     topic: String,
+    adminUrl: String,
     schemaInfo: SchemaInfoSerializable,
     startingOffsets: MessageId,
     clientConf: ju.Map[String, Object],
@@ -289,8 +298,18 @@ class PulsarContinuousTopicReader(
       case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
       // current entry is a non-batch entry, we can read next directly in `getNext()`
     }
-  } else {
+  } else if (startingOffsets == MessageId.earliest) {
     currentId = MessageId.earliest
+  } else if (startingOffsets.isInstanceOf[UserProvidedMessageId]) {
+    val id = startingOffsets.asInstanceOf[UserProvidedMessageId].mid
+    if (id == MessageId.latest) {
+      Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+        currentId =
+          PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(topic))
+      }
+    } else {
+      currentId = id
+    }
   }
 
   // use general `MessageIdImpl` while talking with Spark,
