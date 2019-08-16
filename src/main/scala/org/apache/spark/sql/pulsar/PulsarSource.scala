@@ -65,9 +65,6 @@ private[pulsar] class PulsarSource(
     // Make sure initialTopicOffsets is initialized
     initialTopicOffsets
     val latest = metadataReader.fetchLatestOffsets()
-    if (latest.topicOffsets.forall { case (tp, mid) => mid == MessageId.earliest }) {
-      return None
-    }
     currentTopicOffsets = Some(latest.topicOffsets)
     logDebug(s"GetOffset: ${latest.topicOffsets.toSeq.map(_.toString).sorted}")
     Some(latest)
