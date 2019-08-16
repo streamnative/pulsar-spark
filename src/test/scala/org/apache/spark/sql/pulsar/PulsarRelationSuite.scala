@@ -14,15 +14,14 @@
 package org.apache.spark.sql.pulsar
 
 import java.text.SimpleDateFormat
+import java.time.{Clock, Instant, ZoneId}
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.{Date, Locale}
 
 import scala.reflect.ClassTag
-
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaType
-
 import org.apache.spark.sql.test.SharedSQLContext
 import org.apache.spark.sql.{DataFrame, Encoder, Encoders, QueryTest}
 
@@ -70,18 +69,40 @@ class PulsarRelationSuite extends QueryTest with SharedSQLContext with PulsarTes
   test("explicit starting time") {
     val topic = newTopic()
     createTopic(topic, partitions = 3)
-    sendMessages(topic, (0 to 9).map(_.toString).toArray, Some(0))
-    sendMessages(topic, (10 to 19).map(_.toString).toArray, Some(1))
-    sendMessages(topic, Array("20"), Some(2))
-    Thread.sleep(5000)
 
-    val ts = System.currentTimeMillis()
+    class TimeSettableClock extends Clock {
+
+      var currentMillis: Long = 0L
+
+      def setCurrentMillis(c: Long) = currentMillis = c
+
+      override def getZone: ZoneId = ZoneId.systemDefault()
+
+      override def withZone(zone: ZoneId): Clock = this
+
+      override def instant(): Instant = Instant.ofEpochMilli(millis())
+
+      override def millis(): Long = currentMillis
+    }
+
+    val settableClock = new TimeSettableClock()
+    val t0 = System.currentTimeMillis()
+    settableClock.setCurrentMillis(1)
+
+    sendMessagesWithClock(topic, (0 to 9).map(_.toString).toArray, Some(0), settableClock)
+    sendMessagesWithClock(topic, (10 to 19).map(_.toString).toArray, Some(1), settableClock)
+    sendMessagesWithClock(topic, Array("20"), Some(2), settableClock)
+
+    settableClock.setCurrentMillis(5)
+    sendMessagesWithClock(topic, (21 to 25).map(_.toString).toArray, Some(2), settableClock)
+
     val df = createDF(
       topic,
-      withOptions = Map("startingTime" -> ts.toString, "polltimeoutms" -> "1000"))
+      withOptions = Map("startingTime" -> "10", "polltimeoutms" -> "5000"))
 
-    sendMessages(topic, (21 to 29).map(_.toString).toArray, Some(2))
-    checkAnswer(df, (21 to 29).map(_.toString).toDF)
+    settableClock.setCurrentMillis(20)
+    sendMessagesWithClock(topic, (26 to 29).map(_.toString).toArray, Some(2), settableClock)
+    checkAnswer(df, (26 to 29).map(_.toString).toDF)
   }
 
   test("default starting and ending offsets") {
