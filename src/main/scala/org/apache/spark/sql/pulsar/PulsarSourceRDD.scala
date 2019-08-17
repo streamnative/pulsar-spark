@@ -56,8 +56,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       topic: String,
       startOffset: MessageId,
       endOffset: MessageId,
-      context: TaskContext,
-      startInclusive: Boolean): Iterator[InternalRow] = {
+      context: TaskContext): Iterator[InternalRow] = {
 
     val deserializer = new PulsarDeserializer(schemaInfo.si, jsonOptions)
     val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
@@ -79,7 +78,6 @@ private[pulsar] abstract class PulsarSourceRDDBase(
           reportDataLoss(s"Failed to seek to previous $startOffset, data loss occurs")
       }
 
-      private var isFirst: Boolean = true
       private var inEnd: Boolean = false
       private var isLast: Boolean = false
       private val enterEndFunc: (MessageId => Boolean) = enteredEnd(endOffset)
@@ -87,7 +85,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       var currentMessage: Message[_] = _
       var currentId: MessageId = _
 
-      if (!startInclusive && startOffset != MessageId.earliest) {
+      if (!startOffset.isInstanceOf[UserProvidedMessageId] && startOffset != MessageId.earliest) {
         currentMessage = consumer.receive(pollTimeoutMs, TimeUnit.MILLISECONDS)
         if (currentMessage == null) {
           isLast = true
@@ -131,16 +129,6 @@ private[pulsar] abstract class PulsarSourceRDDBase(
         }
 
         currentId = currentMessage.getMessageId
-
-        if (startInclusive && isFirst) {
-          if (startOffset != MessageId.earliest && !messageIdRoughEquals(currentId, startOffset)) {
-            reportDataLoss(
-              s"Potential Data Loss: intended to start at $startOffset, " +
-                s"actually we get $currentId")
-          }
-          inEnd = enterEndFunc(currentId)
-          isFirst = false
-        }
 
         finished = false
         inEnd = enterEndFunc(currentId)
@@ -195,7 +183,7 @@ private[pulsar] class PulsarSourceRDD(
       return Iterator.empty
     }
 
-    computeInner(tp, start, end, context, false)
+    computeInner(tp, start, end, context)
   }
 }
 
@@ -238,6 +226,6 @@ private[pulsar] class PulsarSourceRDD4Batch(
       return Iterator.empty
     }
 
-    computeInner(tp, start, end, context, true)
+    computeInner(tp, start, end, context)
   }
 }

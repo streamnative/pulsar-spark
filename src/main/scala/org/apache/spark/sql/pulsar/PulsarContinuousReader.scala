@@ -17,6 +17,7 @@ import java.{util => ju}
 import java.io.{Externalizable, ObjectInput, ObjectOutput}
 import java.util.UUID
 
+import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.{Message, MessageId, Schema, SubscriptionType}
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
 import org.apache.pulsar.common.schema.SchemaInfo
@@ -28,6 +29,7 @@ import org.apache.spark.sql.pulsar.PulsarSourceUtils.{messageIdRoughEquals, repo
 import org.apache.spark.sql.sources.v2.reader.{ContinuousInputPartition, InputPartition, InputPartitionReader}
 import org.apache.spark.sql.sources.v2.reader.streaming.{ContinuousInputPartitionReader, ContinuousReader, Offset, PartitionOffset}
 import org.apache.spark.sql.types.StructType
+import org.apache.spark.util.Utils
 
 /**
  * A [[ContinuousReader]] for reading data from Pulsar.
@@ -40,7 +42,7 @@ class PulsarContinuousReader(
     metadataReader: PulsarMetadataReader,
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
-    initialOffset: SpecificPulsarOffset,
+    initialOffset: PerTopicOffset,
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
@@ -63,7 +65,7 @@ class PulsarContinuousReader(
   override def setStartOffset(start: ju.Optional[Offset]): Unit = {
     offset = start.orElse {
       val actualOffsets = SpecificPulsarOffset(
-        metadataReader.fetchCurrentOffsets(initialOffset, None, reportDataLoss))
+        metadataReader.actualOffsets(initialOffset, 120 * 1000, reportDataLoss))
       logInfo(s"Initial Offsets: $actualOffsets")
       actualOffsets
     }
@@ -94,6 +96,7 @@ class PulsarContinuousReader(
       case (topic, start) =>
         new PulsarContinuousTopic(
           topic,
+          metadataReader.adminUrl,
           new SchemaInfoSerializable(pulsarSchema),
           start,
           clientConf,
@@ -134,6 +137,7 @@ class PulsarContinuousReader(
 
 private[pulsar] class PulsarContinuousTopic(
     var topic: String,
+    var adminUrl: String,
     var schemaInfo: SchemaInfoSerializable,
     var startingOffsets: MessageId,
     var clientConf: ju.Map[String, Object],
@@ -146,7 +150,7 @@ private[pulsar] class PulsarContinuousTopic(
     with Externalizable {
 
   def this() =
-    this(null, null, null, null, null, 0, false, null, null) // For deserialization only
+    this(null, null, null, null, null, null, 0, false, null, null) // For deserialization only
 
   override def createContinuousReader(
       offset: PartitionOffset): InputPartitionReader[InternalRow] = {
@@ -156,6 +160,7 @@ private[pulsar] class PulsarContinuousTopic(
       s"Expected topic: $topic, but got: ${pulsarOffset.topic}")
     new PulsarContinuousTopicReader(
       topic,
+      adminUrl,
       schemaInfo,
       pulsarOffset.messageId,
       clientConf,
@@ -169,6 +174,7 @@ private[pulsar] class PulsarContinuousTopic(
   override def createPartitionReader(): InputPartitionReader[InternalRow] = {
     new PulsarContinuousTopicReader(
       topic,
+      adminUrl,
       schemaInfo,
       startingOffsets,
       clientConf,
@@ -181,6 +187,7 @@ private[pulsar] class PulsarContinuousTopic(
 
   override def writeExternal(out: ObjectOutput): Unit = {
     out.writeUTF(topic)
+    out.writeUTF(adminUrl)
     out.writeObject(schemaInfo)
     out.writeObject(clientConf)
     out.writeObject(consumerConf)
@@ -191,11 +198,17 @@ private[pulsar] class PulsarContinuousTopic(
     val bytes = startingOffsets.toByteArray
     out.writeInt(bytes.length)
     out.write(bytes)
+    if (startingOffsets.isInstanceOf[UserProvidedMessageId]) {
+      out.writeBoolean(true)
+    } else {
+      out.writeBoolean(false)
+    }
     out.writeObject(jsonOptions)
   }
 
   override def readExternal(in: ObjectInput): Unit = {
     topic = in.readUTF()
+    adminUrl = in.readUTF()
     schemaInfo = in.readObject().asInstanceOf[SchemaInfoSerializable]
     clientConf = in.readObject().asInstanceOf[ju.Map[String, Object]]
     consumerConf = in.readObject().asInstanceOf[ju.Map[String, Object]]
@@ -205,9 +218,14 @@ private[pulsar] class PulsarContinuousTopic(
 
     val length = in.readInt()
     val bytes = new Array[Byte](length)
-    in.read(bytes)
+    in.readFully(bytes)
 
-    startingOffsets = MessageId.fromByteArray(bytes)
+    val userProvided = in.readBoolean()
+    startingOffsets = if (userProvided) {
+      UserProvidedMessageId(MessageId.fromByteArray(bytes))
+    } else {
+      MessageId.fromByteArray(bytes)
+    }
     jsonOptions = in.readObject().asInstanceOf[JSONOptionsInRead]
   }
 }
@@ -222,6 +240,7 @@ private[pulsar] class PulsarContinuousTopic(
  */
 class PulsarContinuousTopicReader(
     topic: String,
+    adminUrl: String,
     schemaInfo: SchemaInfoSerializable,
     startingOffsets: MessageId,
     clientConf: ju.Map[String, Object],
@@ -255,7 +274,8 @@ class PulsarContinuousTopicReader(
   var currentMessage: Message[_] = _
   var currentId: MessageId = _
 
-  if (startingOffsets != MessageId.earliest) {
+  if (!startingOffsets.isInstanceOf[UserProvidedMessageId]
+      && startingOffsets != MessageId.earliest) {
     currentMessage = consumer.receive()
     currentId = currentMessage.getMessageId
     if (startingOffsets != MessageId.earliest && !messageIdRoughEquals(
@@ -278,8 +298,18 @@ class PulsarContinuousTopicReader(
       case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
       // current entry is a non-batch entry, we can read next directly in `getNext()`
     }
-  } else {
+  } else if (startingOffsets == MessageId.earliest) {
     currentId = MessageId.earliest
+  } else if (startingOffsets.isInstanceOf[UserProvidedMessageId]) {
+    val id = startingOffsets.asInstanceOf[UserProvidedMessageId].mid
+    if (id == MessageId.latest) {
+      Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+        currentId =
+          PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(topic))
+      }
+    } else {
+      currentId = id
+    }
   }
 
   // use general `MessageIdImpl` while talking with Spark,

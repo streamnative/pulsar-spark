@@ -116,6 +116,7 @@ private[pulsar] object PulsarSourceUtils extends Logging {
         new MessageIdImpl(bmid.getLedgerId, bmid.getEntryId, bmid.getPartitionIndex)
       case midi: MessageIdImpl => midi
       case t: TopicMessageIdImpl => mid2Impl(t.getInnerMessageId)
+      case up: UserProvidedMessageId => mid2Impl(up.mid)
     }
   }
 
@@ -158,12 +159,12 @@ class PulsarSourceInitialOffsetWriter(sparkSession: SparkSession, metadataPath: 
 
   def getInitialOffset(
       metadataReader: PulsarMetadataReader,
-      startingOffsets: SpecificPulsarOffset,
-      poolTimeoutMs: Option[Int],
+      startingOffsets: PerTopicOffset,
+      poolTimeoutMs: Int,
       reportDataLoss: String => Unit): SpecificPulsarOffset = {
     get(0).getOrElse {
       val actualOffsets = SpecificPulsarOffset(
-        metadataReader.fetchCurrentOffsets(startingOffsets, poolTimeoutMs, reportDataLoss))
+        metadataReader.actualOffsets(startingOffsets, poolTimeoutMs, reportDataLoss))
       add(0, actualOffsets)
       logInfo(s"Initial Offsets: $actualOffsets")
       actualOffsets
@@ -192,6 +193,11 @@ private[pulsar] class PulsarOffsetRange private (
     out.writeUTF(topic_)
 
     val fromBytes = fromOffset_.toByteArray
+    if (fromOffset_.isInstanceOf[UserProvidedMessageId]) {
+      out.writeBoolean(true)
+    } else {
+      out.writeBoolean(false)
+    }
     out.writeInt(fromBytes.length)
     out.write(fromBytes)
 
@@ -208,9 +214,14 @@ private[pulsar] class PulsarOffsetRange private (
   override def readExternal(in: ObjectInput): Unit = {
     topic_ = in.readUTF()
 
+    val isUserProvided = in.readBoolean()
     val fromBytes = new Array[Byte](in.readInt())
     in.readFully(fromBytes)
-    fromOffset_ = MessageId.fromByteArray(fromBytes)
+    fromOffset_ = if (isUserProvided) {
+      UserProvidedMessageId(MessageId.fromByteArray(fromBytes))
+    } else {
+      MessageId.fromByteArray(fromBytes)
+    }
 
     val toBytes = new Array[Byte](in.readInt())
     in.readFully(toBytes)

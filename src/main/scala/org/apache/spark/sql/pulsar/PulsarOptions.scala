@@ -41,6 +41,7 @@ private[pulsar] object PulsarOptions {
   val SERVICE_URL_OPTION_KEY = "service.url"
   val ADMIN_URL_OPTION_KEY = "admin.url"
   val STARTING_OFFSETS_OPTION_KEY = "startingoffsets"
+  val STARTING_TIME = "startingtime"
   val ENDING_OFFSETS_OPTION_KEY = "endingoffsets"
 
   val POLL_TIMEOUT_MS = "polltimeoutms"

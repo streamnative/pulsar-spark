@@ -14,6 +14,7 @@
 package org.apache.spark.sql.pulsar
 
 import org.apache.pulsar.client.api.MessageId
+import org.apache.pulsar.client.impl.MessageIdImpl
 
 import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset}
 import org.apache.spark.sql.sources.v2.reader.streaming.{Offset => OffsetV2, PartitionOffset}
@@ -24,11 +25,22 @@ private[pulsar] case object EarliestOffset extends PulsarOffset
 
 private[pulsar] case object LatestOffset extends PulsarOffset
 
+private[pulsar] case class TimeOffset(ts: Long) extends PulsarOffset
+
+private[pulsar] sealed trait PerTopicOffset extends PulsarOffset
+
 private[pulsar] case class SpecificPulsarOffset(topicOffsets: Map[String, MessageId])
     extends OffsetV2
-    with PulsarOffset {
+    with PerTopicOffset {
 
   override val json = JsonUtils.topicOffsets(topicOffsets)
+}
+
+private[pulsar] case class SpecificPulsarStartingTime(topicTimes: Map[String, Long])
+    extends OffsetV2
+    with PerTopicOffset {
+
+  override def json(): String = JsonUtils.topicTimes(topicTimes)
 }
 
 private[pulsar] case class PulsarPartitionOffset(topic: String, messageId: MessageId)
@@ -53,3 +65,9 @@ private[pulsar] object SpecificPulsarOffset {
     SpecificPulsarOffset(offsetTuples.toMap)
   }
 }
+
+private[pulsar] case class UserProvidedMessageId(mid: MessageId)
+    extends MessageIdImpl(
+      mid.asInstanceOf[MessageIdImpl].getLedgerId,
+      mid.asInstanceOf[MessageIdImpl].getEntryId,
+      mid.asInstanceOf[MessageIdImpl].getPartitionIndex)

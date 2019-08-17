@@ -16,6 +16,7 @@ package org.apache.spark.sql.pulsar
 import java.lang.{Integer => JInt}
 import java.nio.charset.StandardCharsets
 import java.nio.charset.StandardCharsets.UTF_8
+import java.time.Clock
 import java.util.{Map => JMap}
 
 import scala.collection.JavaConverters._
@@ -130,6 +131,37 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
 
     val client = PulsarClient
       .builder()
+      .serviceUrl(serviceUrl)
+      .build()
+
+    val producer = client.newProducer().topic(topicName).create()
+
+    val offsets = try {
+      messages.map { m =>
+        val mid = producer.send(m.getBytes(StandardCharsets.UTF_8))
+        logInfo(s"\t Sent $m of mid: $mid")
+        (m, mid)
+      }
+    } finally {
+      producer.flush()
+      producer.close()
+      client.close()
+    }
+    offsets
+  }
+
+  /** Send the array of messages to the Pulsar using specified partition */
+  def sendMessagesWithClock(
+    topic: String,
+    messages: Array[String],
+    partition: Option[Int],
+    clock: Clock): Seq[(String, MessageId)] = {
+
+    val topicName = if (partition.isEmpty) topic else s"$topic$PARTITION_SUFFIX${partition.get}"
+
+    val client = PulsarClient
+      .builder()
+      .clock(clock)
       .serviceUrl(serviceUrl)
       .build()
 

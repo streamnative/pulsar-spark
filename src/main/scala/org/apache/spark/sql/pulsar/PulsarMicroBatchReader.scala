@@ -37,7 +37,7 @@ private[pulsar] class PulsarMicroBatchReader(
     clientConf: ju.Map[String, Object],
     consumerConf: ju.Map[String, Object],
     metadataPath: String,
-    startingOffsets: SpecificPulsarOffset,
+    startingOffsets: PerTopicOffset,
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
@@ -58,7 +58,7 @@ private[pulsar] class PulsarMicroBatchReader(
     metadataLog.getInitialOffset(
       metadataReader,
       startingOffsets,
-      Some(pollTimeoutMs),
+      pollTimeoutMs,
       reportDataLoss)
   }
 
@@ -122,11 +122,15 @@ private[pulsar] class PulsarMicroBatchReader(
         PulsarOffsetRange(tp, fromOffset, untilOffset, preferredLoc)
       }
       .filter { range =>
-        if (range.untilOffset.compareTo(range.fromOffset) < 0) {
+        if (range.untilOffset.compareTo(range.fromOffset) < 0 &&
+          range.fromOffset.asInstanceOf[MessageIdImpl] != MessageId.latest) {
           reportDataLoss(
             s"${range.topic}'s offset was changed " +
               s"from ${range.fromOffset} to ${range.untilOffset}, " +
               "some data might has been missed")
+          false
+        } else if (range.untilOffset.compareTo(range.fromOffset) < 0 &&
+          range.fromOffset.asInstanceOf[MessageIdImpl] == MessageId.latest) {
           false
         } else {
           true
@@ -240,7 +244,7 @@ case class PulsarMicroBatchInputPartitionReader(
   private var nextMessage: Message[_] = _
   private var nextId: MessageId = _
 
-  if (start != MessageId.earliest) {
+  if (!start.isInstanceOf[UserProvidedMessageId] && start != MessageId.earliest) {
     nextMessage = consumer.receive(pollTimeoutMs, TimeUnit.MILLISECONDS)
     if (nextMessage == null) {
       isLast = true
@@ -267,7 +271,7 @@ case class PulsarMicroBatchInputPartitionReader(
       }
     }
   } else {
-    nextId = MessageId.earliest
+    nextId = start
   }
 
   override def next(): Boolean = {

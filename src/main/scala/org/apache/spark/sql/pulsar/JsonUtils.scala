@@ -47,4 +47,11 @@ object JsonUtils {
     })
   }
 
+  def topicTimes(topicTimes: Map[String, Long]): String = {
+    Serialization.write(topicTimes)
+  }
+
+  def topicTimes(str: String): Map[String, Long] = {
+    Serialization.read[Map[String, Long]](str)
+  }
 }
