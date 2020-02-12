@@ -35,7 +35,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
     sc: SparkContext,
     schemaInfo: SchemaInfoSerializable,
     clientConf: ju.Map[String, Object],
-    consumerConf: ju.Map[String, Object],
+    readerConf: ju.Map[String, Object],
     offsetRanges: Seq[PulsarOffsetRange],
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
@@ -61,22 +61,16 @@ private[pulsar] abstract class PulsarSourceRDDBase(
     val deserializer = new PulsarDeserializer(schemaInfo.si, jsonOptions)
     val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
 
-    lazy val consumer = CachedPulsarClient
+    lazy val reader = CachedPulsarClient
       .getOrCreate(clientConf)
-      .newConsumer(schema)
+      .newReader(schema)
       .topic(topic)
-      .subscriptionName(s"$subscriptionNamePrefix-${UUID.randomUUID()}")
-      .subscriptionType(SubscriptionType.Exclusive)
-      .loadConf(consumerConf)
-      .subscribe()
+      .startMessageId(startOffset)
+      .startMessageIdInclusive()
+      .loadConf(readerConf)
+      .create()
 
     new NextIterator[InternalRow] {
-      try {
-        consumer.seek(startOffset)
-      } catch {
-        case e: Throwable =>
-          reportDataLoss(s"Failed to seek to previous $startOffset, data loss occurs")
-      }
 
       private var inEnd: Boolean = false
       private var isLast: Boolean = false
@@ -86,7 +80,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       var currentId: MessageId = _
 
       if (!startOffset.isInstanceOf[UserProvidedMessageId] && startOffset != MessageId.earliest) {
-        currentMessage = consumer.receive(pollTimeoutMs, TimeUnit.MILLISECONDS)
+        currentMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
         if (currentMessage == null) {
           isLast = true
           reportDataLoss(s"cannot read data at $startOffset from topic $topic")
@@ -108,7 +102,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
                 cbmid.getLedgerId,
                 cbmid.getEntryId + 1,
                 cbmid.getPartitionIndex)
-              consumer.seek(newStart)
+              reader.seek(newStart)
             case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
             // current entry is a non-batch entry, we can read next directly in `getNext()`
           }
@@ -120,7 +114,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
           finished = true
           return null
         }
-        currentMessage = consumer.receive(pollTimeoutMs, TimeUnit.MILLISECONDS)
+        currentMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
         if (currentMessage == null) {
           reportDataLoss(
             s"We didn't get enough message as promised from topic $topic, data loss occurs")
@@ -139,8 +133,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       }
 
       override protected def close(): Unit = {
-        consumer.unsubscribe()
-        consumer.close()
+        reader.close()
       }
     }
   }
@@ -150,7 +143,7 @@ private[pulsar] class PulsarSourceRDD(
     sc: SparkContext,
     schemaInfo: SchemaInfoSerializable,
     clientConf: ju.Map[String, Object],
-    consumerConf: ju.Map[String, Object],
+    readerConf: ju.Map[String, Object],
     offsetRanges: Seq[PulsarOffsetRange],
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
@@ -160,7 +153,7 @@ private[pulsar] class PulsarSourceRDD(
       sc,
       schemaInfo,
       clientConf,
-      consumerConf,
+      readerConf,
       offsetRanges,
       pollTimeoutMs,
       failOnDataLoss,
@@ -192,7 +185,7 @@ private[pulsar] class PulsarSourceRDD4Batch(
     schemaInfo: SchemaInfoSerializable,
     adminUrl: String,
     clientConf: ju.Map[String, Object],
-    consumerConf: ju.Map[String, Object],
+    readerConf: ju.Map[String, Object],
     offsetRanges: Seq[PulsarOffsetRange],
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
@@ -202,7 +195,7 @@ private[pulsar] class PulsarSourceRDD4Batch(
       sc,
       schemaInfo,
       clientConf,
-      consumerConf,
+      readerConf,
       offsetRanges,
       pollTimeoutMs,
       failOnDataLoss,

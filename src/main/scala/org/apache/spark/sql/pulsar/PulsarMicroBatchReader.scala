@@ -35,7 +35,7 @@ import org.apache.spark.sql.types.StructType
 private[pulsar] class PulsarMicroBatchReader(
     metadataReader: PulsarMetadataReader,
     clientConf: ju.Map[String, Object],
-    consumerConf: ju.Map[String, Object],
+    readerConf: ju.Map[String, Object],
     metadataPath: String,
     startingOffsets: PerTopicOffset,
     pollTimeoutMs: Int,
@@ -143,7 +143,7 @@ private[pulsar] class PulsarMicroBatchReader(
         range,
         new SchemaInfoSerializable(pulsarSchema),
         clientConf,
-        consumerConf,
+        readerConf,
         pollTimeoutMs,
         failOnDataLoss,
         subscriptionNamePrefix,
@@ -161,7 +161,7 @@ case class PulsarMicroBatchInputPartition(
     range: PulsarOffsetRange,
     pulsarSchema: SchemaInfoSerializable,
     clientConf: ju.Map[String, Object],
-    consumerConf: ju.Map[String, Object],
+    readerConf: ju.Map[String, Object],
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
@@ -181,7 +181,7 @@ case class PulsarMicroBatchInputPartition(
       range,
       pulsarSchema,
       clientConf,
-      consumerConf,
+      readerConf,
       pollTimeoutMs,
       failOnDataLoss,
       subscriptionNamePrefix,
@@ -202,7 +202,7 @@ case class PulsarMicroBatchInputPartitionReader(
     range: PulsarOffsetRange,
     pulsarSchema: SchemaInfoSerializable,
     clientConf: ju.Map[String, Object],
-    consumerConf: ju.Map[String, Object],
+    readerConf: ju.Map[String, Object],
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
@@ -220,21 +220,14 @@ case class PulsarMicroBatchInputPartitionReader(
 
   private val deserializer = new PulsarDeserializer(pulsarSchema.si, jsonOptions)
   private val schema: Schema[_] = SchemaUtils.getPSchema(pulsarSchema.si)
-  val consumer = CachedPulsarClient
+  val reader = CachedPulsarClient
     .getOrCreate(clientConf)
-    .newConsumer(schema)
+    .newReader(schema)
+    .startMessageId(start)
+    .startMessageIdInclusive()
     .topic(tp)
-    .subscriptionName(s"$subscriptionNamePrefix-${UUID.randomUUID()}")
-    .subscriptionType(SubscriptionType.Exclusive)
-    .loadConf(consumerConf)
-    .subscribe()
-
-  try {
-    consumer.seek(start)
-  } catch {
-    case e: Throwable =>
-      reportDataLoss(s"Failed to seek to previous $start, data loss occurs")
-  }
+    .loadConf(readerConf)
+    .create()
 
   private var inEnd: Boolean = false
   private var isLast: Boolean = false
@@ -245,7 +238,7 @@ case class PulsarMicroBatchInputPartitionReader(
   private var nextId: MessageId = _
 
   if (!start.isInstanceOf[UserProvidedMessageId] && start != MessageId.earliest) {
-    nextMessage = consumer.receive(pollTimeoutMs, TimeUnit.MILLISECONDS)
+    nextMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
     if (nextMessage == null) {
       isLast = true
       reportDataLoss(s"Cannot read data at offset $start from topic: $tp")
@@ -265,7 +258,7 @@ case class PulsarMicroBatchInputPartitionReader(
           // inclusive for the last batch (start, end], so we skip this batch
           val newStart =
             new MessageIdImpl(cbmid.getLedgerId, cbmid.getEntryId + 1, cbmid.getPartitionIndex)
-          consumer.seek(newStart)
+          reader.seek(newStart)
         case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
         // current entry is a non-batch entry, we can read next directly in `getNext()`
       }
@@ -279,7 +272,7 @@ case class PulsarMicroBatchInputPartitionReader(
       return false
     }
 
-    nextMessage = consumer.receive(pollTimeoutMs, TimeUnit.MILLISECONDS)
+    nextMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
 
     if (nextMessage == null) {
       // Losing some data. Skip the rest offsets in this partition.
@@ -306,7 +299,6 @@ case class PulsarMicroBatchInputPartitionReader(
   }
 
   override def close(): Unit = {
-    consumer.unsubscribe()
-    consumer.close()
+    reader.close()
   }
 }

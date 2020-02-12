@@ -248,11 +248,11 @@ The following configurations are optional.
 
   <td>
 
-  `startingOffsets` option controls where a consumer reads data from.
+  `startingOffsets` option controls where a reader reads data from.
 
-  * "earliest": lacks a valid offset, the consumer reads all the data in the partition, starting from the very beginning.<br>
+  * "earliest": lacks a valid offset, the reader reads all the data in the partition, starting from the very beginning.<br>
 
-*  "latest": lacks a valid offset, the consumer reads from the newest records written after the consumer starts running.<br>
+*  "latest": lacks a valid offset, the reader reads from the newest records written after the reader starts running.<br>
 
 * A JSON string: specifies a starting offset for each Topic. <br>
 You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, MessageId])` to convert a message offset to a JSON string. <br>
@@ -289,9 +289,9 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
 
   <td>
 
-  `endingOffsets` option controls where a consumer stops reading data.
+  `endingOffsets` option controls where a reader stops reading data.
 
-  * "latest": the consumer stops reading data at the latest record.
+  * "latest": the reader stops reading data at the latest record.
 
  * A JSON string: specifies an ending offset for each topic.<br>
 
@@ -456,9 +456,9 @@ A possible solution to remove duplicates when reading the written data could be 
 
 ### Pulsar specific configurations
 
-Client/producer/consumer configurations of Pulsar can be set via `DataStreamReader.option`
-with `pulsar.client.`/`pulsar.producer.`/`pulsar.consumer.` prefix, e.g,
-`stream.option("pulsar.consumer.ackTimeoutMillis", "10000")`. For possible Pulsar parameters, check docs at
+Client/producer/reader configurations of Pulsar can be set via `DataStreamReader.option`
+with `pulsar.client.`/`pulsar.producer.`/`pulsar.reader.` prefix, e.g,
+`stream.option("pulsar.reader.receiverQueueSize", "1000000")`. For possible Pulsar parameters, check docs at
 [Pulsar client libraries](https://pulsar.apache.org/docs/en/client-libraries/).
 
 ## Build Spark Pulsar Connector
