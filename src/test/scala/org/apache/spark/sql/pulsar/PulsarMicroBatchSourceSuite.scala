@@ -194,7 +194,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       WithOffsetSync(topic2),
       StartStream(),
       ExpectFailure[SparkException](e => {
-        assert(e.getMessage.contains("Failed to seek to previous"))
+        assert(e.getMessage.contains("Potential Data Loss"))
       })
     )
   }
