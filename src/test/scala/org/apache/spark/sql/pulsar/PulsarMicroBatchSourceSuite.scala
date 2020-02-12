@@ -148,7 +148,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       CheckAnswer(2, 3, 4),
       Assert {
         deleteTopic(topic)
-        createTopic(topic2, partitions = 5)
+        createNonPartitionedTopic(topic2)
         true
       },
       AddPulsarData(Set(topic2), 4, 5, 6),

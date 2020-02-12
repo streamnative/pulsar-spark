@@ -244,7 +244,6 @@ case class PulsarMicroBatchInputPartitionReader(
       reportDataLoss(s"Cannot read data at offset $start from topic: $tp")
     } else {
       nextId = nextMessage.getMessageId
-      log.warn(s"fail data loss set to $failOnDataLoss")
       if (start != MessageId.earliest && !messageIdRoughEquals(nextId, start)) {
         reportDataLoss(
           s"Potential Data Loss in reading $tp: intended to start at $start, " +
