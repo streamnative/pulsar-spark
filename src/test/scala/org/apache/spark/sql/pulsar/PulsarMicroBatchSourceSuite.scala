@@ -148,7 +148,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       CheckAnswer(2, 3, 4),
       Assert {
         deleteTopic(topic)
-        createTopic(topic2, partitions = 5)
+        createNonPartitionedTopic(topic2)
         true
       },
       AddPulsarData(Set(topic2), 4, 5, 6),
@@ -194,7 +194,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       WithOffsetSync(topic2),
       StartStream(),
       ExpectFailure[SparkException](e => {
-        assert(e.getMessage.contains("Failed to seek to previous"))
+        assert(e.getMessage.contains("Potential Data Loss"))
       })
     )
   }

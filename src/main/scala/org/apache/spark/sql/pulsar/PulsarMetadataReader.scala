@@ -395,24 +395,23 @@ private[pulsar] case class PulsarMetadataReader(
           if (client == null) {
             client = PulsarClient.builder().serviceUrl(serviceUrl).build()
           }
-          val consumer = client
-            .newConsumer()
+          val reader = client
+            .newReader()
             .topic(tp)
-            .subscriptionName(s"spark-pulsar-${UUID.randomUUID()}")
-            .subscriptionType(SubscriptionType.Exclusive)
-            .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
-            .subscribe()
+            .startMessageId(MessageId.earliest)
+            .startMessageIdInclusive()
+            .create()
 
           var earliestMessage: Message[Array[Byte]] = null
-          earliestMessage = consumer.receive(pollTimeoutMs, TimeUnit.MILLISECONDS)
+          earliestMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
           if (earliestMessage == null) {
             UserProvidedMessageId(MessageId.earliest)
           } else {
             val earliestId = earliestMessage.getMessageId
 
-            consumer.seek(time)
+            reader.seek(time)
             var msg: Message[Array[Byte]] = null
-            msg = consumer.receive(pollTimeoutMs, TimeUnit.MILLISECONDS)
+            msg = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
             if (msg == null) {
               UserProvidedMessageId(MessageId.earliest)
             } else {
@@ -463,15 +462,15 @@ private[pulsar] case class PulsarMetadataReader(
         if (client == null) {
           client = PulsarClient.builder().serviceUrl(serviceUrl).build()
         }
-        val consumer = client
+        val reader = client
           .newReader()
           .startMessageId(off)
           .startMessageIdInclusive()
           .topic(tp)
           .create()
         var msg: Message[Array[Byte]] = null
-        msg = consumer.readNext(poolTimeoutMs, TimeUnit.MILLISECONDS)
-        consumer.close()
+        msg = reader.readNext(poolTimeoutMs, TimeUnit.MILLISECONDS)
+        reader.close()
         if (msg == null) {
           reportDataLoss(s"The starting offset provided is not available: $tp, $off")
           UserProvidedMessageId(MessageId.earliest)

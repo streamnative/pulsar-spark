@@ -35,13 +35,13 @@ import org.apache.spark.util.Utils
  * A [[ContinuousReader]] for reading data from Pulsar.
  *
  * @param clientConf
- * @param consumerConf
+ * @param readerConf
  * @param initialOffset
  */
 class PulsarContinuousReader(
     metadataReader: PulsarMetadataReader,
     clientConf: ju.Map[String, Object],
-    consumerConf: ju.Map[String, Object],
+    readerConf: ju.Map[String, Object],
     initialOffset: PerTopicOffset,
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
@@ -100,7 +100,7 @@ class PulsarContinuousReader(
           new SchemaInfoSerializable(pulsarSchema),
           start,
           clientConf,
-          consumerConf,
+          readerConf,
           pollTimeoutMs,
           failOnDataLoss,
           subscriptionNamePrefix,
@@ -141,7 +141,7 @@ private[pulsar] class PulsarContinuousTopic(
     var schemaInfo: SchemaInfoSerializable,
     var startingOffsets: MessageId,
     var clientConf: ju.Map[String, Object],
-    var consumerConf: ju.Map[String, Object],
+    var readerConf: ju.Map[String, Object],
     var pollTimeoutMs: Int,
     var failOnDataLoss: Boolean,
     var subscriptionNamePrefix: String,
@@ -164,7 +164,7 @@ private[pulsar] class PulsarContinuousTopic(
       schemaInfo,
       pulsarOffset.messageId,
       clientConf,
-      consumerConf,
+      readerConf,
       pollTimeoutMs,
       failOnDataLoss,
       subscriptionNamePrefix,
@@ -178,7 +178,7 @@ private[pulsar] class PulsarContinuousTopic(
       schemaInfo,
       startingOffsets,
       clientConf,
-      consumerConf,
+      readerConf,
       pollTimeoutMs,
       failOnDataLoss,
       subscriptionNamePrefix,
@@ -190,7 +190,7 @@ private[pulsar] class PulsarContinuousTopic(
     out.writeUTF(adminUrl)
     out.writeObject(schemaInfo)
     out.writeObject(clientConf)
-    out.writeObject(consumerConf)
+    out.writeObject(readerConf)
     out.writeInt(pollTimeoutMs)
     out.writeBoolean(failOnDataLoss)
     out.writeUTF(subscriptionNamePrefix)
@@ -211,7 +211,7 @@ private[pulsar] class PulsarContinuousTopic(
     adminUrl = in.readUTF()
     schemaInfo = in.readObject().asInstanceOf[SchemaInfoSerializable]
     clientConf = in.readObject().asInstanceOf[ju.Map[String, Object]]
-    consumerConf = in.readObject().asInstanceOf[ju.Map[String, Object]]
+    readerConf = in.readObject().asInstanceOf[ju.Map[String, Object]]
     failOnDataLoss = in.readBoolean()
     pollTimeoutMs = in.readInt()
     subscriptionNamePrefix = in.readUTF()
@@ -236,7 +236,7 @@ private[pulsar] class PulsarContinuousTopic(
  * @param topic
  * @param startingOffsets
  * @param clientConf
- * @param consumerConf
+ * @param readerConf
  */
 class PulsarContinuousTopicReader(
     topic: String,
@@ -244,7 +244,7 @@ class PulsarContinuousTopicReader(
     schemaInfo: SchemaInfoSerializable,
     startingOffsets: MessageId,
     clientConf: ju.Map[String, Object],
-    consumerConf: ju.Map[String, Object],
+    readerConf: ju.Map[String, Object],
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
@@ -255,28 +255,21 @@ class PulsarContinuousTopicReader(
 
   private val deserializer = new PulsarDeserializer(schemaInfo.si, jsonOptions)
   private val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
-  private val consumer = CachedPulsarClient
+  private val reader = CachedPulsarClient
     .getOrCreate(clientConf)
-    .newConsumer(schema)
+    .newReader(schema)
     .topic(topic)
-    .subscriptionName(s"$subscriptionNamePrefix-${UUID.randomUUID()}")
-    .subscriptionType(SubscriptionType.Exclusive)
-    .loadConf(consumerConf)
-    .subscribe()
-
-  try {
-    consumer.seek(startingOffsets)
-  } catch {
-    case e: Throwable =>
-      reportDataLoss(s"Failed to seek to previous $startingOffsets, data loss occurs")
-  }
+    .startMessageId(startingOffsets)
+    .startMessageIdInclusive()
+    .loadConf(readerConf)
+    .create()
 
   var currentMessage: Message[_] = _
   var currentId: MessageId = _
 
   if (!startingOffsets.isInstanceOf[UserProvidedMessageId]
       && startingOffsets != MessageId.earliest) {
-    currentMessage = consumer.receive()
+    currentMessage = reader.readNext()
     currentId = currentMessage.getMessageId
     if (startingOffsets != MessageId.earliest && !messageIdRoughEquals(
           currentId,
@@ -294,7 +287,7 @@ class PulsarContinuousTopicReader(
         // inclusive for the last batch (start, end], so we skip this batch
         val newStart =
           new MessageIdImpl(cbmid.getLedgerId, cbmid.getEntryId + 1, cbmid.getPartitionIndex)
-        consumer.seek(newStart)
+        reader.seek(newStart)
       case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
       // current entry is a non-batch entry, we can read next directly in `getNext()`
     }
@@ -319,7 +312,7 @@ class PulsarContinuousTopicReader(
   }
 
   override def next(): Boolean = {
-    currentMessage = consumer.receive()
+    currentMessage = reader.readNext()
     currentId = currentMessage.getMessageId
     true
   }
@@ -329,9 +322,8 @@ class PulsarContinuousTopicReader(
   }
 
   override def close(): Unit = {
-    if (consumer != null) {
-      consumer.unsubscribe()
-      consumer.close()
+    if (reader != null) {
+      reader.close()
     }
   }
 }

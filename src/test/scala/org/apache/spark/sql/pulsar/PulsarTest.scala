@@ -246,9 +246,9 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
       .serviceUrl(serviceUrl)
       .build()
     val t2id = topics.map { tp =>
-      val consumer = client.newReader().startMessageId(MessageId.earliest).create()
-      val mid = consumer.readNext().getMessageId
-      consumer.close()
+      val reader = client.newReader().startMessageId(MessageId.earliest).create()
+      val mid = reader.readNext().getMessageId
+      reader.close()
       (tp, mid)
     }.toMap
     client.close()

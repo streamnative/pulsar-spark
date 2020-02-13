@@ -64,7 +64,7 @@ private[pulsar] class PulsarProvider
       parameters: Map[String, String]): (String, StructType) = {
 
     val caseInsensitiveParams = validateStreamOptions(parameters)
-    val confs = prepareConfForConsumer(parameters)
+    val confs = prepareConfForReader(parameters)
 
     val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}"
     val inferredSchema = Utils.tryWithResource(
@@ -86,7 +86,7 @@ private[pulsar] class PulsarProvider
       providerName: String,
       parameters: Map[String, String]): Source = {
     val caseInsensitiveParams = validateStreamOptions(parameters)
-    val confs = prepareConfForConsumer(parameters)
+    val confs = prepareConfForReader(parameters)
 
     val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}-${metadataPath.hashCode}"
     val metadataReader = new PulsarMetadataReader(
@@ -124,7 +124,7 @@ private[pulsar] class PulsarProvider
       options: DataSourceOptions): MicroBatchReader = {
     val parameters = options.asMap().asScala.toMap
     val caseInsensitiveParams = validateStreamOptions(parameters)
-    val confs = prepareConfForConsumer(parameters)
+    val confs = prepareConfForReader(parameters)
 
     val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}-${metadataPath.hashCode}"
     val metadataReader = new PulsarMetadataReader(
@@ -161,7 +161,7 @@ private[pulsar] class PulsarProvider
       options: DataSourceOptions): PulsarContinuousReader = {
     val parameters = options.asMap().asScala.toMap
     val caseInsensitiveParams = validateStreamOptions(parameters)
-    val confs = prepareConfForConsumer(parameters)
+    val confs = prepareConfForReader(parameters)
 
     val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}-${metadataPath.hashCode}"
     val metadataReader = new PulsarMetadataReader(
@@ -196,7 +196,7 @@ private[pulsar] class PulsarProvider
 
     val subscriptionNamePrefix = s"spark-pulsar-batch-${UUID.randomUUID}"
 
-    val confs = prepareConfForConsumer(parameters)
+    val confs = prepareConfForReader(parameters)
     val (start, end, schema, pSchema) = Utils.tryWithResource(
       new PulsarMetadataReader(
         confs._3,
@@ -351,19 +351,6 @@ private[pulsar] object PulsarProvider extends Logging {
       .toMap
     lowercaseKeyMap.map { case (k, v) =>
       producerConfKeys.getOrElse(
-        k, throw new IllegalArgumentException(s"$k not supported by pulsar")) -> v
-    }
-  }
-
-  private def getConsumerParams(parameters: Map[String, String]): Map[String, String] = {
-    val lowercaseKeyMap = parameters.keySet
-      .filter(_.startsWith(PULSAR_CONSUMER_OPTION_KEY_PREFIX))
-      .map { k =>
-        k.drop(PULSAR_CONSUMER_OPTION_KEY_PREFIX.length).toString -> parameters(k)
-      }
-      .toMap
-    lowercaseKeyMap.map { case (k, v) =>
-      consumerConfKeys.getOrElse(
         k, throw new IllegalArgumentException(s"$k not supported by pulsar")) -> v
     }
   }
@@ -574,7 +561,7 @@ private[pulsar] object PulsarProvider extends Logging {
     caseInsensitiveParams
   }
 
-  private def prepareConfForConsumer(parameters: Map[String, String])
+  private def prepareConfForReader(parameters: Map[String, String])
     : (ju.Map[String, Object], ju.Map[String, Object], String, String) = {
 
     val serviceUrl = getServiceUrl(parameters)
@@ -582,11 +569,11 @@ private[pulsar] object PulsarProvider extends Logging {
 
     var clientParams = getClientParams(parameters)
     clientParams += (SERVICE_URL_OPTION_KEY -> serviceUrl)
-    val consumerParams = getConsumerParams(parameters)
+    val readerParams = getReaderParams(parameters)
 
     (
       paramsToPulsarConf("pulsar.client", clientParams),
-      paramsToPulsarConf("pulsar.consumer", consumerParams),
+      paramsToPulsarConf("pulsar.reader", readerParams),
       serviceUrl,
       adminUrl
     )
