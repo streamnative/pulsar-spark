@@ -60,7 +60,7 @@ private[pulsar] abstract class PulsarRowWriter(
 
   import PulsarOptions._
 
-  protected lazy val admin = PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()
+  protected lazy val admin = AdminUtils.buildAdmin(adminUrl, clientConf)
 
   private def createProjections = {
     val topicExpression = topic

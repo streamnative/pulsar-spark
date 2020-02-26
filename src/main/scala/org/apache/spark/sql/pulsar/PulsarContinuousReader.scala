@@ -296,7 +296,7 @@ class PulsarContinuousTopicReader(
   } else if (startingOffsets.isInstanceOf[UserProvidedMessageId]) {
     val id = startingOffsets.asInstanceOf[UserProvidedMessageId].mid
     if (id == MessageId.latest) {
-      Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+      Utils.tryWithResource(AdminUtils.buildAdmin(adminUrl, clientConf)) { admin =>
         currentId =
           PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(topic))
       }
