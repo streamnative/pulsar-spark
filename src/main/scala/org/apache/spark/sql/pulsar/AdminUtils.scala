@@ -22,7 +22,7 @@ object AdminUtils {
   import PulsarOptions._
 
   def buildAdmin(adminUrl: String, clientConf: ju.Map[String, Object]): PulsarAdmin = {
-    val builder = PulsarAdmin.builder();
+    val builder = PulsarAdmin.builder().serviceHttpUrl(adminUrl)
 
     if (clientConf.containsKey(AUTH_PLUGIN_CLASS_NAME)) {
       builder.authentication(
