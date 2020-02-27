@@ -209,7 +209,7 @@ private[pulsar] class PulsarSourceRDD4Batch(
     val start = part.offsetRange.fromOffset
     val end = part.offsetRange.untilOffset match {
       case MessageId.latest =>
-        Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+        Utils.tryWithResource(AdminUtils.buildAdmin(adminUrl, clientConf)) { admin =>
           PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp))
         }
       case id => id

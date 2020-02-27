@@ -45,8 +45,7 @@ private[pulsar] case class PulsarMetadataReader(
 
   import scala.collection.JavaConverters._
 
-  protected val admin: PulsarAdmin =
-    PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()
+  protected val admin: PulsarAdmin = AdminUtils.buildAdmin(adminUrl, clientConf)
   protected var client: PulsarClient = null
 
   private var topics: Seq[String] = _
