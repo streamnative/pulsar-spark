@@ -14,11 +14,10 @@
 package org.apache.spark.sql.pulsar
 
 import java.{util => ju}
-
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.sources.v2.writer.{DataWriter, DataWriterFactory, WriterCommitMessage}
-import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
+import org.apache.spark.sql.connector.write.{DataWriter, DataWriterFactory, PhysicalWriteInfo, WriterCommitMessage}
+import org.apache.spark.sql.connector.write.streaming.{StreamingDataWriterFactory, StreamingWrite}
 import org.apache.spark.sql.types.StructType
 
 /**
@@ -41,10 +40,10 @@ class PulsarStreamWriter(
     producerConf: ju.Map[String, Object],
     topic: Option[String],
     adminUrl: String)
-    extends StreamWriter {
+    extends StreamingWrite {
 
-  override def createWriterFactory(): PulsarStreamWriterFactory =
-    PulsarStreamWriterFactory(schema, clientConf, producerConf, topic, adminUrl)
+  override def createStreamingWriterFactory(info: PhysicalWriteInfo): StreamingDataWriterFactory =
+    new PulsarStreamWriterFactory(schema, clientConf, producerConf, topic, adminUrl)
 
   override def commit(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {}
   override def abort(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {}
@@ -58,18 +57,14 @@ class PulsarStreamWriter(
  * @param producerConf Parameters for Pulsar producers in each task.
  * @param topic The topic that should be written to.
  */
-case class PulsarStreamWriterFactory(
+class PulsarStreamWriterFactory(
     schema: StructType,
     clientConf: ju.Map[String, Object],
     producerConf: ju.Map[String, Object],
     topic: Option[String],
     adminUrl: String)
-    extends DataWriterFactory[InternalRow] {
-
-  override def createDataWriter(
-      partitionId: Int,
-      taskId: Long,
-      epochId: Long): DataWriter[InternalRow] = {
+    extends StreamingDataWriterFactory {
+  override def createWriter(partitionId: Int, taskId: Long, epochId: Long): DataWriter[InternalRow] = {
     new PulsarStreamDataWriter(schema.toAttributes, clientConf, producerConf, topic, adminUrl)
   }
 }

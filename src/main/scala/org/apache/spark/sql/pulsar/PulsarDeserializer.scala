@@ -143,8 +143,7 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
       case DateType =>
         (updater, ordinal, value) =>
           updater.setInt(
-            ordinal,
-            (value.asInstanceOf[Date].getTime / DateTimeUtils.MILLIS_PER_DAY).toInt)
+            ordinal, DateTimeUtils.microsToDays(value.asInstanceOf[Date].getTime * 1000L, parsedOptions.zoneId))
 
       case LongType =>
         (updater, ordinal, value) =>

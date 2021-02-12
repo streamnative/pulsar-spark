@@ -54,7 +54,7 @@ class PulsarContinuousSourceTopicDeletionSuite extends PulsarContinuousTest {
           assert(
             query.lastExecution.logical
               .collectFirst {
-                case StreamingDataSourceV2Relation(_, _, _, r: PulsarContinuousReader) => r
+                case StreamingDataSourceV2Relation(_, _, r: PulsarContinuousReader, _, _) => r
               }
               .exists { r =>
                 // Ensure the new topic is present and the old topic is gone.

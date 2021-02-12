@@ -19,9 +19,9 @@ import java.{util => ju}
 import org.scalatest.PrivateMethodTester
 
 import org.apache.pulsar.client.api.PulsarClient
-import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.test.SharedSparkSession
 
-class CachedPulsarClientSuite extends SharedSQLContext with PrivateMethodTester with PulsarTest {
+class CachedPulsarClientSuite extends SharedSparkSession with PrivateMethodTester with PulsarTest {
 
   import PulsarOptions._
 

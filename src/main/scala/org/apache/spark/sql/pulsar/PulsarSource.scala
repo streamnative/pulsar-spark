@@ -67,7 +67,7 @@ private[pulsar] class PulsarSource(
     val latest = metadataReader.fetchLatestOffsets()
     currentTopicOffsets = Some(latest.topicOffsets)
     logDebug(s"GetOffset: ${latest.topicOffsets.toSeq.map(_.toString).sorted}")
-    Some(latest)
+    Some(latest.asInstanceOf[Offset])
   }
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {

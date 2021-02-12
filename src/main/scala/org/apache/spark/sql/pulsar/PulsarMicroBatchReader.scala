@@ -13,24 +13,22 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.{util => ju}
-import java.util.{Optional, UUID}
-import java.util.concurrent.TimeUnit
-
-import scala.collection.JavaConverters._
-
-import org.apache.pulsar.client.api.{Message, MessageId, Schema, SubscriptionType}
+import org.apache.pulsar.client.api.{Message, MessageId, Schema}
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
 import org.apache.pulsar.common.schema.SchemaInfo
-
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
+import org.apache.spark.sql.connector.read.streaming.{MicroBatchStream, Offset}
+import org.apache.spark.sql.connector.read.{InputPartition, PartitionReader, PartitionReaderFactory}
 import org.apache.spark.sql.pulsar.PulsarSourceUtils.messageExists
-import org.apache.spark.sql.sources.v2.reader.{InputPartition, InputPartitionReader}
-import org.apache.spark.sql.sources.v2.reader.streaming.{MicroBatchReader, Offset}
 import org.apache.spark.sql.types.StructType
+
+import java.util.Optional
+import java.util.concurrent.TimeUnit
+import java.{util => ju}
+import scala.collection.JavaConverters._
 
 private[pulsar] class PulsarMicroBatchReader(
     metadataReader: PulsarMetadataReader,
@@ -42,7 +40,7 @@ private[pulsar] class PulsarMicroBatchReader(
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
     jsonOptions: JSONOptionsInRead)
-    extends MicroBatchReader
+    extends MicroBatchStream
     with Logging {
 
   import PulsarSourceUtils._
@@ -62,38 +60,13 @@ private[pulsar] class PulsarMicroBatchReader(
       reportDataLoss)
   }
 
-  // use general `MessageIdImpl` while talking with Spark,
-  // and internally deal with batchMessageIdImpl and MessageIdImpl
-  override def setOffsetRange(start: Optional[Offset], end: Optional[Offset]): Unit = {
-    initialTopicOffsets
-
-    startTopicOffsets = Option(start.orElse(null))
-      .map(_.asInstanceOf[SpecificPulsarOffset].topicOffsets)
-      .getOrElse(initialTopicOffsets.topicOffsets)
-
-    endTopicOffsets = Option(end.orElse(null))
-      .map(_.asInstanceOf[SpecificPulsarOffset].topicOffsets)
-      .getOrElse(metadataReader.fetchLatestOffsets().topicOffsets)
-  }
-
-  override def getStartOffset: Offset = SpecificPulsarOffset(startTopicOffsets)
-
-  override def getEndOffset: Offset = SpecificPulsarOffset(endTopicOffsets)
-
   override def deserializeOffset(json: String): Offset = {
     SpecificPulsarOffset(JsonUtils.topicOffsets(json))
   }
 
-  override def commit(end: Offset): Unit = {
-    val endTopicOffsets = SpecificPulsarOffset.getTopicOffsets(end)
-    metadataReader.commitCursorToOffset(endTopicOffsets)
-  }
-
   lazy val pulsarSchema: SchemaInfo = metadataReader.getPulsarSchema()
 
-  override def readSchema(): StructType = SchemaUtils.pulsarSourceSchema(pulsarSchema)
-
-  override def planInputPartitions(): ju.List[InputPartition[InternalRow]] = {
+  override def planInputPartitions(start: Offset, end: Offset): Array[InputPartition] = {
     val newPartitions = endTopicOffsets.keySet.diff(startTopicOffsets.keySet)
     val newPartitionInitialOffsets = metadataReader.fetchEarliestOffsets(newPartitions.toSeq)
     logInfo(s"Topics added: $newPartitions")
@@ -147,13 +120,43 @@ private[pulsar] class PulsarMicroBatchReader(
         pollTimeoutMs,
         failOnDataLoss,
         subscriptionNamePrefix,
-        jsonOptions): InputPartition[InternalRow]
-    }.asJava
+        jsonOptions).asInstanceOf[InputPartition]
+    }.toArray
   }
 
   override def stop(): Unit = {
     metadataReader.removeCursor()
     metadataReader.close()
+  }
+
+  override def createReaderFactory(): PartitionReaderFactory = new PartitionReaderFactory {
+    override def createReader(partition: InputPartition): PartitionReader[InternalRow] = {
+      val range = partition.asInstanceOf[PulsarMicroBatchInputPartition].range
+      val start = range.fromOffset
+      val end = range.untilOffset
+
+      if (start == end || !messageExists(end)) {
+        return PulsarMicroBatchEmptyInputPartitionReader
+      }
+      new PulsarMicroBatchInputPartitionReader(
+        range,
+        new SchemaInfoSerializable(pulsarSchema),
+        clientConf,
+        readerConf,
+        pollTimeoutMs,
+        failOnDataLoss,
+        subscriptionNamePrefix,
+        jsonOptions)
+    }
+  }
+
+  override def initialOffset(): Offset = SpecificPulsarOffset(startTopicOffsets)
+
+  override def latestOffset(): Offset = SpecificPulsarOffset(endTopicOffsets)
+
+  override def commit(end: Offset): Unit = {
+    val endTopicOffsets = SpecificPulsarOffset.getTopicOffsets(end)
+    metadataReader.commitCursorToOffset(endTopicOffsets)
   }
 }
 
@@ -166,31 +169,12 @@ case class PulsarMicroBatchInputPartition(
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
     jsonOptions: JSONOptionsInRead)
-    extends InputPartition[InternalRow] {
+    extends InputPartition {
   override def preferredLocations(): Array[String] = range.preferredLoc.toArray
-
-  override def createPartitionReader(): InputPartitionReader[InternalRow] = {
-
-    val start = range.fromOffset
-    val end = range.untilOffset
-
-    if (start == end || !messageExists(end)) {
-      return PulsarMicroBatchEmptyInputPartitionReader
-    }
-    new PulsarMicroBatchInputPartitionReader(
-      range,
-      pulsarSchema,
-      clientConf,
-      readerConf,
-      pollTimeoutMs,
-      failOnDataLoss,
-      subscriptionNamePrefix,
-      jsonOptions)
-  }
 }
 
 object PulsarMicroBatchEmptyInputPartitionReader
-    extends InputPartitionReader[InternalRow]
+    extends PartitionReader[InternalRow]
     with Logging {
 
   override def next(): Boolean = false
@@ -207,7 +191,7 @@ case class PulsarMicroBatchInputPartitionReader(
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
     jsonOptions: JSONOptionsInRead)
-    extends InputPartitionReader[InternalRow]
+    extends PartitionReader[InternalRow]
     with Logging {
 
   import PulsarSourceUtils._
