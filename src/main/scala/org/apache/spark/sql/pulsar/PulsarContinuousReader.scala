@@ -127,8 +127,8 @@ class PulsarContinuousReader(
     }
   }
 
-  override def mergeOffsets(offsets: Array[PartitionOffset]): Offset = {
-    val mergedMap = offsets
+  override def mergeOffsets(partitionOffsets: Array[PartitionOffset]): Offset = {
+    val mergedMap = partitionOffsets
       .map {
         case PulsarPartitionOffset(t, o) => Map(t -> o)
       }
@@ -139,7 +139,7 @@ class PulsarContinuousReader(
   override def initialOffset(): Offset = offset
 
   override def commit(end: Offset): Unit = {
-    val off = SpecificPulsarOffset.getTopicOffsets(offset)
+    val off = SpecificPulsarOffset.getTopicOffsets(end)
     metadataReader.commitCursorToOffset(off)
   }
 }
