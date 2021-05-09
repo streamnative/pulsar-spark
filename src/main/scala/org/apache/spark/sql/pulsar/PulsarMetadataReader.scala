@@ -26,7 +26,7 @@ import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.pulsar.PulsarOptions.TOPIC_OPTION_KEYS
+import org.apache.spark.sql.pulsar.PulsarOptions.{AUTH_PARAMS, AUTH_PLUGIN_CLASS_NAME, TLS_ALLOW_INSECURE_CONNECTION, TLS_HOSTNAME_VERIFICATION_ENABLE, TLS_TRUST_CERTS_FILE_PATH, TOPIC_OPTION_KEYS}
 import org.apache.spark.sql.types.StructType
 
 /**
@@ -38,6 +38,7 @@ private[pulsar] case class PulsarMetadataReader(
     serviceUrl: String,
     adminUrl: String,
     clientConf: ju.Map[String, Object],
+    adminClientConf: ju.Map[String, Object],
     driverGroupIdPrefix: String,
     caseInsensitiveParameters: Map[String, String])
     extends Closeable
@@ -45,17 +46,14 @@ private[pulsar] case class PulsarMetadataReader(
 
   import scala.collection.JavaConverters._
 
-  protected val admin: PulsarAdmin = AdminUtils.buildAdmin(adminUrl, clientConf)
-  protected var client: PulsarClient = null
+  protected val admin: PulsarAdmin = AdminUtils.buildAdmin(adminUrl, adminClientConf)
+  protected var client: PulsarClient = CachedPulsarClient.getOrCreate(clientConf)
 
   private var topics: Seq[String] = _
   private var topicPartitions: Seq[String] = _
 
   override def close(): Unit = {
     admin.close()
-    if (client != null) {
-      client.close()
-    }
   }
 
   def setupCursor(startingPos: PerTopicOffset): Unit = {
@@ -391,9 +389,6 @@ private[pulsar] case class PulsarMetadataReader(
             PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp)))
         } else {
           assert (time > 0, s"time less than 0: $time")
-          if (client == null) {
-            client = PulsarClient.builder().serviceUrl(serviceUrl).build()
-          }
           val reader = client
             .newReader()
             .topic(tp)
@@ -458,9 +453,6 @@ private[pulsar] case class PulsarMetadataReader(
         UserProvidedMessageId(
           PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp)))
       case _ =>
-        if (client == null) {
-          client = PulsarClient.builder().serviceUrl(serviceUrl).build()
-        }
         val reader = client
           .newReader()
           .startMessageId(off)

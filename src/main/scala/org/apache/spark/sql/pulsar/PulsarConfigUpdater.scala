@@ -25,8 +25,9 @@ import org.apache.spark.internal.Logging
 private[pulsar] case class PulsarConfigUpdater(
     module: String,
     pulsarParams: Map[String, Object],
-    blacklistedKeys: Set[String] = Set())
-    extends Logging {
+    blacklistedKeys: Set[String] = Set(),
+    keysToHideInLog: Set[String] = Set(PulsarOptions.AUTH_PARAMS))
+  extends Logging {
 
   private val map = new ju.HashMap[String, Object](pulsarParams.asJava)
 
@@ -36,10 +37,12 @@ private[pulsar] case class PulsarConfigUpdater(
 
   def set(key: String, value: Object, map: ju.Map[String, Object]): this.type = {
     if (blacklistedKeys.contains(key)) {
-      logInfo(s"$module: Skip $key")
+      logInfo(s"$module: Skip '$key'")
     } else {
       map.put(key, value)
-      logInfo(s"$module: Set $key to $value, earlier value: ${pulsarParams.getOrElse(key, "")}")
+      logInfo(s"$module: Set '$key' to " +
+        s"'${printConfigValue(key, Option(value))}'," +
+        s" earlier value: '${printConfigValue(key, pulsarParams.get(key))}'")
     }
     this
   }
@@ -50,18 +53,14 @@ private[pulsar] case class PulsarConfigUpdater(
 
   def setIfUnset(key: String, value: Object, map: ju.Map[String, Object]): this.type = {
     if (blacklistedKeys.contains(key)) {
-      logInfo(s"$module: Skip $key")
+      logInfo(s"$module: Skip '$key'")
     } else {
       if (!map.containsKey(key)) {
         map.put(key, value)
-        logDebug(s"$module: Set $key to $value")
+        logInfo(s"$module: Set '$key' to " +
+          s"'${printConfigValue(key, pulsarParams.get(key))}'")
       }
     }
-    this
-  }
-
-  def setAuthenticationConfigIfNeeded(): this.type = {
-    // FIXME: not implemented yet
     this
   }
 
@@ -74,6 +73,23 @@ private[pulsar] case class PulsarConfigUpdater(
         set(k, v, map)
     }
     map
+  }
+
+  private val HideCompletelyLimit = 6
+  private val ShowFractionOfHiddenValue = 1.0 / 3.0
+  private val CompletelyHiddenMessage = "...<completely hidden>..."
+  private def printConfigValue(key: String,
+                               maybeVal: Option[Object]): String = {
+    val value = maybeVal.map(_.toString).getOrElse("")
+    if (keysToHideInLog.contains(key)) {
+      if (value.length < HideCompletelyLimit) {
+        return CompletelyHiddenMessage
+      } else {
+        return s"${value.take((value.length * ShowFractionOfHiddenValue).toInt)}..."
+      }
+    }
+
+    value
   }
 
 }

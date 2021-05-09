@@ -19,6 +19,7 @@ import org.apache.pulsar.common.naming.TopicName
 private[pulsar] object PulsarOptions {
 
   // option key prefix for different modules
+  val PULSAR_ADMIN_OPTION_KEY_PREFIX = "pulsar.admin."
   val PULSAR_CLIENT_OPTION_KEY_PREFIX = "pulsar.client."
   val PULSAR_PRODUCER_OPTION_KEY_PREFIX = "pulsar.producer."
   val PULSAR_CONSUMER_OPTION_KEY_PREFIX = "pulsar.consumer."
@@ -47,12 +48,12 @@ private[pulsar] object PulsarOptions {
   val POLL_TIMEOUT_MS = "polltimeoutms"
   val FAIL_ON_DATA_LOSS_OPTION_KEY = "failondataloss"
 
-  val AUTH_PLUGIN_CLASS_NAME = "authpluginclassname"
-  val AUTH_PARAMS = "authparams"
-  val TLS_TRUST_CERTS_FILE_PATH = "tlstrustcertsfilepath"
-  val TLS_ALLOW_INSECURE_CONNECTION = "tlsallowinsecureconnection"
-  val USE_TLS = "usetls"
-  val TLS_HOSTNAME_VERIFICATION_ENABLE = "tlshostnameverificationenable"
+  val AUTH_PLUGIN_CLASS_NAME = "authPluginClassName"
+  val AUTH_PARAMS = "authParams"
+  val TLS_TRUST_CERTS_FILE_PATH = "tlsTrustCertsFilePath"
+  val TLS_ALLOW_INSECURE_CONNECTION = "tlsAllowInsecureConnection"
+  val USE_TLS = "useTls"
+  val TLS_HOSTNAME_VERIFICATION_ENABLE = "tlsHostnameVerificationEnable"
 
 
   val INSTRUCTION_FOR_FAIL_ON_DATA_LOSS_FALSE =

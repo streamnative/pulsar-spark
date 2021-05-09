@@ -19,12 +19,14 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.time.Clock
 import java.util.{Map => JMap}
 
+import io.streamnative.tests.pulsar.service.{PulsarService, PulsarServiceFactory, PulsarServiceSpec}
+
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
+import scala.util.Random
 
 import org.scalatest.concurrent.Eventually.{eventually, timeout}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
-import io.streamnative.tests.pulsar.service.{PulsarService, PulsarServiceFactory, PulsarServiceSpec}
 
 import com.google.common.collect.Sets
 
@@ -51,7 +53,7 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
   override def beforeAll(): Unit = {
     val spec: PulsarServiceSpec = PulsarServiceSpec
       .builder()
-      .clusterName("standalone")
+      .clusterName(s"standalone-${Random.alphanumeric.take(6).mkString}")
       .enableContainerLogging(false)
       .build()
 
@@ -79,7 +81,9 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
     CachedPulsarClient.clear()
     if (pulsarService != null) {
       pulsarService.stop()
+      pulsarService.cleanup()
     }
+
   }
 
   protected override def afterEach(): Unit = {

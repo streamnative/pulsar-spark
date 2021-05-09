@@ -123,8 +123,8 @@ val df = spark
   .load()
 df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
   .as[(String, String)]
-
 ```
+
 > #### Tip
 > For more information on how to use other language bindings for Spark Structured Streaming,
 > see [Structured Streaming Programming Guide](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html).
@@ -330,6 +330,62 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
 
 </table>
 
+#### Authentication
+Should the Pulsar cluster require authentication, credentials can be set in the following way.
+
+The following examples are in Scala.
+```scala
+// Secure connection with authentication, using the same credentials on the
+// Pulsar client and admin interface (if not given explicitly, the client configuration
+// is used for admin as well).
+val df = spark
+  .readStream
+  .format("pulsar")
+  .option("service.url", "pulsar://localhost:6650")
+  .option("admin.url", "http://localhost:8080")
+  .option("pulsar.client.authPluginClassName","org.apache.pulsar.client.impl.auth.AuthenticationToken")
+  .option("pulsar.client.authParams","token:<valid client JWT token>")
+  .option("topicsPattern", "sensitiveTopic")
+  .load()
+df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
+  .as[(String, String)]
+// Secure connection with authentication, using different credentials for
+// Pulsar client and admin interfaces.
+val df = spark
+  .readStream
+  .format("pulsar")
+  .option("service.url", "pulsar://localhost:6650")
+  .option("admin.url", "http://localhost:8080")
+  .option("pulsar.admin.authPluginClassName","org.apache.pulsar.client.impl.auth.AuthenticationToken")
+  .option("pulsar.admin.authParams","token:<valid admin JWT token>")
+  .option("pulsar.client.authPluginClassName","org.apache.pulsar.client.impl.auth.AuthenticationToken")
+  .option("pulsar.client.authParams","token:<valid client JWT token>")
+  .option("topicsPattern", "sensitiveTopic")
+  .load()
+df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
+  .as[(String, String)]
+
+// Secure connection with client TLS enabled.
+// Note that the certificate file has to be present at the specified
+// path on every machine of the cluster!
+val df = spark
+  .readStream
+  .format("pulsar")
+  .option("service.url", "pulsar+ssl://localhost:6651")
+  .option("admin.url", "http://localhost:8080")
+  .option("pulsar.admin.authPluginClassName","org.apache.pulsar.client.impl.auth.AuthenticationToken")
+  .option("pulsar.admin.authParams","token:<valid admin JWT token>")
+  .option("pulsar.client.authPluginClassName","org.apache.pulsar.client.impl.auth.AuthenticationToken")
+  .option("pulsar.client.authParams","token:<valid client JWT token>")
+  .option("pulsar.client.tlsTrustCertsFilePath","/path/to/tls/cert/cert.pem")
+  .option("pulsar.client.tlsAllowInsecureConnection","false")
+  .option("pulsar.client.tlsHostnameVerificationenable","true")
+  .option("topicsPattern", "sensitiveTopic")
+  .load()
+df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
+  .as[(String, String)]
+```
+
 #### Schema of Pulsar source
 * For topics without schema or with primitive schema in Pulsar, messages' payload
 is loaded to a `value` column with the corresponding type with Pulsar schema.
@@ -458,7 +514,15 @@ A possible solution to remove duplicates when reading the written data could be 
 
 Client/producer/reader configurations of Pulsar can be set via `DataStreamReader.option`
 with `pulsar.client.`/`pulsar.producer.`/`pulsar.reader.` prefix, e.g,
-`stream.option("pulsar.reader.receiverQueueSize", "1000000")`. For possible Pulsar parameters, check docs at
+`stream.option("pulsar.reader.receiverQueueSize", "1000000")`. 
+Since the connector needs to access the Pulsar Admin interface as well, separate 
+configuration of the admin client can be set via the same method with the
+`pulsar.admin` prefix. For example: `stream.option("pulsar.admin.authParams","token:<token>")`.
+This can be useful if a different authentication plugin or
+token need to be used. If this is not given explicitly, the client
+parameters (with `pulsar.client` prefix) will be used for accessing the admin
+interface as well.
+For possible Pulsar parameters, check docs at
 [Pulsar client libraries](https://pulsar.apache.org/docs/en/client-libraries/).
 
 ## Build Spark Pulsar Connector
@@ -488,11 +552,26 @@ $ cd pulsar-spark
 $ mvn clean install -DskipTests
 ```
 
+If you get the following error during compilation, try running Maven with Java 8:  
+```
+[ERROR] [Error] : Source option 6 is no longer supported. Use 7 or later.
+[ERROR] [Error] : Target option 6 is no longer supported. Use 7 or later.
+```
+
 5. Run the tests.
 
 ```bash
 $ mvn clean install
 ```
+
+Note: by configuring `scalatest-maven-plugin` in the [usual ways](https://www.scalatest.org/user_guide/using_the_scalatest_maven_plugin), individual tests can be executed, if that is needed:
+
+```bash
+mvn -Dsuites=org.apache.spark.sql.pulsar.CachedPulsarClientSuite clean install
+```
+
+This might be handy if test execution is slower, or you get a `java.io.IOException: Too many open files` exception during full suite run.
+
 Once the installation is finished, there is a fat jar generated under both local maven repo and `target` directory.
 
 
