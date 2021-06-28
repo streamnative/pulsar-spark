@@ -53,8 +53,7 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
   private val rootConverter =
     makeStructRootConverter(schema.asInstanceOf[StructType])
 
-  private val factory = new JsonFactory()
-  options.setJacksonOptions(factory)
+  private val factory = options.buildJsonFactory()
 
   private def makeStructRootConverter(
       st: StructType): (JsonParser, InternalRow) => InternalRow = {
@@ -161,11 +160,12 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
             // This one will lose microseconds parts.
             // See https://issues.apache.org/jira/browse/SPARK-10681.
             Long.box {
-              Try(options.timestampFormat.parse(stringValue).getTime * 1000L)
+              Try(TimestampFormatter(options.timestampFormat, options.zoneId, true)
+                .parse(stringValue))
                 .getOrElse {
                   // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
                   // compatibility.
-                  DateTimeUtils.stringToTime(stringValue).getTime * 1000L
+                  DateTimeUtils.stringToTimestamp(UTF8String.fromString(stringValue), options.zoneId).get
                 }
             }
 
@@ -175,22 +175,23 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
 
     case DateType =>
       (parser: JsonParser) =>
-        parseJsonToken[java.lang.Integer](parser, dataType) {
+        parseJsonToken[java.lang.Long](parser, dataType) {
           case VALUE_STRING =>
             val stringValue = parser.getText
             // This one will lose microseconds parts.
             // See https://issues.apache.org/jira/browse/SPARK-10681.x
-            Int.box {
-              Try(DateTimeUtils.millisToDays(options.dateFormat.parse(stringValue).getTime))
+            Long.box {
+              Try(TimestampFormatter(options.timestampFormat, options.zoneId, true)
+                .parse(stringValue))
                 .orElse {
                   // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
                   // compatibility.
-                  Try(DateTimeUtils.millisToDays(DateTimeUtils.stringToTime(stringValue).getTime))
+                  Try(DateTimeUtils.stringToTimestamp(UTF8String.fromString(stringValue), options.zoneId).get)
                 }
                 .getOrElse {
                   // In Spark 1.5.0, we store the data as number of days since epoch in string.
-                  // So, we just convert it to Int.
-                  stringValue.toInt
+                  // So, we just convert it to Long.
+                  stringValue.toLong
                 }
             }
         }

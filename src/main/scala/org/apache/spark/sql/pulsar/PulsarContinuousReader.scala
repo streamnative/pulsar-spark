@@ -15,24 +15,20 @@ package org.apache.spark.sql.pulsar
 
 import java.{util => ju}
 import java.io.{Externalizable, ObjectInput, ObjectOutput}
-import java.util.UUID
 
-import org.apache.pulsar.client.admin.PulsarAdmin
-import org.apache.pulsar.client.api.{Message, MessageId, Schema, SubscriptionType}
+import org.apache.pulsar.client.api.{Message, MessageId, Schema}
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
 import org.apache.pulsar.common.schema.SchemaInfo
-
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
+import org.apache.spark.sql.connector.read.InputPartition
+import org.apache.spark.sql.connector.read.streaming.{ContinuousPartitionReader, ContinuousPartitionReaderFactory, ContinuousStream, Offset, PartitionOffset}
 import org.apache.spark.sql.pulsar.PulsarSourceUtils.{messageIdRoughEquals, reportDataLossFunc}
-import org.apache.spark.sql.sources.v2.reader.{ContinuousInputPartition, InputPartition, InputPartitionReader}
-import org.apache.spark.sql.sources.v2.reader.streaming.{ContinuousInputPartitionReader, ContinuousReader, Offset, PartitionOffset}
-import org.apache.spark.sql.types.StructType
 import org.apache.spark.util.Utils
 
 /**
- * A [[ContinuousReader]] for reading data from Pulsar.
+ * A [[ContinuousStream]] for reading data from Pulsar.
  *
  * @param clientConf
  * @param readerConf
@@ -47,7 +43,7 @@ class PulsarContinuousReader(
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
     jsonOptions: JSONOptionsInRead)
-    extends ContinuousReader
+    extends ContinuousStream
     with Logging {
 
   // Initialized when creating reader factories. If this diverges from the partitions at the latest
@@ -55,31 +51,27 @@ class PulsarContinuousReader(
   // Exposed outside this object only for unit tests.
   @volatile private[sql] var knownTopics: Set[String] = _
 
-  lazy val pulsarSchema: SchemaInfo = metadataReader.getPulsarSchema()
-
-  override def readSchema(): StructType = SchemaUtils.pulsarSourceSchema(pulsarSchema)
+  lazy val pulsarSchema: SchemaInfo = {
+    val tpVersionOpt = jsonOptions.parameters.get(PulsarOptions.TOPIC_VERSION)
+    metadataReader.getPulsarSchema(tpVersionOpt)
+  }
 
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
 
-  private var offset: Offset = _
-  override def setStartOffset(start: ju.Optional[Offset]): Unit = {
-    offset = start.orElse {
-      val actualOffsets = SpecificPulsarOffset(
-        metadataReader.actualOffsets(initialOffset, 120 * 1000, reportDataLoss))
-      logInfo(s"Initial Offsets: $actualOffsets")
-      actualOffsets
-    }
+  override def initialOffset(): Offset = {
+    val actualOffsets = SpecificPulsarOffset(
+      metadataReader.actualOffsets(initialOffset, 120 * 1000, reportDataLoss))
+    logInfo(s"Initial Offsets: $actualOffsets")
+    actualOffsets
   }
-  override def getStartOffset: Offset = offset
 
   override def deserializeOffset(json: String): Offset = {
     SpecificPulsarOffset(JsonUtils.topicOffsets(json))
   }
 
-  override def planInputPartitions(): ju.List[InputPartition[InternalRow]] = {
-    import scala.collection.JavaConverters._
+  override def planInputPartitions(start: Offset): Array[InputPartition] = {
 
-    val oldStartPartitionOffsets = SpecificPulsarOffset.getTopicOffsets(offset)
+    val oldStartPartitionOffsets = SpecificPulsarOffset.getTopicOffsets(start)
     val currentPartitionSet = metadataReader.fetchLatestOffsets().topicOffsets.keySet
     val newPartitions = currentPartitionSet.diff(oldStartPartitionOffsets.keySet)
     val newPartitionOffsets = metadataReader.fetchEarliestOffsets(newPartitions.toSeq)
@@ -105,8 +97,8 @@ class PulsarContinuousReader(
           failOnDataLoss,
           subscriptionNamePrefix,
           jsonOptions
-        ): InputPartition[InternalRow]
-    }.asJava
+        )
+    }.toArray
   }
 
   override def mergeOffsets(partitionOffsets: Array[PartitionOffset]): Offset = {
@@ -122,7 +114,7 @@ class PulsarContinuousReader(
     knownTopics != null && metadataReader.fetchLatestOffsets().topicOffsets.keySet != knownTopics
   }
 
-  override def toString: String = s"PulsarSource[$offset]"
+  override def toString: String = s"PulsarSource[$metadataReader]"
 
   override def commit(offset: Offset): Unit = {
     val off = SpecificPulsarOffset.getTopicOffsets(offset)
@@ -133,6 +125,9 @@ class PulsarContinuousReader(
     metadataReader.removeCursor()
     metadataReader.close()
   }
+
+  override def createContinuousReaderFactory(): ContinuousPartitionReaderFactory = PulsarContinuousReaderFactory
+
 }
 
 private[pulsar] class PulsarContinuousTopic(
@@ -146,44 +141,11 @@ private[pulsar] class PulsarContinuousTopic(
     var failOnDataLoss: Boolean,
     var subscriptionNamePrefix: String,
     var jsonOptions: JSONOptionsInRead)
-    extends ContinuousInputPartition[InternalRow]
+    extends InputPartition
     with Externalizable {
 
   def this() =
     this(null, null, null, null, null, null, 0, false, null, null) // For deserialization only
-
-  override def createContinuousReader(
-      offset: PartitionOffset): InputPartitionReader[InternalRow] = {
-    val pulsarOffset = offset.asInstanceOf[PulsarPartitionOffset]
-    require(
-      pulsarOffset.topic == topic,
-      s"Expected topic: $topic, but got: ${pulsarOffset.topic}")
-    new PulsarContinuousTopicReader(
-      topic,
-      adminUrl,
-      schemaInfo,
-      pulsarOffset.messageId,
-      clientConf,
-      readerConf,
-      pollTimeoutMs,
-      failOnDataLoss,
-      subscriptionNamePrefix,
-      jsonOptions)
-  }
-
-  override def createPartitionReader(): InputPartitionReader[InternalRow] = {
-    new PulsarContinuousTopicReader(
-      topic,
-      adminUrl,
-      schemaInfo,
-      startingOffsets,
-      clientConf,
-      readerConf,
-      pollTimeoutMs,
-      failOnDataLoss,
-      subscriptionNamePrefix,
-      jsonOptions)
-  }
 
   override def writeExternal(out: ObjectOutput): Unit = {
     out.writeUTF(topic)
@@ -230,6 +192,19 @@ private[pulsar] class PulsarContinuousTopic(
   }
 }
 
+object PulsarContinuousReaderFactory extends ContinuousPartitionReaderFactory {
+  override def createReader(partition: InputPartition): ContinuousPartitionReader[InternalRow] = {
+    val p = partition.asInstanceOf[PulsarContinuousTopic]
+    new PulsarContinuousTopicReader(
+      p.topic, p.adminUrl, p.schemaInfo,
+      p.startingOffsets,
+      p.clientConf, p.readerConf,
+      p.pollTimeoutMs, p.failOnDataLoss,
+      p.subscriptionNamePrefix, p.jsonOptions
+    )
+  }
+}
+
 /**
  * A per task data reader for continuous pulsar processing.
  *
@@ -249,7 +224,7 @@ class PulsarContinuousTopicReader(
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
     jsonOptions: JSONOptionsInRead)
-    extends ContinuousInputPartitionReader[InternalRow] {
+    extends ContinuousPartitionReader[InternalRow] {
 
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
 

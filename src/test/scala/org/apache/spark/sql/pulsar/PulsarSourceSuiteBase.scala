@@ -18,10 +18,8 @@ import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 
 import scala.reflect.ClassTag
-
-import org.apache.pulsar.client.api.Schema
+import org.apache.pulsar.client.api.{MessageId, Schema}
 import org.apache.pulsar.common.schema.SchemaInfo
-
 import org.apache.spark.sql.execution.streaming.StreamExecution
 import org.apache.spark.sql.{Encoder, Encoders}
 
@@ -178,15 +176,15 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
 
   test("get offsets from case insensitive parameters") {
     for ((optionKey, optionValue, answer) <- Seq(
-           (STARTING_OFFSETS_OPTION_KEY, "earLiEst", EarliestOffset),
-           (ENDING_OFFSETS_OPTION_KEY, "laTest", LatestOffset))) {
+      (STARTING_OFFSETS_OPTION_KEY, "earLiEst", EarliestOffset),
+      (ENDING_OFFSETS_OPTION_KEY, "laTest", LatestOffset))) {
       val offset = getPulsarOffset(Map(optionKey -> optionValue), optionKey, answer)
       assert(offset === answer)
     }
 
     for ((optionKey, answer) <- Seq(
-           (STARTING_OFFSETS_OPTION_KEY, EarliestOffset),
-           (ENDING_OFFSETS_OPTION_KEY, LatestOffset))) {
+      (STARTING_OFFSETS_OPTION_KEY, EarliestOffset),
+      (ENDING_OFFSETS_OPTION_KEY, LatestOffset))) {
       val offset = getPulsarOffset(Map.empty, optionKey, answer)
       assert(offset === answer)
     }
@@ -219,7 +217,8 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     assert(row.getAs[Array[Byte]]("__key") === null, s"Unexpected results: $row")
     assert(row.getAs[Array[Byte]]("value") === "1".getBytes(UTF_8), s"Unexpected results: $row")
     assert(row.getAs[String]("__topic") === topic, s"Unexpected results: $row")
-    assert(row.getAs[Array[Byte]]("__messageId") === mid.toByteArray, s"Unexpected results: $row")
+    val rowAsMid = MessageId.fromByteArray(row.getAs[Array[Byte]]("__messageId"))
+    assert(PulsarSourceUtils.messageIdRoughEquals(rowAsMid, mid), s"Unexpected results: $rowAsMid")
     // We cannot check the exact timestamp as it's the time that messages were inserted by the
     // producer. So here we just use a low bound to make sure the internal conversion works.
     assert(
@@ -230,10 +229,10 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
   }
 
   private def check[T: ClassTag](
-      schemaInfo: SchemaInfo,
-      datas: Seq[T],
-      encoder: Encoder[T],
-      str: T => String) = {
+                                  schemaInfo: SchemaInfo,
+                                  datas: Seq[T],
+                                  encoder: Encoder[T],
+                                  str: T => String) = {
     val topic = newTopic()
     createPulsarSchema(topic, schemaInfo)
 
@@ -344,6 +343,43 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     )
   }
 
+  test("test struct types with multiple avro version ") {
+    import SchemaData._
+
+    val topic = newTopic()
+    val si = Schema.AVRO(classOf[Foo]).getSchemaInfo
+    createPulsarSchema(topic, si)
+    val si2 = Schema.AVRO(classOf[FooV2]).getSchemaInfo
+    createPulsarSchema(topic, si2)
+
+    val fooSeqV2AsV1 = fooSeqV2.map(fooV2 => Foo(fooV2.i, fooV2.f, null))
+    val fooSeqV1AsV2 = fooSeq.map(foo => FooV2(foo.i, foo.f))
+    val fooSeqV1All = fooSeq ++ fooSeqV2AsV1
+
+    val reader = spark.readStream
+      .format("pulsar")
+      .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
+      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(ADMIN_URL_OPTION_KEY, adminUrl)
+      .option(FAIL_ON_DATA_LOSS_OPTION_KEY, true)
+      .option(TOPIC_SINGLE, topic)
+
+    val pulsar = reader.option(TOPIC_VERSION, "0").load().selectExpr("i", "f", "bar")
+
+    testStream(pulsar)(
+      AddPulsarTypedData(Set(topic), si.getType, fooSeq),
+      AddPulsarTypedData(Set(topic), si.getType, fooSeqV2),
+      CheckAnswer(fooSeqV1All: _*)
+    )
+
+    val pulsarV2 = reader.load().selectExpr("i", "f")
+    testStream(pulsarV2)(
+      AddPulsarTypedData(Set(topic), si.getType, fooSeqV2),
+      CheckAnswer(fooSeqV1AsV2 ++ fooSeqV2 ++ fooSeqV2 : _*)
+    )
+  }
+
+
   test("test struct types in json") {
     import SchemaData._
 
@@ -367,10 +403,10 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
   }
 
   private def testFromLatestOffsets(
-      topic: String,
-      addPartitions: Boolean,
-      failOnDataLoss: Boolean,
-      options: (String, String)*): Unit = {
+                                     topic: String,
+                                     addPartitions: Boolean,
+                                     failOnDataLoss: Boolean,
+                                     options: (String, String)*): Unit = {
 
     sendMessages(topic, Array("-1"))
     require(getLatestOffsets(Set(topic)).size === 1)
@@ -411,10 +447,10 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
   }
 
   private def testFromEarliestOffsets(
-      topic: String,
-      addPartitions: Boolean,
-      failOnDataLoss: Boolean,
-      options: (String, String)*): Unit = {
+                                       topic: String,
+                                       addPartitions: Boolean,
+                                       failOnDataLoss: Boolean,
+                                       options: (String, String)*): Unit = {
 
     sendMessages(topic, (1 to 3).map { _.toString }.toArray)
     require(getLatestOffsets(Set(topic)).size === 1)
@@ -452,10 +488,10 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
   }
 
   private def testFromTime(
-    topic: String,
-    addPartitions: Boolean,
-    failOnDataLoss: Boolean,
-    options: (String, String)*): Unit = {
+                            topic: String,
+                            addPartitions: Boolean,
+                            failOnDataLoss: Boolean,
+                            options: (String, String)*): Unit = {
 
     val time0 = System.currentTimeMillis()
     Thread.sleep(5000)
@@ -486,15 +522,15 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
   }
 
   private def testFromSpecificOffsets(
-      topic: String,
-      failOnDataLoss: Boolean,
-      options: (String, String)*): Unit = {
+                                       topic: String,
+                                       failOnDataLoss: Boolean,
+                                       options: (String, String)*): Unit = {
 
     val mids = sendMessages(
       topic,
       Array(
-       //  0,   1,   2,  3, 4, 5,  6, 7,  8
-          -20, -21, -22, 1, 2, 3, 10, 11, 12).map(_.toString),
+        //  0,   1,   2,  3, 4, 5,  6, 7,  8
+        -20, -21, -22, 1, 2, 3, 10, 11, 12).map(_.toString),
       None).map(_._2)
 
     val s1 = JsonUtils.topicOffsets(Map(topic -> mids(3)))
@@ -526,3 +562,4 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     )
   }
 }
+

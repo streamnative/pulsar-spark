@@ -29,6 +29,8 @@ private[pulsar] object PulsarOptions {
   val TOPIC_SINGLE = "topic"
   val TOPIC_MULTI = "topics"
   val TOPIC_PATTERN = "topicspattern"
+  val TOPIC_PARTITION="topicpartitions"
+  val TOPIC_VERSION = "topic.version"
 
   val PARTITION_SUFFIX = TopicName.PARTITIONED_TOPIC_SUFFIX
 
@@ -37,6 +39,12 @@ private[pulsar] object PulsarOptions {
     TOPIC_MULTI,
     TOPIC_PATTERN
   )
+
+  val DELETE_EXPIRED_SUBSCRIPTION_OPTION_KEY = "delete.expired.subscription"
+  val RETAIN_SUBCRIPTION_OPTION_KEY = "retain.subscription"
+  val SUBSCRIPTION_PREFIX_OPTION_KEY = "subscription.prefix"
+  val DISCOVER_TOPIC_CHANGES = "discover.topic.changes"
+  val TRACKING_TOPIC_PROGRESS = "tracking.topic.progress"
 
   val SERVICE_URL_OPTION_KEY = "service.url"
   val ADMIN_URL_OPTION_KEY = "admin.url"

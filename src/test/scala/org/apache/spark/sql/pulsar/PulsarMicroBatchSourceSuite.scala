@@ -18,10 +18,12 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.spark.SparkException
 import org.apache.spark.sql.ForeachWriter
+import org.apache.spark.sql.execution.datasources.v2.StreamingDataSourceV2Relation
 import org.apache.spark.sql.execution.streaming.StreamingExecutionRelation
 import org.apache.spark.sql.functions.{count, window}
 import org.apache.spark.sql.pulsar.PulsarOptions.{ADMIN_URL_OPTION_KEY, SERVICE_URL_OPTION_KEY, TOPIC_PATTERN}
-import org.apache.spark.sql.streaming.ProcessingTime
+import org.apache.spark.sql.streaming.Trigger
+//import org.apache.spark.sql.streaming.ProcessingTime
 import org.apache.spark.util.Utils
 
 class PulsarMicroBatchV1SourceSuite extends PulsarMicroBatchSourceSuiteBase {
@@ -69,9 +71,10 @@ class PulsarMicroBatchV2SourceSuite extends PulsarMicroBatchSourceSuiteBase {
     testStream(pulsar)(
       makeSureGetOffsetCalled,
       AssertOnQuery { query =>
-        query.logicalPlan.collect {
-          case StreamingExecutionRelation(_: PulsarMicroBatchReader, _) => true
-        }.nonEmpty
+        query.logicalPlan.find {
+          case r: StreamingDataSourceV2Relation => r.stream.isInstanceOf[PulsarMicroBatchStream]
+          case _ => false
+        }.isDefined
       }
     )
   }
@@ -110,7 +113,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
 
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
     testStream(mapped)(
-      StartStream(trigger = ProcessingTime(1)),
+      StartStream(trigger = Trigger.ProcessingTime(1)),
       makeSureGetOffsetCalled,
       AddPulsarData(Set(topic), 1, 2, 3),
       CheckAnswer(2, 3, 4),
@@ -194,7 +197,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       WithOffsetSync(topic2),
       StartStream(),
       ExpectFailure[SparkException](e => {
-        assert(e.getMessage.contains("Potential Data Loss"))
+        assert(e.asInstanceOf[SparkException].getCause.getMessage.contains("Potential Data Loss"))
       })
     )
   }
@@ -202,7 +205,9 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
   case class WithOffsetSync(topic2: String) extends ExternalAction {
     override def runAction(): Unit = {
       deleteTopic(topic2)
+      logDebug(s"topic $topic2 deleted")
       createNonPartitionedTopic(topic2)
+      logDebug(s"non partitioned topic $topic2 created ")
       val mid = sendMessages(topic2, Array("6")).head._2
       waitUntilOffsetAppears(topic2, mid)
     }
@@ -236,7 +241,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     val rows = spark.table("pulsarWatermark").collect()
     assert(rows.length === 1, s"Unexpected results: ${rows.toList}")
     val row = rows(0)
-    // We cannot check the exact window start time as it depands on the time that messages were
+    // We cannot check the exact window start time as it depends on the time that messages were
     // inserted by the producer. So here we just use a low bound to make sure the internal
     // conversion works.
     assert(
@@ -326,3 +331,4 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
 object PulsarSourceSuite {
   val collectedData = new ConcurrentLinkedQueue[Any]()
 }
+

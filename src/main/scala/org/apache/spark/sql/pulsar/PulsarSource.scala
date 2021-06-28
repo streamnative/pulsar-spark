@@ -57,7 +57,10 @@ private[pulsar] class PulsarSource(
 
   private var currentTopicOffsets: Option[Map[String, MessageId]] = None
 
-  lazy val pulsarSchema: SchemaInfo = metadataReader.getPulsarSchema()
+  lazy val pulsarSchema: SchemaInfo = {
+    val tpVersionOpt = jsonOptions.parameters.get(PulsarOptions.TOPIC_VERSION)
+    metadataReader.getPulsarSchema(tpVersionOpt)
+  }
 
   override def schema(): StructType = SchemaUtils.pulsarSourceSchema(pulsarSchema)
 
@@ -163,7 +166,15 @@ private[pulsar] class PulsarSource(
   }
 
   override def stop(): Unit = synchronized {
-    metadataReader.removeCursor()
+    if (!jsonOptions.parameters.get(PulsarOptions.RETAIN_SUBCRIPTION_OPTION_KEY).getOrElse("false").toBoolean) {
+      try {
+        metadataReader.removeCursor()
+      } catch {
+        case e: Exception =>
+          logWarning(s"Exception while remove cursor ${e.getMessage}")
+          logDebug(s"Error stack trace while remove cursor: ${e.printStackTrace()}")
+      }
+    }
     metadataReader.close()
   }
 }

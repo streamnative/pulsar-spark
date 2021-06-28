@@ -36,6 +36,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{SpecificInternalRow, UnsafeArrayData}
 import org.apache.spark.sql.catalyst.json.{CreateJacksonParser, JSONOptionsInRead}
 import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, ArrayData, DateTimeUtils, GenericArrayData}
+import org.apache.spark.sql.catalyst.util.DateTimeConstants.MILLIS_PER_DAY
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 
@@ -144,7 +145,7 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
         (updater, ordinal, value) =>
           updater.setInt(
             ordinal,
-            (value.asInstanceOf[Date].getTime / DateTimeUtils.MILLIS_PER_DAY).toInt)
+            (value.asInstanceOf[Date].getTime / MILLIS_PER_DAY).toInt)
 
       case LongType =>
         (updater, ordinal, value) =>

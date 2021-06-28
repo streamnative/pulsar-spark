@@ -1,9 +1,10 @@
+
 /**
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,31 +21,30 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.Random
 import scala.util.control.NonFatal
-
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.time.SpanSugar._
-
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaType
-
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.physical.AllTuples
+import org.apache.spark.sql.catalyst.streaming.StreamingRelationV2
 import org.apache.spark.sql.catalyst.util.stackTraceToString
 import org.apache.spark.sql.execution.datasources.v2.StreamingDataSourceV2Relation
+import org.apache.spark.sql.connector.read.streaming.{SparkDataStream, Offset => OffsetV2}
 import org.apache.spark.sql.execution.streaming.continuous.ContinuousExecution
-import org.apache.spark.sql.execution.streaming.sources.MemorySinkV2
 import org.apache.spark.sql.execution.streaming._
+import org.apache.spark.sql.execution.streaming.sources.MemorySink
 import org.apache.spark.sql.streaming.StreamingQueryListener.{QueryProgressEvent, QueryStartedEvent, QueryTerminatedEvent}
 import org.apache.spark.sql.streaming.{OutputMode, StreamTest, StreamingQueryException, StreamingQueryListener}
-import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.{Dataset, QueryTest}
 import org.apache.spark.util.{SystemClock, Utils}
 
-class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest {
+class PulsarSourceTest extends StreamTest with SharedSparkSession with PulsarTest {
 
-  override val streamingTimeout = 30.seconds
+  override val streamingTimeout = 60.seconds
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -71,13 +71,13 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
    * `topicAction` can be used to run actions for each topic before inserting data.
    */
   case class AddPulsarData(topics: Set[String], data: Int*)(
-      implicit ensureDataInMultiplePartition: Boolean = false,
-      concurrent: Boolean = false,
-      message: String = "",
-      topicAction: (String, Option[MessageId]) => Unit = (_, _) => {})
-      extends AddData {
+    implicit ensureDataInMultiplePartition: Boolean = false,
+    concurrent: Boolean = false,
+    message: String = "",
+    topicAction: (String, Option[MessageId]) => Unit = (_, _) => {})
+    extends AddData {
 
-    override def addData(query: Option[StreamExecution]): (BaseStreamingSource, Offset) = {
+    override def addData(query: Option[StreamExecution]): (SparkDataStream, Offset) = {
       query match {
         // Make sure no Spark job is running when deleting a topic
         case Some(m: MicroBatchExecution) => m.processAllAvailable()
@@ -97,18 +97,12 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
         query.nonEmpty,
         "Cannot add data when there is no query for finding the active pulsar source")
 
-      val sources = {
+      val sources: Seq[SparkDataStream] = {
         query.get.logicalPlan.collect {
           case StreamingExecutionRelation(source: PulsarSource, _) => source
-          case StreamingExecutionRelation(source: PulsarMicroBatchReader, _) => source
-        } ++ (query.get.lastExecution match {
-          case null => Seq()
-          case e =>
-            e.logical.collect {
-              case StreamingDataSourceV2Relation(_, _, _, reader: PulsarContinuousReader) =>
-                reader
-            }
-        })
+          case r: StreamingDataSourceV2Relation if r.stream.isInstanceOf[PulsarMicroBatchStream] ||
+            r.stream.isInstanceOf[PulsarContinuousReader] => r.stream
+        }
       }.distinct
 
       if (sources.isEmpty) {
@@ -122,7 +116,9 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
       val pulsarSource = sources.head
       val topic = topics.toSeq(Random.nextInt(topics.size))
 
-      sendMessages(topic, data.map { _.toString }.toArray)
+      sendMessages(topic, data.map {
+        _.toString
+      }.toArray)
       val sizes = getLatestOffsets(topics).toSeq
       val offset = SpecificPulsarOffset(sizes: _*)
       logInfo(s"Added data, expected offset $offset")
@@ -139,13 +135,13 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
    * `topicAction` can be used to run actions for each topic before inserting data.
    */
   case class AddPulsarTypedData[T: ClassTag](topics: Set[String], tpe: SchemaType, data: Seq[T])(
-      implicit ensureDataInMultiplePartition: Boolean = false,
-      concurrent: Boolean = false,
-      message: String = "",
-      topicAction: (String, Option[MessageId]) => Unit = (_, _) => {})
-      extends AddData {
+    implicit ensureDataInMultiplePartition: Boolean = false,
+    concurrent: Boolean = false,
+    message: String = "",
+    topicAction: (String, Option[MessageId]) => Unit = (_, _) => {})
+    extends AddData {
 
-    override def addData(query: Option[StreamExecution]): (BaseStreamingSource, Offset) = {
+    override def addData(query: Option[StreamExecution]): (SparkDataStream, Offset) = {
       query match {
         // Make sure no Spark job is running when deleting a topic
         case Some(m: MicroBatchExecution) => m.processAllAvailable()
@@ -165,18 +161,12 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
         query.nonEmpty,
         "Cannot add data when there is no query for finding the active pulsar source")
 
-      val sources = {
+      val sources: Seq[SparkDataStream] = {
         query.get.logicalPlan.collect {
           case StreamingExecutionRelation(source: PulsarSource, _) => source
-          case StreamingExecutionRelation(source: PulsarMicroBatchReader, _) => source
-        } ++ (query.get.lastExecution match {
-          case null => Seq()
-          case e =>
-            e.logical.collect {
-              case StreamingDataSourceV2Relation(_, _, _, reader: PulsarContinuousReader) =>
-                reader
-            }
-        })
+          case r: StreamingDataSourceV2Relation if r.stream.isInstanceOf[PulsarMicroBatchStream] ||
+            r.stream.isInstanceOf[PulsarContinuousReader] => r.stream
+        }
       }.distinct
 
       if (sources.isEmpty) {
@@ -207,8 +197,21 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
 
   protected def newTopic(): String = TopicName.get(s"topic-${topicId.getAndIncrement()}").toString
 
-  override def testStream(_stream: Dataset[_], outputMode: OutputMode, useV2Sink: Boolean)(
-      actions: StreamAction*): Unit = synchronized {
+  def causedByInterruptedException(e: Throwable): Boolean = {
+    if (e.isInstanceOf[InterruptedException]) {
+      true
+    } else {
+      if (e.getCause == null) {
+        return false
+      }
+      causedByInterruptedException(e.getCause)
+    }
+  }
+
+  override def testStream(
+                           _stream: Dataset[_],
+                           outputMode: OutputMode = OutputMode.Append)(actions: StreamAction*): Unit = synchronized {
+
     import org.apache.spark.sql.streaming.util.StreamManualClock
 
     // `synchronized` is added to prevent the user from calling multiple `testStream`s concurrently
@@ -220,8 +223,8 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
     var pos = 0
     var currentStream: StreamExecution = null
     var lastStream: StreamExecution = null
-    val awaiting = new mutable.HashMap[Int, Offset]() // source index -> offset to wait for
-    val sink = if (useV2Sink) new MemorySinkV2 else new MemorySink(stream.schema, outputMode)
+    val awaiting = new mutable.HashMap[Int, OffsetV2]() // source index -> offset to wait for
+    val sink = new MemorySink
     val resetConfValues = mutable.Map[String, Option[String]]()
     val defaultCheckpointLocation =
       Utils.createTempDir(namePrefix = "streaming.metadata").getCanonicalPath
@@ -234,14 +237,12 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
     val listener = new StreamingQueryListener {
       override def onQueryStarted(event: QueryStartedEvent): Unit = {
         // Note: this assumes there is only one query active in the `testStream` method.
-        Thread.currentThread.setUncaughtExceptionHandler(new UncaughtExceptionHandler {
-          override def uncaughtException(t: Thread, e: Throwable): Unit = {
-            streamThreadDeathCause = e
-          }
-        })
+        Thread.currentThread.setUncaughtExceptionHandler(
+          (_: Thread, e: Throwable) => streamThreadDeathCause = e)
       }
 
       override def onQueryProgress(event: QueryProgressEvent): Unit = {}
+
       override def onQueryTerminated(event: QueryTerminatedEvent): Unit = {}
     }
     sparkSession.streams.addListener(listener)
@@ -251,17 +252,14 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
       actions.takeWhile(!_.isInstanceOf[StreamMustBeRunning]).exists(_.isInstanceOf[StartStream])
     val startedTest = if (startedManually) actions else StartStream() +: actions
 
-    def testActions =
-      actions.zipWithIndex
-        .map {
-          case (a, i) =>
-            if ((pos == i && startedManually) || (pos == (i + 1) && !startedManually)) {
-              "=> " + a.toString
-            } else {
-              "   " + a.toString
-            }
+    def testActions = actions.zipWithIndex.map {
+      case (a, i) =>
+        if ((pos == i && startedManually) || (pos == (i + 1) && !startedManually)) {
+          "=> " + a.toString
+        } else {
+          "   " + a.toString
         }
-        .mkString("\n")
+    }.mkString("\n")
 
     def currentOffsets =
       if (currentStream != null) currentStream.committedOffsets.toString else "not started"
@@ -277,10 +275,8 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
       }
 
     def testState = {
-      val sinkDebugString = sink match {
-        case s: MemorySink => s.toDebugString
-        case s: MemorySinkV2 => s.toDebugString
-      }
+      val sinkDebugString = sink.toDebugString
+
       s"""
          |== Progress ==
          |$testActions
@@ -330,9 +326,11 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
           base
         }
       }
+
       val c = Option(cause).map(exceptionToString(_))
       val m = if (message != null && message.size > 0) Some(message) else None
-      fail(s"""
+      fail(
+        s"""
            |${(m ++ c).mkString(": ")}
            |$testState
          """.stripMargin)
@@ -341,24 +339,22 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
     var lastFetchedMemorySinkLastBatchId: Long = -1
 
     def fetchStreamAnswer(
-        currentStream: StreamExecution,
-        lastOnly: Boolean = false,
-        sinceLastFetchOnly: Boolean = false) = {
+                           currentStream: StreamExecution,
+                           lastOnly: Boolean = false,
+                           sinceLastFetchOnly: Boolean = false) = {
       verify(
-        !(lastOnly && sinceLastFetchOnly),
-        "both lastOnly and sinceLastFetchOnly cannot be true")
+        !(lastOnly && sinceLastFetchOnly), "both lastOnly and sinceLastFetchOnly cannot be true")
       verify(currentStream != null, "stream not running")
 
       // Block until all data added has been processed for all the source
-      awaiting.foreach {
-        case (sourceIndex, offset) =>
-          failAfter(streamingTimeout) {
-            currentStream.awaitOffset(sourceIndex, offset, streamingTimeout.toMillis)
-            // Make sure all processing including no-data-batches have been executed
-            if (!currentStream.triggerClock.isInstanceOf[StreamManualClock]) {
-              currentStream.processAllAvailable()
-            }
+      awaiting.foreach { case (sourceIndex, offset) =>
+        failAfter(streamingTimeout) {
+          currentStream.awaitOffset(sourceIndex, offset, streamingTimeout.toMillis)
+          // Make sure all processing including no-data-batches have been executed
+          if (!currentStream.triggerClock.isInstanceOf[StreamManualClock]) {
+            currentStream.processAllAvailable()
           }
+        }
       }
 
       val lastExecution = currentStream.lastExecution
@@ -401,11 +397,9 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
       action match {
         case StartStream(trigger, triggerClock, additionalConfs, checkpointLocation) =>
           verify(currentStream == null || !currentStream.isActive, "stream already running")
-          verify(
-            triggerClock.isInstanceOf[SystemClock]
-              || triggerClock.isInstanceOf[StreamManualClock],
-            "Use either SystemClock or StreamManualClock to start the stream"
-          )
+          verify(triggerClock.isInstanceOf[SystemClock]
+            || triggerClock.isInstanceOf[StreamManualClock],
+            "Use either SystemClock or StreamManualClock to start the stream")
           if (triggerClock.isInstanceOf[StreamManualClock]) {
             manualClockExpectedTime = triggerClock.asInstanceOf[StreamManualClock].getTimeMillis()
           }
@@ -421,27 +415,28 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
           })
 
           lastStream = currentStream
-          currentStream = sparkSession.streams
-            .startQuery(
-              None,
-              Some(metadataRoot),
-              stream,
-              Map(),
-              sink,
-              outputMode,
-              trigger = trigger,
-              triggerClock = triggerClock)
-            .asInstanceOf[StreamingQueryWrapper]
-            .streamingQuery
+          currentStream =
+            sparkSession
+              .streams
+              .startQuery(
+                None,
+                Some(metadataRoot),
+                stream,
+                Map(),
+                sink,
+                outputMode,
+                trigger = trigger,
+                triggerClock = triggerClock)
+              .asInstanceOf[StreamingQueryWrapper]
+              .streamingQuery
           // Wait until the initialization finishes, because some tests need to use `logicalPlan`
           // after starting the query.
           try {
             currentStream.awaitInitialization(streamingTimeout.toMillis)
             currentStream match {
-              case s: ContinuousExecution =>
-                eventually("IncrementalExecution was not created") {
-                  assert(s.lastExecution != null)
-                }
+              case s: ContinuousExecution => eventually("IncrementalExecution was not created") {
+                assert(s.lastExecution != null)
+              }
               case _ =>
             }
           } catch {
@@ -450,11 +445,9 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
           }
 
         case AdvanceManualClock(timeToAdd) =>
-          verify(
-            currentStream != null,
+          verify(currentStream != null,
             "can not advance manual clock when a stream is not running")
-          verify(
-            currentStream.triggerClock.isInstanceOf[StreamManualClock],
+          verify(currentStream.triggerClock.isInstanceOf[StreamManualClock],
             s"can not advance clock of type ${currentStream.triggerClock.getClass}")
           val clock = currentStream.triggerClock.asInstanceOf[StreamManualClock]
           assert(manualClockExpectedTime >= 0)
@@ -466,42 +459,28 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
 
           clock.advance(timeToAdd)
           manualClockExpectedTime += timeToAdd
-          verify(
-            clock.getTimeMillis() === manualClockExpectedTime,
+          verify(clock.getTimeMillis() === manualClockExpectedTime,
             s"Unexpected clock time after updating: " +
-              s"expecting $manualClockExpectedTime, current ${clock.getTimeMillis()}"
-          )
+              s"expecting $manualClockExpectedTime, current ${clock.getTimeMillis()}")
 
         case StopStream =>
           verify(currentStream != null, "can not stop a stream that is not running")
           try failAfter(streamingTimeout) {
             currentStream.stop()
-            verify(!currentStream.queryExecutionThread.isAlive, s"microbatch thread not stopped")
-            verify(!currentStream.isActive, "query.isActive() is false even after stopping")
-            verify(
-              currentStream.exception.isEmpty,
+            verify(!currentStream.queryExecutionThread.isAlive,
+              s"microbatch thread not stopped")
+            verify(!currentStream.isActive,
+              "query.isActive() is false even after stopping")
+            verify(currentStream.exception.isEmpty,
               s"query.exception() is not empty after clean stop: " +
                 currentStream.exception.map(_.toString()).getOrElse(""))
           } catch {
             case e: org.scalatest.exceptions.TestFailedDueToTimeoutException =>
               failTest(
-                "Timed out while stopping and waiting for microbatchthread to terminate.",
-                e)
-            case thr: Throwable =>
-              def causedByInterruptedException(e: Throwable): Boolean = {
-                if (e.isInstanceOf[InterruptedException]) {
-                  true
-                } else {
-                  if (e.getCause == null) {
-                    return false
-                  }
-                  causedByInterruptedException(e.getCause)
-                }
-              }
-              if (currentStream.exception.isDefined) {
-                if (!causedByInterruptedException(currentStream.exception.get)) {
-                  failTest("Error while stopping stream", thr)
-                }
+                "Timed out while stopping and waiting for microbatchthread to terminate.", e)
+            case t: Throwable =>
+              if (currentStream.exception.isDefined && !causedByInterruptedException(currentStream.exception.get)) {
+                failTest("Error while stopping stream", t)
               }
           } finally {
             lastStream = currentStream
@@ -511,31 +490,29 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
         case ef: ExpectFailure[_] =>
           verify(currentStream != null, "can not expect failure when stream is not running")
           try failAfter(streamingTimeout) {
+
             val thrownException = intercept[StreamingQueryException] {
               currentStream.awaitTermination()
             }
+
             eventually("microbatch thread not stopped after termination with failure") {
               assert(!currentStream.queryExecutionThread.isAlive)
             }
-            verify(
-              currentStream.exception === Some(thrownException),
-              s"incorrect exception returned by query.exception()")
+
+            verify(currentStream.exception === Some(thrownException),
+              s"incorrect exception returned by query.exception(). Expected ${currentStream.exception}. Returned $thrownException")
 
             val exception = currentStream.exception.get
-            verify(
-              exception.cause.getClass === ef.causeClass,
+            verify(exception.cause.getClass === ef.causeClass,
               "incorrect cause in exception returned by query.exception()\n" +
-                s"\tExpected: ${ef.causeClass}\n\tReturned: ${exception.cause.getClass}"
-            )
+                s"\tExpected: ${ef.causeClass}\n\tReturned: ${exception.cause.getClass}")
             if (ef.isFatalError) {
               // This is a fatal error, `streamThreadDeathCause` should be set to this error in
               // UncaughtExceptionHandler.
-              verify(
-                streamThreadDeathCause != null &&
-                  streamThreadDeathCause.getClass === ef.causeClass,
+              verify(streamThreadDeathCause != null &&
+                streamThreadDeathCause.getClass === ef.causeClass,
                 "UncaughtExceptionHandler didn't receive the correct error\n" +
-                  s"\tExpected: ${ef.causeClass}\n\tReturned: $streamThreadDeathCause"
-              )
+                  s"\tExpected: ${ef.causeClass}\n\tReturned: $streamThreadDeathCause")
               streamThreadDeathCause = null
             }
             ef.assertFailure(exception.getCause)
@@ -551,8 +528,7 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
           }
 
         case a: AssertOnQuery =>
-          verify(
-            currentStream != null || lastStream != null,
+          verify(currentStream != null || lastStream != null,
             "cannot assert when no stream has been started")
           val streamToAssert = Option(currentStream).getOrElse(lastStream)
           try {
@@ -564,7 +540,9 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
 
         case a: Assert =>
           val streamToAssert = Option(currentStream).getOrElse(lastStream)
-          verify({ a.run(); true }, s"Assert failed: ${a.message}")
+          verify({
+            a.run(); true
+          }, s"Assert failed: ${a.message}")
 
         case a: AddData =>
           try {
@@ -577,7 +555,7 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
             // between the test thread and the stream execution thread in tests using manual
             // clock.
             if (currentStream != null &&
-                currentStream.triggerClock.isInstanceOf[StreamManualClock]) {
+              currentStream.triggerClock.isInstanceOf[StreamManualClock]) {
               val clock = currentStream.triggerClock.asInstanceOf[StreamManualClock]
               eventually("Error while synchronizing with manual clock before adding data") {
                 if (currentStream.isActive) {
@@ -595,8 +573,14 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
             def findSourceIndex(plan: LogicalPlan): Option[Int] = {
               plan
                 .collect {
+                  // v1 source
                   case r: StreamingExecutionRelation => r.source
-                  case r: StreamingDataSourceV2Relation => r.reader
+                  // v2 source
+                  case r: StreamingDataSourceV2Relation => r.stream
+                  // We can add data to memory stream before starting it. Then the input plan has
+                  // not been processed by the streaming engine and contains `StreamingRelationV2`.
+                  case r: StreamingRelationV2 if r.sourceName == "memory" =>
+                    r.table.asInstanceOf[MemoryStreamTable].stream
                 }
                 .zipWithIndex
                 .find(_._1 == source)
@@ -606,22 +590,18 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
             // Try to find the index of the source to which data was added. Either get the index
             // from the current active query or the original input logical plan.
             val sourceIndex =
-              queryToUse
-                .flatMap { query =>
-                  findSourceIndex(query.logicalPlan)
-                }
-                .orElse {
-                  findSourceIndex(stream.logicalPlan)
-                }
-                .orElse {
-                  queryToUse.flatMap { q =>
-                    findSourceIndex(q.lastExecution.logical)
-                  }
-                }
-                .getOrElse {
-                  throw new IllegalArgumentException(
-                    "Could not find index of the source to which data was added")
-                }
+            queryToUse.flatMap { query =>
+              findSourceIndex(query.logicalPlan)
+            }.orElse {
+              findSourceIndex(stream.logicalPlan)
+            }.orElse {
+              queryToUse.flatMap { q =>
+                findSourceIndex(q.lastExecution.logical)
+              }
+            }.getOrElse {
+              throw new IllegalArgumentException(
+                "Could not find index of the source to which data was added")
+            }
 
             // Store the expected offset of added data to wait for it later
             awaiting.put(sourceIndex, offset)
@@ -635,8 +615,8 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
 
         case CheckAnswerRows(expectedAnswer, lastOnly, isSorted) =>
           val sparkAnswer = fetchStreamAnswer(currentStream, lastOnly)
-          QueryTest.sameRows(expectedAnswer, sparkAnswer, isSorted).foreach { error =>
-            failTest(error)
+          QueryTest.sameRows(expectedAnswer, sparkAnswer, isSorted).foreach {
+            error => failTest(error)
           }
 
         case CheckAnswerRowsContains(expectedAnswer, lastOnly) =>
@@ -644,8 +624,8 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
             case null => fetchStreamAnswer(lastStream, lastOnly)
             case s => fetchStreamAnswer(s, lastOnly)
           }
-          QueryTest.includesRows(expectedAnswer, sparkAnswer).foreach { error =>
-            failTest(error)
+          QueryTest.includesRows(expectedAnswer, sparkAnswer).foreach {
+            error => failTest(error)
           }
 
         case CheckAnswerRowsByFunc(globalCheckFunction, lastOnly) =>
@@ -661,8 +641,8 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
 
         case CheckNewAnswerRows(expectedAnswer) =>
           val sparkAnswer = fetchStreamAnswer(currentStream, sinceLastFetchOnly = true)
-          QueryTest.sameRows(expectedAnswer, sparkAnswer).foreach { error =>
-            failTest(error)
+          QueryTest.sameRows(expectedAnswer, sparkAnswer).foreach {
+            error => failTest(error)
           }
       }
     }
@@ -671,11 +651,9 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
       startedTest.foreach {
         case StreamProgressLockedActions(actns, _) =>
           // Perform actions while holding the stream from progressing
-          assert(
-            currentStream != null,
+          assert(currentStream != null,
             s"Cannot perform stream-progress-locked actions $actns when query is not active")
-          assert(
-            currentStream.isInstanceOf[MicroBatchExecution],
+          assert(currentStream.isInstanceOf[MicroBatchExecution],
             s"Cannot perform stream-progress-locked actions on non-microbatch queries")
           currentStream.asInstanceOf[MicroBatchExecution].withProgressLocked {
             actns.foreach(executeAction)
@@ -709,3 +687,4 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
   }
 
 }
+

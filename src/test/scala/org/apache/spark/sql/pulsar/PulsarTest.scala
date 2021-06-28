@@ -311,7 +311,7 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
 
     eventually(timeout(60.seconds)) {
       val currentOffset = getLatestOffsets(Set(topic)).get(topic)
-      assert(currentOffset.nonEmpty && currentOffset.get.compareTo(offset) >= 0)
+      assert(currentOffset.nonEmpty && PulsarSourceUtils.messageIdRoughEquals(currentOffset.get, offset))
     }
   }
 

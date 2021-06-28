@@ -17,8 +17,9 @@ import java.{util => ju}
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.sources.v2.writer.{DataWriter, DataWriterFactory, WriterCommitMessage}
-import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
+import org.apache.spark.sql.connector.write.streaming.{StreamingDataWriterFactory, StreamingWrite}
+import org.apache.spark.sql.connector.write.{BatchWrite, DataWriter, DataWriterFactory, PhysicalWriteInfo, WriteBuilder, WriterCommitMessage}
+import org.apache.spark.sql.internal.connector.SupportsStreamingUpdateAsAppend
 import org.apache.spark.sql.types.StructType
 
 /**
@@ -35,19 +36,35 @@ case object PulsarWriterCommitMessage extends WriterCommitMessage
  * @param producerConf Parameters for Pulsar producers in each task.
  * @param topic The topic this writer is responsible for.
  */
-class PulsarStreamWriter(
+class PulsarWriter(
     schema: StructType,
     clientConf: ju.Map[String, Object],
     producerConf: ju.Map[String, Object],
     topic: Option[String],
     adminUrl: String)
-    extends StreamWriter {
+    extends WriteBuilder
+    with BatchWrite
+    with StreamingWrite
+    with SupportsStreamingUpdateAsAppend{
 
-  override def createWriterFactory(): PulsarStreamWriterFactory =
+  override def buildForStreaming(): StreamingWrite = this
+
+  override def buildForBatch(): BatchWrite = this
+
+  override def createStreamingWriterFactory(info: PhysicalWriteInfo): StreamingDataWriterFactory =
     PulsarStreamWriterFactory(schema, clientConf, producerConf, topic, adminUrl)
 
   override def commit(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {}
+
   override def abort(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {}
+
+  override def createBatchWriterFactory(info: PhysicalWriteInfo): DataWriterFactory =
+    PulsarStreamWriterFactory(schema, clientConf, producerConf, topic, adminUrl)
+
+  override def commit(messages: Array[WriterCommitMessage]): Unit = {}
+
+  override def abort(messages: Array[WriterCommitMessage]): Unit = {}
+
 }
 
 /**
@@ -64,14 +81,17 @@ case class PulsarStreamWriterFactory(
     producerConf: ju.Map[String, Object],
     topic: Option[String],
     adminUrl: String)
-    extends DataWriterFactory[InternalRow] {
+    extends DataWriterFactory
+    with StreamingDataWriterFactory {
 
-  override def createDataWriter(
-      partitionId: Int,
-      taskId: Long,
-      epochId: Long): DataWriter[InternalRow] = {
-    new PulsarStreamDataWriter(schema.toAttributes, clientConf, producerConf, topic, adminUrl)
+  override def createWriter(partitionId: Int, taskId: Long, epochId: Long): DataWriter[InternalRow] = {
+    new PulsarDataWriter(schema.toAttributes, clientConf, producerConf, topic, adminUrl)
   }
+
+  override def createWriter(partitionId: Int, taskId: Long): DataWriter[InternalRow] = {
+    new PulsarDataWriter(schema.toAttributes, clientConf, producerConf, topic, adminUrl)
+  }
+
 }
 
 /**
@@ -83,7 +103,7 @@ case class PulsarStreamWriterFactory(
  * @param producerConf Parameters to use for the Pulsar producer.
  * @param inputSchema The attributes in the input data.
  */
-class PulsarStreamDataWriter(
+class PulsarDataWriter(
     inputSchema: Seq[Attribute],
     clientConf: ju.Map[String, Object],
     producerConf: ju.Map[String, Object],

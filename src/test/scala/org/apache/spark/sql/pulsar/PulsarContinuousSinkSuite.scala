@@ -3,7 +3,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,19 +17,17 @@ import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 
 import scala.reflect.ClassTag
-
 import org.scalatest.time.SpanSugar._
-
 import org.apache.pulsar.client.api.Schema
 import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
-
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, SpecificInternalRow, UnsafeProjection}
-import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, StreamingQuery, Trigger}
+import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, StreamingQuery, StreamingQueryException, Trigger}
 import org.apache.spark.sql.types.{BinaryType, DataType}
-import org.apache.spark.sql.{DataFrame, Encoder, Encoders, Row}
+import org.apache.spark.sql.{AnalysisException, DataFrame, Encoder, Encoders, Row}
 import org.apache.spark.util.Utils
 
 class PulsarContinuousSinkSuite extends PulsarContinuousTest {
+
   import PulsarOptions._
   import SchemaData._
   import testImplicits._
@@ -162,10 +160,10 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
   }
 
   private def check[T: ClassTag](
-      schemaInfo: SchemaInfo,
-      data: Seq[T],
-      encoder: Encoder[T],
-      str: T => String) = {
+                                  schemaInfo: SchemaInfo,
+                                  data: Seq[T],
+                                  encoder: Encoder[T],
+                                  str: T => String) = {
     val inputTopic = newTopic()
     val topic = newTopic()
     createPulsarSchema(inputTopic, schemaInfo)
@@ -351,44 +349,40 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
       .option(TOPIC_SINGLE, inputTopic)
       .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
       .load()
-    val topic = newTopic()
 
     /* No topic field or topic option */
     var writer: StreamingQuery = null
     var ex: Exception = null
-    try {
+
+    ex = intercept[AnalysisException] {
       writer = createPulsarWriter(input.toDF())(
         withSelectExpr = "value as __key",
         "value"
       )
       sendMessages(inputTopic, Array("1", "2", "3", "4", "5"))
-      eventually(timeout(streamingTimeout)) {
-        assert(writer.exception.isDefined)
-        ex = writer.exception.get
-      }
-    } finally {
-      writer.stop()
+      writer.processAllAvailable()
     }
+
+
     assert(
       ex.getMessage
         .toLowerCase(Locale.ROOT)
         .contains("topic option required when no '__topic' attribute is present"))
 
-    try {
-      /* No value field */
+    val topic = newTopic()
+
+    /* No value field */
+    ex = intercept[AnalysisException] {
       writer = createPulsarWriter(input.toDF())(
         withSelectExpr = s"'$topic' as __topic",
         "value as __key"
       )
       sendMessages(inputTopic, Array("1", "2", "3", "4", "5"))
-      eventually(timeout(streamingTimeout)) {
-        assert(writer.exception.isDefined)
-        ex = writer.exception.get
-      }
-    } finally {
-      writer.stop()
+      writer.processAllAvailable()
     }
-    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains("schema should have at least one"))
+
+    assert(
+      ex.getMessage.toLowerCase(Locale.ROOT).contains("schema should have at least one"))
   }
 
   test("streaming - write data with valid schema but wrong types") {
@@ -406,57 +400,49 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
 
     var writer: StreamingQuery = null
     var ex: Exception = null
-    try {
-      /* topic field wrong type */
+
+    /* topic field wrong type */
+    ex = intercept[AnalysisException] {
       writer = createPulsarWriter(input.toDF())(
         withSelectExpr = s"CAST('1' as INT) as __topic",
         "value"
       )
       sendMessages(inputTopic, Array("1", "2", "3", "4", "5"))
-      eventually(timeout(streamingTimeout)) {
-        assert(writer.exception.isDefined)
-        ex = writer.exception.get
-      }
-    } finally {
-      writer.stop()
+      writer.processAllAvailable()
     }
-    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains("topic type must be a string"))
 
-    try {
-      /* key field wrong type */
+    assert(
+      ex
+        .getMessage.toLowerCase(Locale.ROOT).contains("topic type must be a string"))
+
+    /* key field wrong type */
+    ex = intercept[AnalysisException] {
       writer = createPulsarWriter(input.toDF())(
         withSelectExpr = s"'$topic' as __topic",
         "CAST(value as INT) as __key",
         "value"
       )
       sendMessages(inputTopic, Array("1", "2", "3", "4", "5"))
-      eventually(timeout(streamingTimeout)) {
-        assert(writer.exception.isDefined)
-        ex = writer.exception.get
-      }
-    } finally {
-      writer.stop()
+      writer.processAllAvailable()
     }
+
     assert(
       ex.getMessage
         .toLowerCase(Locale.ROOT)
         .contains("key attribute type must be a string or binary"))
 
-    try {
-      /* eventTime field wrong type */
+    /* eventTime field wrong type */
+    ex = intercept[AnalysisException] {
       writer = createPulsarWriter(input.toDF())(
         withSelectExpr = s"'$topic' as __topic",
         "value as __eventTime",
         "value"
       )
       sendMessages(inputTopic, Array("1", "2", "3", "4", "5"))
-      eventually(timeout(streamingTimeout)) {
-        assert(writer.exception.isDefined)
-        ex = writer.exception.get
-      }
-    } finally {
-      writer.stop()
+      writer.processAllAvailable()
     }
+
+
     assert(
       ex.getMessage
         .toLowerCase(Locale.ROOT)
@@ -477,7 +463,7 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     options.put("block.on.buffer.full", "true")
     val inputSchema = Seq(AttributeReference("value", BinaryType)())
     val data = new Array[Byte](15000) // large value
-    val writeTask = new PulsarStreamDataWriter(inputSchema, null, null, Some(topic), null)
+    val writeTask = new PulsarDataWriter(inputSchema, null, null, Some(topic), null)
     try {
       val fieldTypes: Array[DataType] = Array(BinaryType)
       val converter = UnsafeProjection.create(fieldTypes)
@@ -503,11 +489,11 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
   }
 
   private def createPulsarWriter(
-      input: DataFrame,
-      withTopic: Option[String] = None,
-      withOutputMode: Option[OutputMode] = None,
-      withOptions: Map[String, String] = Map[String, String]())(
-      withSelectExpr: String*): StreamingQuery = {
+                                  input: DataFrame,
+                                  withTopic: Option[String] = None,
+                                  withOutputMode: Option[OutputMode] = None,
+                                  withOptions: Map[String, String] = Map[String, String]())(
+                                  withSelectExpr: String*): StreamingQuery = {
     var stream: DataStreamWriter[Row] = null
     val checkpointDir = Utils.createTempDir()
     var df = input.toDF()
@@ -527,3 +513,4 @@ class PulsarContinuousSinkSuite extends PulsarContinuousTest {
     stream.start()
   }
 }
+

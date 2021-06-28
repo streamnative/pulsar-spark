@@ -16,12 +16,11 @@ package org.apache.spark.sql.pulsar
 import java.io.File
 
 import org.apache.pulsar.client.impl.MessageIdImpl
-
 import org.apache.spark.sql.execution.streaming.{LongOffset, OffsetSeq, OffsetSeqLog, SerializedOffset}
 import org.apache.spark.sql.streaming.OffsetSuite
-import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.test.SharedSparkSession
 
-class PulsarSourceOffsetSuite extends OffsetSuite with SharedSQLContext {
+class PulsarSourceOffsetSuite extends OffsetSuite with SharedSparkSession {
 
   compare(
     one = SpecificPulsarOffset(("t", new MessageIdImpl(1, 1, -1))),

@@ -47,6 +47,8 @@ object SchemaData {
   val int16Seq = 1.to(5).map(_.toShort)
 
   case class Foo(@BeanProperty i: Int, @BeanProperty f: Float, @BeanProperty bar: Bar)
+  case class FooV2(@BeanProperty i: Int, @BeanProperty f: Float)
+
   case class Bar(@BeanProperty b: Boolean, @BeanProperty s: String)
 
   case class F1(@BeanProperty baz: Baz)
@@ -59,6 +61,9 @@ object SchemaData {
 
   val fooSeq: Seq[Foo] =
     Foo(1, 1.0.toFloat, Bar(true, "a")) :: Foo(2, 2.0.toFloat, Bar(false, "b")) :: Foo(3, 0, null) :: Nil
+
+  val fooSeqV2: Seq[FooV2] =
+    FooV2(1, 1.0.toFloat) :: FooV2(2, 2.0.toFloat) :: FooV2(3, 0) :: Nil
 
   val f1Seq: Seq[F1] =
     F1(

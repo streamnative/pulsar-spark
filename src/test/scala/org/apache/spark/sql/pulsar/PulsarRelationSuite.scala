@@ -17,26 +17,30 @@ import java.text.SimpleDateFormat
 import java.time.{Clock, Instant, ZoneId}
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.{Date, Locale}
-
 import scala.reflect.ClassTag
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaType
-import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.{DataFrame, Encoder, Encoders, QueryTest}
 
-class PulsarRelationSuite extends QueryTest with SharedSQLContext with PulsarTest {
+class PulsarRelationSuite extends QueryTest with SharedSparkSession with PulsarTest {
   import PulsarOptions._
   import SchemaData._
   import testImplicits._
+
+  /*  override protected def sparkConf: SparkConf =
+      super
+        .sparkConf
+        .set(SQLConf.USE_V1_SOURCE_LIST, "pulsar")*/
 
   private val topicId = new AtomicInteger(0)
   private def newTopic(): String = TopicName.get(s"topic-${topicId.getAndIncrement()}").toString
 
   private def createDF(
-      topic: String,
-      withOptions: Map[String, String] = Map.empty[String, String],
-      brokerAddress: Option[String] = None) = {
+                        topic: String,
+                        withOptions: Map[String, String] = Map.empty[String, String],
+                        brokerAddress: Option[String] = None) = {
     val df = spark.read
       .format("pulsar")
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
@@ -167,10 +171,10 @@ class PulsarRelationSuite extends QueryTest with SharedSQLContext with PulsarTes
   }
 
   private def check[T: ClassTag](
-      schemaType: SchemaType,
-      datas: Seq[T],
-      encoder: Encoder[T],
-      str: T => String): (DataFrame, DataFrame) = {
+                                  schemaType: SchemaType,
+                                  datas: Seq[T],
+                                  encoder: Encoder[T],
+                                  str: T => String): (DataFrame, DataFrame) = {
     val topic = newTopic()
     sendTypedMessages[T](topic, schemaType, datas, None)
 
@@ -258,6 +262,43 @@ class PulsarRelationSuite extends QueryTest with SharedSQLContext with PulsarTes
     checkAnswer(result, fooSeq.toDF())
   }
 
+  test("test struct type with multiple avro version") {
+    import SchemaData._
+
+    val topic = newTopic()
+
+    sendTypedMessages[Foo](topic, SchemaType.AVRO, fooSeq, None)
+    sendTypedMessages[FooV2](topic, SchemaType.AVRO, fooSeqV2, None)
+
+    val fooSeqV2AsV1 = fooSeqV2.map(fooV2 => Foo(fooV2.i, fooV2.f, null))
+    val fooSeqV1All = fooSeq ++ fooSeqV2AsV1
+
+    val fooSeqV1AsV2 = fooSeq.map(foo => FooV2(foo.i, foo.f))
+    val fooSeqV2All = fooSeqV1AsV2 ++ fooSeqV2
+
+    val reader = spark.read
+      .format("pulsar")
+      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+      .option(ADMIN_URL_OPTION_KEY, adminUrl)
+      .option(TOPIC_MULTI, topic)
+      .option(STARTING_OFFSETS_OPTION_KEY, "earliest")
+      .option(ENDING_OFFSETS_OPTION_KEY, "latest")
+
+    val resultV1 = reader
+      .option(TOPIC_VERSION, "0")
+      .load()
+      .selectExpr("i", "f", "bar")
+
+    checkAnswer(resultV1, fooSeqV1All.toDF())
+
+    val resultV2 = reader
+      .load()
+      .selectExpr("i", "f")
+
+    checkAnswer(resultV2, fooSeqV2All.toDF())
+
+  }
+
   test("test struct types in json") {
     import SchemaData._
 
@@ -286,15 +327,19 @@ class PulsarRelationSuite extends QueryTest with SharedSQLContext with PulsarTes
           .option(SERVICE_URL_OPTION_KEY, serviceUrl)
           .option(ADMIN_URL_OPTION_KEY, adminUrl)
         options.foreach { case (k, v) => reader.option(k, v) }
-        reader.load()
+        reader.load().collect()
       }
       expectedMsgs.foreach { m =>
         assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(m.toLowerCase(Locale.ROOT)))
       }
     }
 
+    testBadOptions("startingOffsets" -> "earliest")(
+      "You should specify topic(s) using one of the topic options:"
+    )
+
     // Specifying an ending offset as the starting point
-    testBadOptions("startingOffsets" -> "latest")(
+    testBadOptions(TOPIC_SINGLE -> "t", "startingOffsets" -> "latest")(
       "starting offset can't be latest " +
         "for batch queries on pulsar")
 
@@ -305,7 +350,7 @@ class PulsarRelationSuite extends QueryTest with SharedSQLContext with PulsarTes
       "starting offset for t can't be latest for batch queries on pulsar")
 
     // Make sure we catch ending offsets that indicate earliest
-    testBadOptions("endingOffsets" -> "earliest")(
+    testBadOptions(TOPIC_SINGLE -> "t", "endingOffsets" -> "earliest")(
       "ending offset can't be" +
         " earliest for batch queries on pulsar")
 

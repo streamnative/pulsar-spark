@@ -13,7 +13,7 @@
  */
 package org.apache.spark.sql.pulsar
 
-import org.apache.spark.sql.execution.datasources.v2.StreamingDataSourceV2Relation
+import org.apache.spark.sql.execution.datasources.v2.{ContinuousScanExec, StreamingDataSourceV2Relation}
 
 // trigger test in continuous mode
 class PulsarContinuousSourceSuite extends PulsarSourceSuiteBase with PulsarContinuousTest
@@ -52,9 +52,10 @@ class PulsarContinuousSourceTopicDeletionSuite extends PulsarContinuousTest {
         createTopic(topic2, partitions = 5)
         eventually(timeout(streamingTimeout)) {
           assert(
-            query.lastExecution.logical
+            query.lastExecution.executedPlan
               .collectFirst {
-                case StreamingDataSourceV2Relation(_, _, _, r: PulsarContinuousReader) => r
+                case scan: ContinuousScanExec if scan.stream.isInstanceOf[PulsarContinuousReader] =>
+                  scan.stream.asInstanceOf[PulsarContinuousReader]
               }
               .exists { r =>
                 // Ensure the new topic is present and the old topic is gone.
@@ -71,3 +72,4 @@ class PulsarContinuousSourceTopicDeletionSuite extends PulsarContinuousTest {
     )
   }
 }
+

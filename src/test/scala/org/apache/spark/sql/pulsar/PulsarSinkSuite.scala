@@ -18,21 +18,19 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.{Date, Locale}
 
 import scala.reflect.ClassTag
-
 import org.scalatest.time.SpanSugar._
-
 import org.apache.pulsar.client.api.Schema
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
-
+import org.apache.spark.SparkException
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, SpecificInternalRow, UnsafeProjection}
 import org.apache.spark.sql.execution.streaming.MemoryStream
 import org.apache.spark.sql.streaming._
-import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{BinaryType, DataType}
 import org.apache.spark.sql._
 
-class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
+class PulsarSinkSuite extends StreamTest with SharedSparkSession with PulsarTest {
   import PulsarOptions._
   import SchemaData._
   import testImplicits._
@@ -49,6 +47,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(TOPIC_SINGLE, topic)
+      .mode("append")
       .save()
 
     checkAnswer(
@@ -57,10 +56,10 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
   }
 
   private def batchCheck[T: ClassTag](
-      schemaInfo: SchemaInfo,
-      data: Seq[T],
-      encoder: Encoder[T],
-      str: T => String) = {
+                                       schemaInfo: SchemaInfo,
+                                       data: Seq[T],
+                                       encoder: Encoder[T],
+                                       str: T => String) = {
     val topic = newTopic()
 
     val df = if (str == null) {
@@ -74,6 +73,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(TOPIC_SINGLE, topic)
+      .mode("append")
       .save()
 
     val df1 = createPulsarReader(topic).selectExpr("CAST(value as STRING) value")
@@ -146,6 +146,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       .option(SERVICE_URL_OPTION_KEY, serviceUrl)
       .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(TOPIC_SINGLE, topic)
+      .mode("append")
       .save()
 
     val df1 = createPulsarReader(topic).selectExpr("i", "f", "bar")
@@ -160,8 +161,11 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
         .format("pulsar")
         .option(SERVICE_URL_OPTION_KEY, serviceUrl)
         .option(ADMIN_URL_OPTION_KEY, adminUrl)
+        .mode("append")
         .save()
     }
+    //ex.getCause.getMessage: "Job aborted due to stage failure ... java.lang.IllegalStateException: topic option required when no '__topic' attribute is present"
+    //ex.getMessage: "Writing job aborted."
     assert(ex.getMessage.toLowerCase(Locale.ROOT).contains("topic option required"))
   }
 
@@ -169,34 +173,22 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     val topic = newTopic()
     val df = Seq[(String, String)](null.asInstanceOf[String] -> "1").toDF("topic", "value")
 
-    // Test bad save mode Ignore
-    var ex = intercept[AnalysisException] {
-      df.write
-        .format("pulsar")
-        .option(SERVICE_URL_OPTION_KEY, serviceUrl)
-        .mode(SaveMode.Ignore)
-        .save()
+    Seq(SaveMode.Ignore, SaveMode.Overwrite).foreach { mode =>
+      val ex = intercept[AnalysisException] {
+        df.write
+          .format("pulsar")
+          .option(SERVICE_URL_OPTION_KEY, serviceUrl)
+          .mode(mode)
+          .save()
+      }
+      assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(s"${mode.toString.toLowerCase(Locale.ROOT)}"))
     }
-    assert(
-      ex.getMessage.toLowerCase(Locale.ROOT).contains(s"save mode ignore not allowed for pulsar"))
-
-    // Test bad save mode Overwrite
-    ex = intercept[AnalysisException] {
-      df.write
-        .format("pulsar")
-        .option(SERVICE_URL_OPTION_KEY, serviceUrl)
-        .mode(SaveMode.Overwrite)
-        .save()
-    }
-    assert(
-      ex.getMessage
-        .toLowerCase(Locale.ROOT)
-        .contains(s"save mode overwrite not allowed for pulsar"))
   }
 
   test("streaming - write to pulsar with topic field") {
     val input = MemoryStream[String]
     val topic = newTopic()
+    createPulsarSchema(topic, Schema.STRING.getSchemaInfo)
 
     val writer = createPulsarWriter(
       input.toDF(),
@@ -225,9 +217,11 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     }
   }
 
+
   test("streaming - write aggregation w/o topic field, with topic option") {
     val input = MemoryStream[String]
     val topic = newTopic()
+    createPulsarSchema(topic, Schema.STRING.getSchemaInfo)
 
     val writer = createPulsarWriter(
       input.toDF().groupBy("value").count(),
@@ -241,6 +235,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       .selectExpr("CAST(__key as STRING) __key", "CAST(value as STRING) value")
       .selectExpr("CAST(__key as INT) __key", "CAST(value as INT) value")
       .as[(Int, Int)]
+
 
     try {
       input.addData("1", "2", "2", "3", "3", "3")
@@ -259,6 +254,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
     }
   }
 
+
   test("streaming - aggregation with topic field and topic option") {
     /* The purpose of this test is to ensure that the topic option
      * overrides the topic field. We begin by writing some data that
@@ -269,6 +265,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
      */
     val input = MemoryStream[String]
     val topic = newTopic()
+    createPulsarSchema(topic, Schema.STRING.getSchemaInfo)
 
     val writer = createPulsarWriter(
       input.toDF().groupBy("value").count(),
@@ -300,10 +297,10 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
   }
 
   private def streamCheck[T: ClassTag](
-      schemaInfo: SchemaInfo,
-      data: Seq[T],
-      encoder: Encoder[T],
-      str: T => String) = {
+                                        schemaInfo: SchemaInfo,
+                                        data: Seq[T],
+                                        encoder: Encoder[T],
+                                        str: T => String) = {
     implicit val enc = encoder
     val input = MemoryStream[T]
     val topic = newTopic()
@@ -459,7 +456,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       ex = intercept[StreamingQueryException] {
         /* key field wrong type */
         writer = createPulsarWriter(input.toDF(), withTopic = Some(topic))(
-          withSelectExpr = s"'$topic' as topic",
+          withSelectExpr = s"'$topic' as __topic",
           "CAST(value as INT) as __key",
           "value"
         )
@@ -470,7 +467,8 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       writer.stop()
     }
     assert(
-      ex.getMessage
+      ex.getCause
+        .getMessage
         .toLowerCase(Locale.ROOT)
         .contains("key attribute type must be a string or binary"))
 
@@ -478,7 +476,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       ex = intercept[StreamingQueryException] {
         /* eventTime field wrong type */
         writer = createPulsarWriter(input.toDF(), withTopic = Some(topic))(
-          withSelectExpr = s"'$topic' as topic",
+          withSelectExpr = s"'$topic' as __topic",
           "value as __eventTime",
           "value"
         )
@@ -489,7 +487,8 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       writer.stop()
     }
     assert(
-      ex.getMessage
+      ex.getCause
+        .getMessage
         .toLowerCase(Locale.ROOT)
         .contains("__eventtime attribute type must be a bigint or timestamp"))
   }
@@ -508,6 +507,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
       .option("pulsar.producer.maxPendingMessages", "100000")
       .option("pulsar.producer.maxPendingMessagesAcrossPartitions", "5000000")
       .option("pulsar.producer.sendTimeoutMs", "30000")
+      .mode("append")
       .save()
 
     checkAnswer(
@@ -518,6 +518,7 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
   test("streaming - write to pulsar with producer case sensitive conf") {
     val input = MemoryStream[String]
     val topic = newTopic()
+    createPulsarSchema(topic, Schema.STRING.getSchemaInfo)
 
     val writer = createPulsarWriter(
       input.toDF(),
@@ -597,11 +598,11 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
   }
 
   private def createPulsarWriter(
-      input: DataFrame,
-      withTopic: Option[String] = None,
-      withOutputMode: Option[OutputMode] = None,
-      withOptions: Map[String, String] = Map[String, String]())(
-      withSelectExpr: String*): StreamingQuery = {
+                                  input: DataFrame,
+                                  withTopic: Option[String] = None,
+                                  withOutputMode: Option[OutputMode] = None,
+                                  withOptions: Map[String, String] = Map[String, String]())(
+                                  withSelectExpr: String*): StreamingQuery = {
     var stream: DataStreamWriter[Row] = null
     withTempDir { checkpointDir =>
       var df = input.toDF()
