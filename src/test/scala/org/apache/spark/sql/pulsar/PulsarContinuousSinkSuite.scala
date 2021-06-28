@@ -22,8 +22,8 @@ import org.apache.pulsar.client.api.Schema
 import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, SpecificInternalRow, UnsafeProjection}
 import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, StreamingQuery, StreamingQueryException, Trigger}
-import org.apache.spark.sql.types.{BinaryType, DataType}
 import org.apache.spark.sql.{AnalysisException, DataFrame, Encoder, Encoders, Row}
+import org.apache.spark.sql.types.{BinaryType, DataType}
 import org.apache.spark.util.Utils
 
 class PulsarContinuousSinkSuite extends PulsarContinuousTest {

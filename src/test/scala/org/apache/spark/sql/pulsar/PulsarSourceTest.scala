@@ -1,10 +1,9 @@
-
 /**
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,8 +30,8 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.physical.AllTuples
 import org.apache.spark.sql.catalyst.streaming.StreamingRelationV2
 import org.apache.spark.sql.catalyst.util.stackTraceToString
-import org.apache.spark.sql.execution.datasources.v2.StreamingDataSourceV2Relation
 import org.apache.spark.sql.connector.read.streaming.{SparkDataStream, Offset => OffsetV2}
+import org.apache.spark.sql.execution.datasources.v2.StreamingDataSourceV2Relation
 import org.apache.spark.sql.execution.streaming.continuous.ContinuousExecution
 import org.apache.spark.sql.execution.streaming._
 import org.apache.spark.sql.execution.streaming.sources.MemorySink
@@ -210,7 +209,8 @@ class PulsarSourceTest extends StreamTest with SharedSparkSession with PulsarTes
 
   override def testStream(
                            _stream: Dataset[_],
-                           outputMode: OutputMode = OutputMode.Append)(actions: StreamAction*): Unit = synchronized {
+                           outputMode: OutputMode = OutputMode.Append)
+                         (actions: StreamAction*): Unit = synchronized {
 
     import org.apache.spark.sql.streaming.util.StreamManualClock
 
@@ -479,7 +479,9 @@ class PulsarSourceTest extends StreamTest with SharedSparkSession with PulsarTes
               failTest(
                 "Timed out while stopping and waiting for microbatchthread to terminate.", e)
             case t: Throwable =>
-              if (currentStream.exception.isDefined && !causedByInterruptedException(currentStream.exception.get)) {
+              if (currentStream.exception.isDefined &&
+                !causedByInterruptedException(currentStream.exception.get)
+              ) {
                 failTest("Error while stopping stream", t)
               }
           } finally {
@@ -500,7 +502,8 @@ class PulsarSourceTest extends StreamTest with SharedSparkSession with PulsarTes
             }
 
             verify(currentStream.exception === Some(thrownException),
-              s"incorrect exception returned by query.exception(). Expected ${currentStream.exception}. Returned $thrownException")
+              s"incorrect exception returned by query.exception(). " +
+                s"Expected ${currentStream.exception}. Returned $thrownException")
 
             val exception = currentStream.exception.get
             verify(exception.cause.getClass === ef.causeClass,

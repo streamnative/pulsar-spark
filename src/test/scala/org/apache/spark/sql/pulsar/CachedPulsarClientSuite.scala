@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentMap
 import java.{util => ju}
 
 import org.scalatest.PrivateMethodTester
+
 import org.apache.pulsar.client.api.PulsarClient
 import org.apache.spark.sql.test. SharedSparkSession
 

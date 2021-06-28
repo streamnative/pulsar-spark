@@ -3,7 +3,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,19 +17,19 @@ import java.io.{ByteArrayOutputStream, CharConversionException}
 import java.nio.charset.MalformedInputException
 
 import scala.collection.mutable.ArrayBuffer
-import scala.util.Try
-
 import com.fasterxml.jackson.core._
-
 import org.apache.spark.SparkException
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
-import org.apache.spark.sql.catalyst.json.{JacksonUtils, JSONOptions}
+import org.apache.spark.sql.catalyst.json.{JSONOptions, JacksonUtils}
+import org.apache.spark.sql.catalyst.util.LegacyDateFormats.FAST_DATE_FORMAT
 import org.apache.spark.sql.catalyst.util._
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 import org.apache.spark.util.Utils
+
+import scala.util.control.NonFatal
 
 private[sql] object CreateJacksonRecordParser extends Serializable {
 
@@ -55,8 +55,24 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
 
   private val factory = options.buildJsonFactory()
 
+  private lazy val timestampFormatter = TimestampFormatter(
+    options.timestampFormat,
+    options.zoneId,
+    options.locale,
+    legacyFormat = FAST_DATE_FORMAT,
+    isParsing = true
+  )
+
+  private lazy val dateFormatter = DateFormatter(
+    options.dateFormat,
+    options.zoneId,
+    options.locale,
+    legacyFormat = FAST_DATE_FORMAT,
+    isParsing = true
+  )
+
   private def makeStructRootConverter(
-      st: StructType): (JsonParser, InternalRow) => InternalRow = {
+                                       st: StructType): (JsonParser, InternalRow) => InternalRow = {
     val fieldConverters = st.map(_.dataType).map(makeConverter).toArray
     (parser: JsonParser, row: InternalRow) =>
       parseJsonToken[InternalRow](parser, st) {
@@ -155,18 +171,19 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
     case TimestampType =>
       (parser: JsonParser) =>
         parseJsonToken[java.lang.Long](parser, dataType) {
-          case VALUE_STRING =>
-            val stringValue = parser.getText
+          case VALUE_STRING if parser.getTextLength > 1 =>
             // This one will lose microseconds parts.
             // See https://issues.apache.org/jira/browse/SPARK-10681.
-            Long.box {
-              Try(TimestampFormatter(options.timestampFormat, options.zoneId, true)
-                .parse(stringValue))
-                .getOrElse {
-                  // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
-                  // compatibility.
-                  DateTimeUtils.stringToTimestamp(UTF8String.fromString(stringValue), options.zoneId).get
-                }
+            try {
+              timestampFormatter.parse(parser.getText)
+            } catch {
+              case NonFatal(e) =>
+                // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
+                // compatibility.
+                val str = DateTimeUtils.cleanLegacyTimestampStr(UTF8String.fromString(parser.getText))
+                DateTimeUtils
+                  .stringToTimestamp(str, options.zoneId)
+                  .getOrElse(throw e)
             }
 
           case VALUE_NUMBER_INT =>
@@ -175,24 +192,26 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
 
     case DateType =>
       (parser: JsonParser) =>
-        parseJsonToken[java.lang.Long](parser, dataType) {
-          case VALUE_STRING =>
-            val stringValue = parser.getText
-            // This one will lose microseconds parts.
-            // See https://issues.apache.org/jira/browse/SPARK-10681.x
-            Long.box {
-              Try(TimestampFormatter(options.timestampFormat, options.zoneId, true)
-                .parse(stringValue))
-                .orElse {
-                  // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
-                  // compatibility.
-                  Try(DateTimeUtils.stringToTimestamp(UTF8String.fromString(stringValue), options.zoneId).get)
-                }
-                .getOrElse {
-                  // In Spark 1.5.0, we store the data as number of days since epoch in string.
-                  // So, we just convert it to Long.
-                  stringValue.toLong
-                }
+        parseJsonToken[java.lang.Integer](parser, dataType) {
+          case VALUE_STRING if parser.getTextLength > 1 =>
+            try {
+              dateFormatter.parse(parser.getText)
+            } catch {
+              case NonFatal(e) =>
+                // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
+                // compatibility.
+                val str = DateTimeUtils.cleanLegacyTimestampStr(UTF8String.fromString(parser.getText))
+                DateTimeUtils
+                  .stringToDate(str, options.zoneId)
+                  .getOrElse {
+                    // In Spark 1.5.0, we store the data as number of days since epoch in string.
+                    // So, we just convert it to Int.
+                    try {
+                      RebaseDateTime.rebaseJulianToGregorianDays(parser.getText().toInt)
+                    } catch {
+                      case _: NumberFormatException => throw e
+                    }
+                  }.asInstanceOf[Integer]
             }
         }
 
@@ -205,7 +224,7 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
     case dt: DecimalType =>
       (parser: JsonParser) =>
         parseJsonToken[Decimal](parser, dataType) {
-          case (VALUE_NUMBER_INT | VALUE_NUMBER_FLOAT) =>
+          case VALUE_NUMBER_INT | VALUE_NUMBER_FLOAT =>
             Decimal(parser.getDecimalValue, dt.precision, dt.scale)
         }
 
@@ -249,7 +268,7 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
    * token, call `failedConversion` to handle the token.
    */
   private def parseJsonToken[R >: Null](parser: JsonParser, dataType: DataType)(
-      f: PartialFunction[JsonToken, R]): R = {
+    f: PartialFunction[JsonToken, R]): R = {
     parser.getCurrentToken match {
       case FIELD_NAME =>
         // There are useless FIELD_NAMEs between START_OBJECT and END_OBJECT tokens
@@ -267,8 +286,8 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
    * to guard the non string types.
    */
   private def failedConversion[R >: Null](
-      parser: JsonParser,
-      dataType: DataType): PartialFunction[JsonToken, R] = {
+                                           parser: JsonParser,
+                                           dataType: DataType): PartialFunction[JsonToken, R] = {
     case VALUE_STRING if parser.getTextLength < 1 =>
       // If conversion is failed, this produces `null` rather than throwing exception.
       // This will protect the mismatch of types.
@@ -286,11 +305,11 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
    * Fields in the json that are not defined in the requested schema will be dropped.
    */
   private def convertObject(
-      parser: JsonParser,
-      schema: StructType,
-      fieldConverters: Array[ValueConverter],
-      row: InternalRow): InternalRow = {
-    val allFields = 0 until schema.fields.length
+                             parser: JsonParser,
+                             schema: StructType,
+                             fieldConverters: Array[ValueConverter],
+                             row: InternalRow): InternalRow = {
+    val allFields = schema.fields.indices
     val nullFields = collection.mutable.Set(allFields: _*)
     while (nextUntil(parser, JsonToken.END_OBJECT)) {
       schema.getFieldIndex(parser.getCurrentName) match {
@@ -337,13 +356,13 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
    * Parse the JSON input to [[InternalRow]].
    *
    * @param recordLiteral an optional function that will be used to generate
-   *   the corrupt record text instead of record.toString
+   *                      the corrupt record text instead of record.toString
    */
   def parse[T](
-      record: T,
-      createParser: (JsonFactory, T) => JsonParser,
-      recordLiteral: T => UTF8String,
-      row: InternalRow): InternalRow = {
+                record: T,
+                createParser: (JsonFactory, T) => JsonParser,
+                recordLiteral: T => UTF8String,
+                row: InternalRow): InternalRow = {
     try {
       Utils.tryWithResource(createParser(factory, record)) { parser =>
         // a null first token is equivalent to testing for input.trim.isEmpty
@@ -358,7 +377,7 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
         }
       }
     } catch {
-      case e @ (_: RuntimeException | _: JsonProcessingException | _: MalformedInputException) =>
+      case e@(_: RuntimeException | _: JsonProcessingException | _: MalformedInputException) =>
         // JSON parser currently doesn't support partial results for corrupted records.
         // For such records, all fields other than the meta fields are set to `null`.
         throw BadRecordException(() => recordLiteral(record), () => None, e)
@@ -375,9 +394,9 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
 }
 
 class FailureSafeRecordParser[IN](
-    rawParser: (IN, InternalRow) => InternalRow,
-    mode: ParseMode,
-    schema: StructType) {
+                                   rawParser: (IN, InternalRow) => InternalRow,
+                                   mode: ParseMode,
+                                   schema: StructType) {
 
   def parse(input: IN, row: InternalRow): InternalRow = {
     try {

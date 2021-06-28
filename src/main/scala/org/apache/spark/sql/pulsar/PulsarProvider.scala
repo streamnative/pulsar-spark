@@ -3,7 +3,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -85,7 +85,8 @@ private[pulsar] class PulsarProvider
     val caseInsensitiveParams = validateStreamOptions(parameters)
     val confs = prepareConfForReader(parameters)
 
-    val subscriptionNamePrefix = s"${parameters.getOrElse(SUBSCRIPTION_PREFIX_OPTION_KEY, s"spark-pulsar-${UUID.randomUUID}-${metadataPath.hashCode}")}"
+    val subscriptionNamePrefix = s"${parameters
+      .getOrElse(SUBSCRIPTION_PREFIX_OPTION_KEY, s"spark-pulsar-${UUID.randomUUID}-${metadataPath.hashCode}")}"
     val tpVersionOpt = parameters.get(PulsarOptions.TOPIC_VERSION)
 
     val metadataReader = PulsarMetadataReader(
@@ -122,7 +123,8 @@ private[pulsar] class PulsarProvider
                                parameters: Map[String, String]): BaseRelation = {
     val caseInsensitiveParams = validateBatchOptions(parameters)
 
-    val subscriptionNamePrefix = s"${parameters.getOrElse(SUBSCRIPTION_PREFIX_OPTION_KEY, s"spark-pulsar-batch-${UUID.randomUUID}")}"
+    val subscriptionNamePrefix = s"${parameters
+      .getOrElse(SUBSCRIPTION_PREFIX_OPTION_KEY, s"spark-pulsar-batch-${UUID.randomUUID}")}"
     val tpVersionOpt = parameters.get(PulsarOptions.TOPIC_VERSION)
 
     val confs = prepareConfForReader(parameters)
@@ -262,7 +264,9 @@ private[pulsar] class PulsarProvider
 
   override def supportsExternalMetadata(): Boolean = true
 
-  override def getTable(schema: StructType, partitioning: Array[Transform], properties: ju.Map[String, String]): Table = {
+  override def getTable(schema: StructType,
+                        partitioning: Array[Transform],
+                        properties: ju.Map[String, String]): Table = {
     logDebug(s"Table properties: $properties with specified schema")
     new PulsarTable(schema)
   }
@@ -285,10 +289,13 @@ private[pulsar] object PulsarProvider extends Logging {
       }
       .toMap
 
-    /*    lowercaseKeyMap.map { case (k, v) =>
+    /**
+     *
+     * lowercaseKeyMap.map { case (k, v) =>
           clientConfKeys.getOrElse(
             k, throw new IllegalArgumentException(s"$k not supported by pulsar")) -> v
-        }*/
+        }
+     */
 
     lowercaseKeyMap
   }
@@ -301,10 +308,13 @@ private[pulsar] object PulsarProvider extends Logging {
       }
       .toMap
 
-    /*    lowercaseKeyMap.map { case (k, v) =>
+    /**
+     *
+     * lowercaseKeyMap.map { case (k, v) =>
           producerConfKeys.getOrElse(
             k, throw new IllegalArgumentException(s"$k not supported by pulsar")) -> v
-        }*/
+        }
+     */
 
     lowercaseKeyMap.map { case (k, v) =>
       val keyOpt = producerConfKeys.filter(sk => sk.toLowerCase == k)
@@ -324,10 +334,13 @@ private[pulsar] object PulsarProvider extends Logging {
       }
       .toMap
 
-    /*    lowercaseKeyMap.map { case (k, v) =>
+    /**
+     *
+     * lowercaseKeyMap.map { case (k, v) =>
           readerConfKeys.getOrElse(
             k, throw new IllegalArgumentException(s"$k not supported by pulsar")) -> v
-        }*/
+        }
+     */
 
     lowercaseKeyMap
   }

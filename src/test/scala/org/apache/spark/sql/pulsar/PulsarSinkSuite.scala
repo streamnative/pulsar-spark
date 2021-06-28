@@ -19,10 +19,11 @@ import java.util.{Date, Locale}
 
 import scala.reflect.ClassTag
 import org.scalatest.time.SpanSugar._
+
 import org.apache.pulsar.client.api.Schema
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
-import org.apache.spark.SparkException
+
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, SpecificInternalRow, UnsafeProjection}
 import org.apache.spark.sql.execution.streaming.MemoryStream
 import org.apache.spark.sql.streaming._
@@ -164,9 +165,12 @@ class PulsarSinkSuite extends StreamTest with SharedSparkSession with PulsarTest
         .mode("append")
         .save()
     }
-    //ex.getCause.getMessage: "Job aborted due to stage failure ... java.lang.IllegalStateException: topic option required when no '__topic' attribute is present"
-    //ex.getMessage: "Writing job aborted."
-    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains("topic option required"))
+    // ex.getCause.getMessage: "Job aborted due to stage failure ...
+    // ...java.lang.IllegalStateException: topic option required when no '__topic' attribute is present"
+    // ex.getMessage: "Writing job aborted."
+    assert(ex.getMessage
+      .toLowerCase(Locale.ROOT)
+      .contains("topic option required"))
   }
 
   test("batch - unsupported save modes") {
@@ -181,7 +185,9 @@ class PulsarSinkSuite extends StreamTest with SharedSparkSession with PulsarTest
           .mode(mode)
           .save()
       }
-      assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(s"${mode.toString.toLowerCase(Locale.ROOT)}"))
+      assert(ex.getMessage
+        .toLowerCase(Locale.ROOT)
+        .contains(s"${mode.toString.toLowerCase(Locale.ROOT)}"))
     }
   }
 

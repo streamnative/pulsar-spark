@@ -1,7 +1,21 @@
+/**
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.spark.sql.pulsar
 
 import java.util.UUID
 
+import scala.collection.JavaConverters._
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.connector.read.{Batch, Scan}
 import org.apache.spark.sql.connector.read.streaming.{ContinuousStream, MicroBatchStream}
@@ -9,21 +23,22 @@ import org.apache.spark.sql.pulsar.PulsarSourceUtils.reportDataLossFunc
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.util.Utils
+import PulsarOptions._
+import PulsarProvider._
 
-import scala.collection.JavaConverters._
+import scala.util.control.NonFatal
 
 private[pulsar] class PulsarScan(structType: StructType, options: CaseInsensitiveStringMap)
   extends Scan
   with Logging {
 
-  import PulsarOptions._
-  import PulsarProvider._
-
   override def readSchema(): StructType = structType
 
   override def toBatch: Batch = {
     val parameters = options.asScala.toMap
-    val subscriptionNamePrefix = s"${parameters.getOrElse(SUBSCRIPTION_PREFIX_OPTION_KEY, s"spark-pulsar-batch-${UUID.randomUUID}")}"
+    val subscriptionNamePrefix = s"${parameters
+      .getOrElse(SUBSCRIPTION_PREFIX_OPTION_KEY,
+        s"spark-pulsar-batch-${UUID.randomUUID}")}"
 
     val caseInsensitiveParams = validateBatchOptions(parameters)
     val (clientConf, readerConf, serviceUrl, adminUrl) = prepareConfForReader(parameters)
@@ -69,7 +84,9 @@ private[pulsar] class PulsarScan(structType: StructType, options: CaseInsensitiv
 
   override def toMicroBatchStream(checkpointLocation: String): MicroBatchStream = {
     val parameters = options.asScala.toMap
-    val subscriptionNamePrefix = s"${parameters.getOrElse(SUBSCRIPTION_PREFIX_OPTION_KEY, s"spark-pulsar-${UUID.randomUUID}-${checkpointLocation.hashCode}")}"
+    val subscriptionNamePrefix = s"${parameters
+      .getOrElse(SUBSCRIPTION_PREFIX_OPTION_KEY,
+        s"spark-pulsar-${UUID.randomUUID}-${checkpointLocation.hashCode}")}"
 
     val caseInsensitiveParams = validateStreamOptions(parameters)
     val (clientConf, readerConf, serviceUrl, adminUrl) = prepareConfForReader(parameters)
@@ -89,7 +106,7 @@ private[pulsar] class PulsarScan(structType: StructType, options: CaseInsensitiv
     try {
       metadataReader.setupCursor(offset)
     } catch {
-      case e: Exception => logWarning(s"Exception while setup cursor ${e.getMessage}")
+      case NonFatal(e) => logWarning(s"Exception while setup cursor ${e.getMessage}")
     }
 
     new PulsarMicroBatchStream(
@@ -118,7 +135,7 @@ private[pulsar] class PulsarScan(structType: StructType, options: CaseInsensitiv
       subscriptionNamePrefix,
       caseInsensitiveParams)
 
-    //metadataReader.getAndCheckCompatible(schema)
+    // metadataReader.getAndCheckCompatible(schema)
 
     val offset = metadataReader.startingOffsetForEachTopic(
       caseInsensitiveParams,

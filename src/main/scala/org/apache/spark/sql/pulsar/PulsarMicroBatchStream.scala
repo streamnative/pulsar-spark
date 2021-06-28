@@ -1,3 +1,16 @@
+/**
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.spark.sql.pulsar
 
 import java.{util => ju}
@@ -5,11 +18,14 @@ import java.{util => ju}
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.MessageIdImpl
 import org.apache.pulsar.common.schema.SchemaInfo
+
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.connector.read.{InputPartition, PartitionReaderFactory}
 import org.apache.spark.sql.connector.read.streaming.{MicroBatchStream, Offset}
+
+import PulsarSourceUtils._
 
 class PulsarMicroBatchStream(
                               metadataReader: PulsarMetadataReader,
@@ -23,7 +39,6 @@ class PulsarMicroBatchStream(
                               jsonOptions: JSONOptionsInRead
                             ) extends MicroBatchStream with Logging {
 
-  import PulsarSourceUtils._
 
   lazy val pulsarSchema: SchemaInfo = {
     val tpVersionOpt = jsonOptions.parameters.get(PulsarOptions.TOPIC_VERSION)
@@ -34,7 +49,9 @@ class PulsarMicroBatchStream(
 
   override def initialOffset(): Offset = {
     val metadataLog =
-      new PulsarSourceInitialOffsetWriter(SparkSession.getActiveSession.get, metadataPath)
+      new PulsarSourceInitialOffsetWriter(
+        SparkSession.getActiveSession.getOrElse(throw new RuntimeException("No active SparkSession found !")),
+        metadataPath)
     metadataLog.getInitialOffset(
       metadataReader,
       startingOffsets,
@@ -42,7 +59,8 @@ class PulsarMicroBatchStream(
       reportDataLoss)
   }
 
-  override def latestOffset(): Offset =  SpecificPulsarOffset(metadataReader.fetchLatestOffsets().topicOffsets)
+  override def latestOffset(): Offset =
+    SpecificPulsarOffset(metadataReader.fetchLatestOffsets().topicOffsets)
 
   override def planInputPartitions(start: Offset, `end`: Offset): Array[InputPartition] = {
 
@@ -57,7 +75,8 @@ class PulsarMicroBatchStream(
       reportDataLoss(s"$deletedPartitions are gone. Some data may have been missed")
     }
 
-    val newStartsOffsets: Map[String, MessageId] = startPartitionOffsets ++ newPartitionInitialOffsets
+    val newStartsOffsets: Map[String, MessageId] =
+      startPartitionOffsets ++ newPartitionInitialOffsets
 
     val offsetRanges = endPartitionOffsets.keySet
       .map { tp =>
@@ -114,13 +133,16 @@ class PulsarMicroBatchStream(
 
   override def createReaderFactory(): PartitionReaderFactory = PulsarBatchReaderFactory
 
-  override def deserializeOffset(json: String): Offset =  SpecificPulsarOffset(JsonUtils.topicOffsets(json))
+  override def deserializeOffset(json: String): Offset =
+    SpecificPulsarOffset(JsonUtils.topicOffsets(json))
 
   override def commit(`end`: Offset): Unit = {}
 
   override def stop(): Unit = {
     logInfo("Stop PulsarMicroBatchStreamReader ..")
-    if (!jsonOptions.parameters.get(PulsarOptions.RETAIN_SUBCRIPTION_OPTION_KEY).getOrElse("false").toBoolean)
+    if (!jsonOptions.parameters
+      .get(PulsarOptions.RETAIN_SUBCRIPTION_OPTION_KEY)
+      .getOrElse("false").toBoolean)
     {
       try {
         metadataReader.removeCursor()

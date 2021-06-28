@@ -38,11 +38,21 @@ object PulsarConfigurationUtils {
     nonIgnoredFields[T].map(s => s.toLowerCase(Locale.ROOT) -> s).toMap
   }
 
-/*  val clientConfKeys = insensitive2Sensitive[ClientConfigurationData]
+/**
+ *
+  val clientConfKeys = insensitive2Sensitive[ClientConfigurationData]
   val producerConfKeys = insensitive2Sensitive[ProducerConfigurationData]
   val consumerConfKeys = insensitive2Sensitive[ConsumerConfigurationData[_]]
-  val readerConfKeys = insensitive2Sensitive[ReaderConfigurationData[_]]*/
+  val readerConfKeys = insensitive2Sensitive[ReaderConfigurationData[_]]
+ */
 
-  val producerConfKeys = Seq("compressionType", "autoUpdatePartitions", "messageRoutingMode", "maxPendingMessagesAcrossPartitions", "batchingMaxMessages", "chunkingEnabled", "batchingMaxBytes", "batchingPartitionSwitchFrequencyByPublishDelay", "properties", "blockIfQueueFull", "hashingScheme", "topicName", "producerName", "sendTimeoutMs", "initialSequenceId", "batchingEnabled", "multiSchema", "maxPendingMessages", "cryptoFailureAction", "batchingMaxPublishDelayMicros", "autoUpdatePartitionsIntervalSeconds")
+  val producerConfKeys = Seq(
+    "compressionType", "autoUpdatePartitions", "messageRoutingMode",
+    "maxPendingMessagesAcrossPartitions", "batchingMaxMessages", "chunkingEnabled",
+    "batchingMaxBytes", "batchingPartitionSwitchFrequencyByPublishDelay", "properties",
+    "blockIfQueueFull", "hashingScheme", "topicName",
+    "producerName", "sendTimeoutMs", "initialSequenceId",
+    "batchingEnabled", "multiSchema", "maxPendingMessages",
+    "cryptoFailureAction", "batchingMaxPublishDelayMicros", "autoUpdatePartitionsIntervalSeconds")
 
 }

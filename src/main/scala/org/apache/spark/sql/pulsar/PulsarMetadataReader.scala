@@ -19,17 +19,20 @@ import java.util.{Date, Optional, UUID}
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
+import scala.collection.mutable
+import scala.collection.JavaConverters._
+
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.{Message, MessageId, PulsarClient, SubscriptionInitialPosition, SubscriptionType}
 import org.apache.pulsar.client.impl.MessageIdImpl
 import org.apache.pulsar.client.impl.schema.BytesSchema
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
+
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.pulsar.PulsarOptions.{TOPIC_OPTION_KEYS, TOPIC_PARTITION}
 import org.apache.spark.sql.types.StructType
 
-import scala.collection.mutable
 
 /**
  * A Helper class that responsible for:
@@ -45,26 +48,23 @@ private[pulsar] case class PulsarMetadataReader(
   extends Closeable
     with Logging {
 
-  import scala.collection.JavaConverters._
 
-  protected val admin: PulsarAdmin =  AdminUtils.buildAdmin(adminUrl, clientConf)
+  protected val admin: PulsarAdmin = AdminUtils.buildAdmin(adminUrl, clientConf)
   protected var client: PulsarClient = null
 
-  lazy private val topics: Seq[String] = caseInsensitiveParameters.find(x => TOPIC_OPTION_KEYS.contains(x._1)).get match {
-    case ("topic", value) =>
-      TopicName.get(value).toString :: Nil
-    case ("topics", value) =>
-      value.split(",").map(_.trim).filter(_.nonEmpty).map(TopicName.get(_).toString)
-    case ("topicspattern", value) =>
-      getTopics(value)
-  }
+  val paramKeysOnly = caseInsensitiveParameters map { case (key, _ ) => key}
 
-  private var topicPartitions: Seq[String] =
-    if (caseInsensitiveParameters.find(x => x._1 == TOPIC_PARTITION).isDefined) {
-      caseInsensitiveParameters.find(x => x._1 == TOPIC_PARTITION).get match {
-        case (TOPIC_PARTITION, value) =>
-          value.split(",").map(_.trim).filter(_.nonEmpty).map(TopicName.get(_).toString)
-      }
+  lazy private val topics: Seq[String] = getTopics()
+
+  private var topicPartitions: Seq[String] = {
+
+    if (paramKeysOnly.find(k => k == TOPIC_PARTITION).isDefined) {
+      val tpValue = caseInsensitiveParameters(TOPIC_PARTITION)
+      tpValue
+        .split(",")
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .map(TopicName.get(_).toString)
     } else {
       topics.flatMap { tp =>
         val partNum = admin.topics().getPartitionedTopicMetadata(tp).partitions
@@ -75,9 +75,13 @@ private[pulsar] case class PulsarMetadataReader(
         }
       }
     }
+  }
 
-  private val deleteExpiredSubs = caseInsensitiveParameters.getOrElse(PulsarOptions.DELETE_EXPIRED_SUBSCRIPTION_OPTION_KEY, "false").toBoolean
-  private val discoverTopicChanges: Boolean = caseInsensitiveParameters.getOrElse(PulsarOptions.DISCOVER_TOPIC_CHANGES, "true").toBoolean
+  private val deleteExpiredSubs = caseInsensitiveParameters
+    .getOrElse(PulsarOptions.DELETE_EXPIRED_SUBSCRIPTION_OPTION_KEY, "false").toBoolean
+
+  private val discoverTopicChanges: Boolean = caseInsensitiveParameters
+    .getOrElse(PulsarOptions.DISCOVER_TOPIC_CHANGES, "true").toBoolean
 
   override def close(): Unit = {
     admin.close()
@@ -100,7 +104,7 @@ private[pulsar] case class PulsarMetadataReader(
       case (tp, mid) =>
         val umid = mid match {
           case midImp: MessageIdImpl => UserProvidedMessageId(midImp)
-          case _ : UserProvidedMessageId =>  mid.asInstanceOf[UserProvidedMessageId]
+          case _ : UserProvidedMessageId => mid.asInstanceOf[UserProvidedMessageId]
         }
         try {
           val subNames = admin.topics().getSubscriptions(tp)
@@ -201,7 +205,8 @@ private[pulsar] case class PulsarMetadataReader(
     }
   }
 
-  def getAndCheckCompatible(schema: Option[StructType], versionOpt: Option[String]): StructType = {
+  def getAndCheckCompatible(schema: Option[StructType],
+                            versionOpt: Option[String]): StructType = {
     val inferredSchema = getSchema(versionOpt)
     require(
       schema.isEmpty || inferredSchema == schema.get,
@@ -209,7 +214,8 @@ private[pulsar] case class PulsarMetadataReader(
     inferredSchema
   }
 
-  def getAndCheckCompatible(schema: Optional[StructType], versionOpt: Option[String]): StructType = {
+  def getAndCheckCompatible(schema: Optional[StructType],
+                            versionOpt: Option[String]): StructType = {
     val inferredSchema = getSchema(versionOpt)
     require(
       !schema.isPresent || inferredSchema == schema.get,
@@ -243,11 +249,11 @@ private[pulsar] case class PulsarMetadataReader(
 
   def getPulsarSchema(topic: String, versionOpt: Option[String]): SchemaInfo = {
     try {
-      if (versionOpt.isEmpty)
-        admin.schemas().getSchemaInfo(TopicName.get(topic).toString)
-      else {
-        val version = versionOpt.get.toLong
-        admin.schemas().getSchemaInfo(TopicName.get(topic).toString, version)
+      versionOpt match {
+        case Some(version) =>
+          admin.schemas().getSchemaInfo(TopicName.get(topic).toString, version.toLong)
+        case None =>
+          admin.schemas().getSchemaInfo(TopicName.get(topic).toString)
       }
     } catch {
       case e: PulsarAdminException if e.getStatusCode == 404 =>
@@ -316,20 +322,25 @@ private[pulsar] case class PulsarMetadataReader(
   }
 
   private def getTopics(): Seq[String] = {
-    caseInsensitiveParameters.find(x => TOPIC_OPTION_KEYS.contains(x._1)).get match {
-      case ("topic", value) =>
-        TopicName.get(value).toString :: Nil
-      case ("topics", value) =>
-        value.split(",").map(_.trim).filter(_.nonEmpty).map(TopicName.get(_).toString)
-      case ("topicspattern", value) =>
-        getTopics(value)
+    paramKeysOnly.find(TOPIC_OPTION_KEYS.contains(_)) match {
+      case Some(key) =>
+        val topicValue = caseInsensitiveParameters(key)
+        key match {
+          case "topic" => TopicName.get(topicValue).toString :: Nil
+          case "topics" => topicValue
+            .split(",")
+            .map(_.trim)
+            .filter(_.nonEmpty)
+            .map(TopicName.get(_).toString)
+          case "topicspattern" => getTopics(topicValue)
+        }
+      case None => Seq()
     }
   }
 
   private def getTopicPartitions(): Seq[String] = {
     //getTopics()
-    if (topicPartitions == null || discoverTopicChanges)
-
+    if (topicPartitions == null || discoverTopicChanges) {
       topicPartitions = getTopics().flatMap { tp =>
         val partNum = admin.topics().getPartitionedTopicMetadata(tp).partitions
         if (partNum == 0) {
@@ -338,6 +349,7 @@ private[pulsar] case class PulsarMetadataReader(
           (0 until partNum).map(tp + PulsarOptions.PARTITION_SUFFIX + _)
         }
       }
+    }
     topicPartitions
   }
 

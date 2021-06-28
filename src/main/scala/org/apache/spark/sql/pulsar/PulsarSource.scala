@@ -18,13 +18,14 @@ import java.{util => ju}
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.MessageIdImpl
 import org.apache.pulsar.common.schema.SchemaInfo
-
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
 import org.apache.spark.sql.types.StructType
+
+import scala.util.control.NonFatal
 
 private[pulsar] class PulsarSource(
     sqlContext: SQLContext,
@@ -166,11 +167,13 @@ private[pulsar] class PulsarSource(
   }
 
   override def stop(): Unit = synchronized {
-    if (!jsonOptions.parameters.get(PulsarOptions.RETAIN_SUBCRIPTION_OPTION_KEY).getOrElse("false").toBoolean) {
+    if (!jsonOptions.parameters
+      .get(PulsarOptions.RETAIN_SUBCRIPTION_OPTION_KEY)
+      .getOrElse("false").toBoolean) {
       try {
         metadataReader.removeCursor()
       } catch {
-        case e: Exception =>
+        case NonFatal(e) =>
           logWarning(s"Exception while remove cursor ${e.getMessage}")
           logDebug(s"Error stack trace while remove cursor: ${e.printStackTrace()}")
       }

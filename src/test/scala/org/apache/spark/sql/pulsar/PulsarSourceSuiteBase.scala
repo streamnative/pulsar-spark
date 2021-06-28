@@ -18,8 +18,10 @@ import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 
 import scala.reflect.ClassTag
+
 import org.apache.pulsar.client.api.{MessageId, Schema}
 import org.apache.pulsar.common.schema.SchemaInfo
+
 import org.apache.spark.sql.execution.streaming.StreamExecution
 import org.apache.spark.sql.{Encoder, Encoders}
 

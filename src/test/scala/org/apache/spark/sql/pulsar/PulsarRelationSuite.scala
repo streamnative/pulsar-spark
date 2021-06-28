@@ -17,10 +17,13 @@ import java.text.SimpleDateFormat
 import java.time.{Clock, Instant, ZoneId}
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.{Date, Locale}
+
 import scala.reflect.ClassTag
+
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaType
+
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.{DataFrame, Encoder, Encoders, QueryTest}
 
@@ -29,10 +32,14 @@ class PulsarRelationSuite extends QueryTest with SharedSparkSession with PulsarT
   import SchemaData._
   import testImplicits._
 
-  /*  override protected def sparkConf: SparkConf =
+
+  /**
+   *
+   *  override protected def sparkConf: SparkConf =
       super
         .sparkConf
-        .set(SQLConf.USE_V1_SOURCE_LIST, "pulsar")*/
+        .set(SQLConf.USE_V1_SOURCE_LIST, "pulsar")
+   */
 
   private val topicId = new AtomicInteger(0)
   private def newTopic(): String = TopicName.get(s"topic-${topicId.getAndIncrement()}").toString

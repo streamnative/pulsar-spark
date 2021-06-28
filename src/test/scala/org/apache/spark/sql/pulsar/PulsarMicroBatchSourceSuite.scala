@@ -23,7 +23,6 @@ import org.apache.spark.sql.execution.streaming.StreamingExecutionRelation
 import org.apache.spark.sql.functions.{count, window}
 import org.apache.spark.sql.pulsar.PulsarOptions.{ADMIN_URL_OPTION_KEY, SERVICE_URL_OPTION_KEY, TOPIC_PATTERN}
 import org.apache.spark.sql.streaming.Trigger
-//import org.apache.spark.sql.streaming.ProcessingTime
 import org.apache.spark.util.Utils
 
 class PulsarMicroBatchV1SourceSuite extends PulsarMicroBatchSourceSuiteBase {

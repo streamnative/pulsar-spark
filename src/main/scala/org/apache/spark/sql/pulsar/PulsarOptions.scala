@@ -29,7 +29,7 @@ private[pulsar] object PulsarOptions {
   val TOPIC_SINGLE = "topic"
   val TOPIC_MULTI = "topics"
   val TOPIC_PATTERN = "topicspattern"
-  val TOPIC_PARTITION="topicpartitions"
+  val TOPIC_PARTITION = "topicpartitions"
   val TOPIC_VERSION = "topic.version"
 
   val PARTITION_SUFFIX = TopicName.PARTITIONED_TOPIC_SUFFIX
