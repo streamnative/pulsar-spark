@@ -329,7 +329,9 @@
                   <include>com.github.luben:*</include>
                   <include>javax.*:*</include>
                   <include>org.apache.pulsar*:*</include>
+<!--
                   <include>org.bouncycastle*:*</include>
+-->
                   <include>org.lz4*:*</include>
                   <include>commons-io:commons-io:jar:*</include>
                 </includes>
