@@ -52,7 +52,8 @@ private object PulsarBatchReaderFactory extends PartitionReaderFactory {
       case id => id
     }
 
-    val updatedOffsetRange = PulsarOffsetRange(p.offsetRange.topic, start, end, p.offsetRange.preferredLoc)
+    val updatedOffsetRange = PulsarOffsetRange(
+      p.offsetRange.topic, start, end, p.offsetRange.preferredLoc)
 
     if (start == end || !messageExists(end)) {
       return PulsarMicroBatchEmptyInputPartitionReader
@@ -73,7 +74,9 @@ object PulsarMicroBatchEmptyInputPartitionReader
   extends PartitionReader[InternalRow]
     with Logging {
   override def next(): Boolean = false
+
   override def get(): InternalRow = null
+
   override def close(): Unit = {}
 }
 

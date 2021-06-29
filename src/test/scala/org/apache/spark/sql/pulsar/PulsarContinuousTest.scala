@@ -26,7 +26,7 @@ import org.apache.spark.sql.test.TestSparkSession
 trait PulsarContinuousTest extends PulsarSourceTest {
 
   override val defaultTrigger = Trigger.Continuous(1000)
-  //override val defaultUseV2Sink = true
+  // override val defaultUseV2Sink = true
 
   // We need more than the default local[2] to be able to schedule all partitions simultaneously.
   override protected def createSparkSession =

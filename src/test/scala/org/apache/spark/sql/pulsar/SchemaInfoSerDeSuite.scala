@@ -16,9 +16,11 @@ package org.apache.spark.sql.pulsar
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
 import java.nio.charset.StandardCharsets
 
-import org.apache.avro.{Schema => ASchema}
-import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
 import org.scalatest.funsuite.AnyFunSuite
+
+import org.apache.avro.{Schema => ASchema}
+
+import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
 
 class SchemaInfoSerDeSuite extends AnyFunSuite {
 

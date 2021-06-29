@@ -16,6 +16,7 @@ package org.apache.spark.sql.pulsar
 import java.io.File
 
 import org.apache.pulsar.client.impl.MessageIdImpl
+
 import org.apache.spark.sql.execution.streaming.{LongOffset, OffsetSeq, OffsetSeqLog, SerializedOffset}
 import org.apache.spark.sql.streaming.OffsetSuite
 import org.apache.spark.sql.test.SharedSparkSession

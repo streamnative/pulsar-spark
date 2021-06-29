@@ -17,15 +17,16 @@ import java.{util => ju}
 
 import scala.collection.JavaConverters._
 
+import PulsarProvider._
+
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.connector.catalog.{SupportsRead, SupportsWrite, Table, TableCapability}
+import org.apache.spark.sql.connector.catalog.TableCapability._
 import org.apache.spark.sql.connector.read.ScanBuilder
 import org.apache.spark.sql.connector.write.{LogicalWriteInfo, WriteBuilder}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
-import TableCapability._
 
-import PulsarProvider._
 
 private[pulsar] class PulsarTable(structType: StructType)
   extends Table
@@ -47,7 +48,8 @@ private[pulsar] class PulsarTable(structType: StructType)
       ACCEPT_ANY_SCHEMA).asJava
   }
 
-  override def newScanBuilder(options: CaseInsensitiveStringMap): ScanBuilder = () => new PulsarScan(structType, options)
+  override def newScanBuilder(options: CaseInsensitiveStringMap): ScanBuilder =
+    () => new PulsarScan(structType, options)
 
   override def newWriteBuilder(info: LogicalWriteInfo): WriteBuilder = {
     val options = info.options()

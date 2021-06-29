@@ -17,11 +17,12 @@ import java.{util => ju}
 import java.util.{Locale, UUID}
 
 import scala.collection.JavaConverters._
+
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.common.naming.TopicName
+
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SaveMode, SparkSession}
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.connector.catalog.{Table, TableProvider}
@@ -32,6 +33,7 @@ import org.apache.spark.sql.sources._
 import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
+import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SaveMode, SparkSession}
 import org.apache.spark.util.Utils
 
 /**
@@ -85,8 +87,10 @@ private[pulsar] class PulsarProvider
     val caseInsensitiveParams = validateStreamOptions(parameters)
     val confs = prepareConfForReader(parameters)
 
-    val subscriptionNamePrefix = s"${parameters
-      .getOrElse(SUBSCRIPTION_PREFIX_OPTION_KEY, s"spark-pulsar-${UUID.randomUUID}-${metadataPath.hashCode}")}"
+    val subscriptionNamePrefix = s"${
+      parameters
+      .getOrElse(SUBSCRIPTION_PREFIX_OPTION_KEY,
+        s"spark-pulsar-${UUID.randomUUID}-${metadataPath.hashCode}")}"
     val tpVersionOpt = parameters.get(PulsarOptions.TOPIC_VERSION)
 
     val metadataReader = PulsarMetadataReader(
@@ -241,7 +245,10 @@ private[pulsar] class PulsarProvider
   }
 
   override def inferSchema(options: CaseInsensitiveStringMap): StructType = {
-    val caseInsensitiveParams = options.asScala.map { case (k, v) => (k.toLowerCase(Locale.ROOT), v) }.toMap
+    val caseInsensitiveParams = options
+      .asScala
+      .map { case (k, v) => (k.toLowerCase(Locale.ROOT), v) }
+      .toMap
     logDebug(s"table's case-insensitive params: $caseInsensitiveParams ")
     val validCaseInsensitiveParams = validateGeneralOptions(caseInsensitiveParams)
     val confs = prepareConfForReader(validCaseInsensitiveParams)
@@ -318,9 +325,9 @@ private[pulsar] object PulsarProvider extends Logging {
 
     lowercaseKeyMap.map { case (k, v) =>
       val keyOpt = producerConfKeys.filter(sk => sk.toLowerCase == k)
-      if (keyOpt.nonEmpty)
+      if (keyOpt.nonEmpty) {
         (keyOpt.head, v)
-      else
+      } else
         null
     }.filter(_ != null)
 

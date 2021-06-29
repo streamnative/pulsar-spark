@@ -84,11 +84,14 @@ case class PulsarStreamWriterFactory(
     extends DataWriterFactory
     with StreamingDataWriterFactory {
 
-  override def createWriter(partitionId: Int, taskId: Long, epochId: Long): DataWriter[InternalRow] = {
+  override def createWriter(partitionId: Int,
+                            taskId: Long,
+                            epochId: Long): DataWriter[InternalRow] = {
     new PulsarDataWriter(schema.toAttributes, clientConf, producerConf, topic, adminUrl)
   }
 
-  override def createWriter(partitionId: Int, taskId: Long): DataWriter[InternalRow] = {
+  override def createWriter(partitionId: Int,
+                            taskId: Long): DataWriter[InternalRow] = {
     new PulsarDataWriter(schema.toAttributes, clientConf, producerConf, topic, adminUrl)
   }
 

@@ -16,6 +16,11 @@ package org.apache.spark.sql.pulsar
 import java.util.UUID
 
 import scala.collection.JavaConverters._
+import scala.util.control.NonFatal
+
+import PulsarOptions._
+import PulsarProvider._
+
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.connector.read.{Batch, Scan}
 import org.apache.spark.sql.connector.read.streaming.{ContinuousStream, MicroBatchStream}
@@ -23,10 +28,8 @@ import org.apache.spark.sql.pulsar.PulsarSourceUtils.reportDataLossFunc
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.util.Utils
-import PulsarOptions._
-import PulsarProvider._
 
-import scala.util.control.NonFatal
+
 
 private[pulsar] class PulsarScan(structType: StructType, options: CaseInsensitiveStringMap)
   extends Scan
@@ -126,7 +129,10 @@ private[pulsar] class PulsarScan(structType: StructType, options: CaseInsensitiv
     val parameters = options.asScala.toMap
     val caseInsensitiveParams = validateStreamOptions(parameters)
     val (clientConf, readerConf, serviceUrl, adminUrl) = prepareConfForReader(parameters)
-    val subscriptionNamePrefix = s"${parameters.getOrElse(SUBSCRIPTION_PREFIX_OPTION_KEY, s"spark-pulsar-${UUID.randomUUID}-${checkpointLocation.hashCode}")}"
+    val subscriptionNamePrefix = s"${parameters
+      .getOrElse(SUBSCRIPTION_PREFIX_OPTION_KEY,
+        s"spark-pulsar-${UUID.randomUUID}-${checkpointLocation.hashCode}"
+      )}"
 
     val metadataReader = PulsarMetadataReader(
       serviceUrl,
@@ -144,7 +150,8 @@ private[pulsar] class PulsarScan(structType: StructType, options: CaseInsensitiv
     try {
       metadataReader.setupCursor(offset)
     } catch {
-      case e: Exception => logWarning(s"Exception while setup cursor ${e.getMessage}")
+      case NonFatal(e) =>
+        logWarning(s"Exception while setup cursor ${e.getMessage}")
     }
 
     new PulsarContinuousReader(

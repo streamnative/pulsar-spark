@@ -166,7 +166,8 @@ class PulsarSinkSuite extends StreamTest with SharedSparkSession with PulsarTest
         .save()
     }
     // ex.getCause.getMessage: "Job aborted due to stage failure ...
-    // ...java.lang.IllegalStateException: topic option required when no '__topic' attribute is present"
+    // ...java.lang.IllegalStateException: topic option required
+    // when no '__topic' attribute is present"
     // ex.getMessage: "Writing job aborted."
     assert(ex.getMessage
       .toLowerCase(Locale.ROOT)

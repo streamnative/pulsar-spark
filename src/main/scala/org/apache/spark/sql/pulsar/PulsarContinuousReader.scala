@@ -19,6 +19,7 @@ import java.io.{Externalizable, ObjectInput, ObjectOutput}
 import org.apache.pulsar.client.api.{Message, MessageId, Schema}
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
 import org.apache.pulsar.common.schema.SchemaInfo
+
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
@@ -126,7 +127,8 @@ class PulsarContinuousReader(
     metadataReader.close()
   }
 
-  override def createContinuousReaderFactory(): ContinuousPartitionReaderFactory = PulsarContinuousReaderFactory
+  override def createContinuousReaderFactory(): ContinuousPartitionReaderFactory =
+    PulsarContinuousReaderFactory
 
 }
 

@@ -3,7 +3,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,13 +17,16 @@ import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 
 import scala.reflect.ClassTag
+
 import org.scalatest.time.SpanSugar._
+
 import org.apache.pulsar.client.api.Schema
 import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
+
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, SpecificInternalRow, UnsafeProjection}
 import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, StreamingQuery, StreamingQueryException, Trigger}
-import org.apache.spark.sql.{AnalysisException, DataFrame, Encoder, Encoders, Row}
 import org.apache.spark.sql.types.{BinaryType, DataType}
+import org.apache.spark.sql.{AnalysisException, DataFrame, Encoder, Encoders, Row}
 import org.apache.spark.util.Utils
 
 class PulsarContinuousSinkSuite extends PulsarContinuousTest {

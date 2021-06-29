@@ -19,8 +19,8 @@ import java.util.{Date, Optional, UUID}
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
-import scala.collection.mutable
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.{Message, MessageId, PulsarClient, SubscriptionInitialPosition, SubscriptionType}
@@ -116,7 +116,8 @@ private[pulsar] case class PulsarMetadataReader(
                 logInfo(s"Deleted expired subscription $name ")
               }
             }
-            logInfo(s"Create new subscription name $subName at ${new Date(System.currentTimeMillis())} with mid ${umid.mid}")
+            logInfo(s"Create new subscription name $subName " +
+              s"at ${new Date(System.currentTimeMillis())} with mid ${umid.mid}")
             admin.topics().createSubscription(tp, subName, umid.mid)
           } else {
             logDebug(s"Subscription $subName already existed !")
@@ -189,10 +190,11 @@ private[pulsar] case class PulsarMetadataReader(
   }
 
   def removeCursor(): Unit = {
-    //getTopicPartitions()
+    // getTopicPartitions()
     topicPartitions.foreach { tp =>
       try {
-        logDebug(s"Delete subscription name $driverGroupIdPrefix-$tp at ${new Date(System.currentTimeMillis())}")
+        logDebug(s"Delete subscription name $driverGroupIdPrefix-$tp " +
+          s"at ${new Date(System.currentTimeMillis())}")
         admin.topics().deleteSubscription(tp, s"$driverGroupIdPrefix-$tp")
       } catch {
         case e: PulsarAdminException if e.getStatusCode == 404 =>
@@ -339,7 +341,7 @@ private[pulsar] case class PulsarMetadataReader(
   }
 
   private def getTopicPartitions(): Seq[String] = {
-    //getTopics()
+    // getTopics()
     if (topicPartitions == null || discoverTopicChanges) {
       topicPartitions = getTopics().flatMap { tp =>
         val partNum = admin.topics().getPartitionedTopicMetadata(tp).partitions

@@ -3,7 +3,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,14 +18,14 @@ import java.{util => ju}
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.MessageIdImpl
 import org.apache.pulsar.common.schema.SchemaInfo
-
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.connector.read.{InputPartition, PartitionReaderFactory}
 import org.apache.spark.sql.connector.read.streaming.{MicroBatchStream, Offset}
-
 import PulsarSourceUtils._
+
+import scala.util.control.NonFatal
 
 class PulsarMicroBatchStream(
                               metadataReader: PulsarMetadataReader,
@@ -50,7 +50,11 @@ class PulsarMicroBatchStream(
   override def initialOffset(): Offset = {
     val metadataLog =
       new PulsarSourceInitialOffsetWriter(
-        SparkSession.getActiveSession.getOrElse(throw new RuntimeException("No active SparkSession found !")),
+        SparkSession
+          .getActiveSession
+          .getOrElse(
+            throw new RuntimeException("No active SparkSession found !")
+          ),
         metadataPath)
     metadataLog.getInitialOffset(
       metadataReader,
@@ -113,7 +117,9 @@ class PulsarMicroBatchStream(
     try {
       metadataReader.commitCursorToOffset(endPartitionOffsets)
     } catch {
-      case e: Exception => logWarning(s"Exception while commit cursor to offset $endPartitionOffsets. ${e.getMessage}")
+      case NonFatal(e) =>
+        logWarning(s"Exception while commit cursor to offset $endPartitionOffsets. " +
+          s"${e.getMessage}")
     }
 
     offsetRanges.map { range =>

@@ -3,7 +3,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,19 +17,21 @@ import java.io.{ByteArrayOutputStream, CharConversionException}
 import java.nio.charset.MalformedInputException
 
 import scala.collection.mutable.ArrayBuffer
+import scala.util.control.NonFatal
+
 import com.fasterxml.jackson.core._
+
 import org.apache.spark.SparkException
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
-import org.apache.spark.sql.catalyst.json.{JSONOptions, JacksonUtils}
-import org.apache.spark.sql.catalyst.util.LegacyDateFormats.FAST_DATE_FORMAT
+import org.apache.spark.sql.catalyst.json.{JacksonUtils, JSONOptions}
 import org.apache.spark.sql.catalyst.util._
+import org.apache.spark.sql.catalyst.util.LegacyDateFormats.FAST_DATE_FORMAT
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 import org.apache.spark.util.Utils
 
-import scala.util.control.NonFatal
 
 private[sql] object CreateJacksonRecordParser extends Serializable {
 
@@ -180,7 +182,9 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
               case NonFatal(e) =>
                 // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
                 // compatibility.
-                val str = DateTimeUtils.cleanLegacyTimestampStr(UTF8String.fromString(parser.getText))
+                val str = DateTimeUtils
+                  .cleanLegacyTimestampStr(UTF8String.fromString(parser.getText))
+
                 DateTimeUtils
                   .stringToTimestamp(str, options.zoneId)
                   .getOrElse(throw e)
@@ -200,7 +204,9 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
               case NonFatal(e) =>
                 // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
                 // compatibility.
-                val str = DateTimeUtils.cleanLegacyTimestampStr(UTF8String.fromString(parser.getText))
+                val str = DateTimeUtils
+                  .cleanLegacyTimestampStr(UTF8String.fromString(parser.getText))
+
                 DateTimeUtils
                   .stringToDate(str, options.zoneId)
                   .getOrElse {
