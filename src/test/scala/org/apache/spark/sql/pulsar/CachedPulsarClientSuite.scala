@@ -13,12 +13,17 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.util.concurrent.ConcurrentMap
 import java.{util => ju}
+import java.util.concurrent.ConcurrentMap
+
+import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito.{verify, when}
 
 import org.scalatest.PrivateMethodTester
+import org.scalatest.mockito.MockitoSugar.mock
 
-import org.apache.pulsar.client.api.PulsarClient
+import org.apache.pulsar.client.api.{ClientBuilder, PulsarClient}
+
 import org.apache.spark.sql.test.SharedSQLContext
 
 class CachedPulsarClientSuite extends SharedSQLContext with PrivateMethodTester with PulsarTest {
@@ -66,5 +71,39 @@ class CachedPulsarClientSuite extends SharedSQLContext with PrivateMethodTester 
     import scala.collection.JavaConverters._
     val (seq: Seq[(String, Object)], _producer: KP) = map2.asScala.toArray.apply(0)
     assert(_producer == producer)
+  }
+
+  test("Should pass on authentication related parameters when authentication plugin is provided") {
+    val pulsarParams = new ju.HashMap[String, Object]()
+    pulsarParams.put(AUTH_PLUGIN_CLASS_NAME, "unit.test.TestAuthenticationPlugin")
+    pulsarParams.put(AUTH_PARAMS, "token:abc.def.ghi")
+    pulsarParams.put(TLS_TRUST_CERTS_FILE_PATH, "/path/to/test/tls/cert/cert.pem")
+    pulsarParams.put(TLS_ALLOW_INSECURE_CONNECTION, "false")
+    pulsarParams.put(TLS_HOSTNAME_VERIFICATION_ENABLE, "false")
+    val clientBuilderMock = mock[ClientBuilder]
+    when(clientBuilderMock.serviceUrl(any())).thenReturn(clientBuilderMock)
+    when(clientBuilderMock.loadConf(any())).thenReturn(clientBuilderMock)
+    when(clientBuilderMock.enableTlsHostnameVerification(any())).thenReturn(clientBuilderMock)
+    when(clientBuilderMock.allowTlsInsecureConnection(any())).thenReturn(clientBuilderMock)
+    when(clientBuilderMock.authentication(any())).thenReturn(clientBuilderMock)
+
+    CachedPulsarClient.createPulsarClient(pulsarParams, clientBuilderMock)
+
+    verify(clientBuilderMock).authentication("unit.test.TestAuthenticationPlugin",
+      "token:abc.def.ghi")
+    verify(clientBuilderMock).tlsTrustCertsFilePath("/path/to/test/tls/cert/cert.pem")
+    verify(clientBuilderMock).allowTlsInsecureConnection(false)
+    verify(clientBuilderMock).enableTlsHostnameVerification(false)
+    verify(clientBuilderMock).build()
+  }
+
+  test("Should build Pulsar client against test Pulsar cluster without exceptions") {
+    val pulsarParams = new ju.HashMap[String, Object]()
+    pulsarParams.put(AUTH_PLUGIN_CLASS_NAME,
+      "org.apache.pulsar.client.impl.auth.AuthenticationToken")
+    pulsarParams.put(AUTH_PARAMS, "token:abc.def.ghi")
+    pulsarParams.put(SERVICE_URL_OPTION_KEY, "pulsar://127.0.0.1:6650")
+
+    CachedPulsarClient.getOrCreate(pulsarParams)
   }
 }

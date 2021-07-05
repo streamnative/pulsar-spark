@@ -22,8 +22,11 @@ import scala.util.control.NonFatal
 import com.google.common.cache._
 import com.google.common.util.concurrent.{ExecutionError, UncheckedExecutionException}
 
+import org.apache.pulsar.client.api.{ClientBuilder, PulsarClient}
+
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
+import org.apache.spark.sql.pulsar.PulsarOptions.{AUTH_PARAMS, AUTH_PLUGIN_CLASS_NAME, TLS_ALLOW_INSECURE_CONNECTION, TLS_HOSTNAME_VERIFICATION_ENABLE, TLS_TRUST_CERTS_FILE_PATH}
 
 private[pulsar] object CachedPulsarClient extends Logging {
 
@@ -62,7 +65,9 @@ private[pulsar] object CachedPulsarClient extends Logging {
       .removalListener(removalListener)
       .build[Seq[(String, Object)], Client](cacheLoader)
 
-  private def createPulsarClient(pulsarConf: ju.Map[String, Object]): Client = {
+  def createPulsarClient(
+                          pulsarConf: ju.Map[String, Object],
+                          pulsarClientBuilder: ClientBuilder = PulsarClient.builder()): Client = {
     val pulsarServiceUrl =
       pulsarConf.get(PulsarOptions.SERVICE_URL_OPTION_KEY).asInstanceOf[String]
     val clientConf = new PulsarConfigUpdater(
@@ -72,11 +77,27 @@ private[pulsar] object CachedPulsarClient extends Logging {
     ).rebuild()
     logInfo(s"Client Conf = ${clientConf}")
     try {
-      val pulsarClient: Client = org.apache.pulsar.client.api.PulsarClient
-        .builder()
+      pulsarClientBuilder
         .serviceUrl(pulsarServiceUrl)
         .loadConf(clientConf)
-        .build();
+      // Set TLS and authentication parameters if they were given
+      if (clientConf.containsKey(AUTH_PLUGIN_CLASS_NAME)) {
+        pulsarClientBuilder.authentication(
+          clientConf.get(AUTH_PLUGIN_CLASS_NAME).toString, clientConf.get(AUTH_PARAMS).toString)
+      }
+      if (clientConf.containsKey(TLS_ALLOW_INSECURE_CONNECTION)) {
+        pulsarClientBuilder.allowTlsInsecureConnection(
+          clientConf.get(TLS_ALLOW_INSECURE_CONNECTION).toString.toBoolean)
+      }
+      if (clientConf.containsKey(TLS_HOSTNAME_VERIFICATION_ENABLE)) {
+        pulsarClientBuilder.enableTlsHostnameVerification(
+          clientConf.get(TLS_HOSTNAME_VERIFICATION_ENABLE).toString.toBoolean)
+      }
+      if (clientConf.containsKey(TLS_TRUST_CERTS_FILE_PATH)) {
+        pulsarClientBuilder.tlsTrustCertsFilePath(
+          clientConf.get(TLS_TRUST_CERTS_FILE_PATH).toString)
+      }
+      val pulsarClient: Client = pulsarClientBuilder.build()
       logDebug(
         s"Created a new instance of PulsarClient for serviceUrl = $pulsarServiceUrl,"
           + s" clientConf = $clientConf.")

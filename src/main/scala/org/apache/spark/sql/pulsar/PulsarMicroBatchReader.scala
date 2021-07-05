@@ -49,6 +49,7 @@ private[pulsar] class PulsarMicroBatchReader(
 
   private var startTopicOffsets: Map[String, MessageId] = _
   private var endTopicOffsets: Map[String, MessageId] = _
+  private var stopped = false
 
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
 
@@ -151,9 +152,12 @@ private[pulsar] class PulsarMicroBatchReader(
     }.asJava
   }
 
-  override def stop(): Unit = {
-    metadataReader.removeCursor()
-    metadataReader.close()
+  override def stop(): Unit = synchronized {
+    if (!stopped) {
+      metadataReader.removeCursor()
+      metadataReader.close()
+      stopped = true
+    }
   }
 }
 

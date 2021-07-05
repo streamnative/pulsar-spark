@@ -45,6 +45,7 @@ private[pulsar] class PulsarSource(
   private val sc = sqlContext.sparkContext
 
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
+  private var stopped = false
 
   private lazy val initialTopicOffsets: SpecificPulsarOffset = {
     val metadataLog = new PulsarSourceInitialOffsetWriter(sqlContext.sparkSession, metadataPath)
@@ -163,7 +164,11 @@ private[pulsar] class PulsarSource(
   }
 
   override def stop(): Unit = synchronized {
-    metadataReader.removeCursor()
-    metadataReader.close()
+    if (!stopped) {
+      metadataReader.removeCursor()
+      metadataReader.close()
+      stopped = true
+    }
+
   }
 }
