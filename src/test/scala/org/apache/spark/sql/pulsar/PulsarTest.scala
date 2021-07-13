@@ -16,28 +16,30 @@ package org.apache.spark.sql.pulsar
 import java.lang.{Integer => JInt}
 import java.nio.charset.StandardCharsets
 import java.nio.charset.StandardCharsets.UTF_8
-import java.time.Clock
+import java.time.{Clock, Duration}
 import java.util.{Map => JMap}
-
-import io.streamnative.tests.pulsar.service.{PulsarService, PulsarServiceFactory, PulsarServiceSpec}
 
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
-import scala.util.Random
 
 import org.scalatest.concurrent.Eventually.{eventually, timeout}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
 import com.google.common.collect.Sets
-
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.{MessageId, Producer, PulsarClient, Schema}
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.protocol.schema.PostSchemaPayload
 import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
-
 import org.apache.spark.SparkFunSuite
 import org.apache.spark.util.Utils
+import org.testcontainers.containers.PulsarContainer
+import org.testcontainers.containers.PulsarContainer.BROKER_HTTP_PORT
+import org.testcontainers.containers.output.Slf4jLogConsumer
+import org.testcontainers.containers.wait.strategy.HttpWaitStrategy
+import org.testcontainers.utility.DockerImageName
+
+import java.time.temporal.ChronoUnit.SECONDS
 
 /**
  * A trait to clean cached Pulsar producers in `afterAll`
@@ -46,32 +48,28 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
   self: SparkFunSuite =>
   import PulsarOptions._
 
-  var pulsarService: PulsarService = _
+  var pulsarService: PulsarContainer = _
   var serviceUrl: String = _
   var adminUrl: String = _
 
   override def beforeAll(): Unit = {
-    val spec: PulsarServiceSpec = PulsarServiceSpec
-      .builder()
-      .clusterName(s"standalone-${Random.alphanumeric.take(6).mkString}")
-      .enableContainerLogging(false)
-      .build()
 
-    pulsarService = PulsarServiceFactory.createPulsarService(spec)
+    val pulsarImage = System.getProperty("pulsar.systemtest.image", "apachepulsar/pulsar:2.8.0")
+    val pulsar = DockerImageName.parse(pulsarImage).asCompatibleSubstituteFor("apachepulsar/pulsar")
+    pulsarService = new PulsarContainer(pulsar)
+    pulsarService.waitingFor(
+      new HttpWaitStrategy()
+        .forPort(BROKER_HTTP_PORT)
+        .forStatusCode(200)
+        .forPath("/admin/v2/namespaces/public/default")
+        .withStartupTimeout(Duration.of(40, SECONDS))
+    )
     pulsarService.start()
+    pulsarService.followOutput(new Slf4jLogConsumer(log))
+    serviceUrl = pulsarService.getPulsarBrokerUrl
+    adminUrl = pulsarService.getHttpServiceUrl
 
-    val uris = pulsarService.getServiceUris.asScala
-      .filter(_ != null)
-      .partition(_.getScheme == "pulsar")
-
-    serviceUrl = uris._1(0).toString
-    adminUrl = uris._2(0).toString
-
-    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
-      admin.namespaces().createNamespace("public/default", Sets.newHashSet("standalone"))
-    }
-
-    logInfo(s"Successfully started pulsar service at cluster ${spec.clusterName}")
+    logInfo(s"Successfully started pulsar service at cluster ${pulsarService.getContainerName}")
 
     super.beforeAll()
   }
@@ -81,9 +79,8 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
     CachedPulsarClient.clear()
     if (pulsarService != null) {
       pulsarService.stop()
-      pulsarService.cleanup()
+      pulsarService.close()
     }
-
   }
 
   protected override def afterEach(): Unit = {
