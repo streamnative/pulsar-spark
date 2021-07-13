@@ -27,6 +27,8 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
+      - name: Pull testcontainers/ryuk
+        run: docker pull quay.io/testcontainers/ryuk:0.2.2
       - name: Run check and test
         run: |
           mvn clean license:check scalastyle:check install
