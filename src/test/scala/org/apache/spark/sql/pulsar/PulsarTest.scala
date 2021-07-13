@@ -53,7 +53,7 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
   var adminUrl: String = _
 
   override def beforeAll(): Unit = {
-    pulsarService = new PulsarContainer("2.8.0")
+    pulsarService = new PulsarContainer("2.4.2")
     pulsarService.waitingFor(
       new HttpWaitStrategy()
         .forPort(BROKER_HTTP_PORT)
