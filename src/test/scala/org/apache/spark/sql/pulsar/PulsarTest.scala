@@ -17,6 +17,7 @@ import java.lang.{Integer => JInt}
 import java.nio.charset.StandardCharsets
 import java.nio.charset.StandardCharsets.UTF_8
 import java.time.{Clock, Duration}
+import java.time.temporal.ChronoUnit.SECONDS
 import java.util.{Map => JMap}
 
 import scala.collection.JavaConverters._
@@ -25,7 +26,11 @@ import scala.reflect.ClassTag
 import org.scalatest.concurrent.Eventually.{eventually, timeout}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
-import com.google.common.collect.Sets
+import org.testcontainers.containers.PulsarContainer
+import org.testcontainers.containers.PulsarContainer.BROKER_HTTP_PORT
+import org.testcontainers.containers.output.Slf4jLogConsumer
+import org.testcontainers.containers.wait.strategy.HttpWaitStrategy
+
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.{MessageId, Producer, PulsarClient, Schema}
 import org.apache.pulsar.common.naming.TopicName
@@ -33,13 +38,6 @@ import org.apache.pulsar.common.protocol.schema.PostSchemaPayload
 import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
 import org.apache.spark.SparkFunSuite
 import org.apache.spark.util.Utils
-import org.testcontainers.containers.PulsarContainer
-import org.testcontainers.containers.PulsarContainer.BROKER_HTTP_PORT
-import org.testcontainers.containers.output.Slf4jLogConsumer
-import org.testcontainers.containers.wait.strategy.HttpWaitStrategy
-import org.testcontainers.utility.DockerImageName
-
-import java.time.temporal.ChronoUnit.SECONDS
 
 /**
  * A trait to clean cached Pulsar producers in `afterAll`
