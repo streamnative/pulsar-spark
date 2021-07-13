@@ -53,10 +53,7 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
   var adminUrl: String = _
 
   override def beforeAll(): Unit = {
-
-    val pulsarImage = System.getProperty("pulsar.systemtest.image", "apachepulsar/pulsar:2.8.0")
-    val pulsar = DockerImageName.parse(pulsarImage).asCompatibleSubstituteFor("apachepulsar/pulsar")
-    pulsarService = new PulsarContainer(pulsar)
+    pulsarService = new PulsarContainer("2.8.0")
     pulsarService.waitingFor(
       new HttpWaitStrategy()
         .forPort(BROKER_HTTP_PORT)
