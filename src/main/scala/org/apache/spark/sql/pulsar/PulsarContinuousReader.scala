@@ -62,6 +62,8 @@ class PulsarContinuousReader(
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
 
   private var offset: Offset = _
+
+  private var stopped = false
   override def setStartOffset(start: ju.Optional[Offset]): Unit = {
     offset = start.orElse {
       val actualOffsets = SpecificPulsarOffset(
@@ -129,9 +131,12 @@ class PulsarContinuousReader(
     metadataReader.commitCursorToOffset(off)
   }
 
-  override def stop(): Unit = {
-    metadataReader.removeCursor()
-    metadataReader.close()
+  override def stop(): Unit = synchronized {
+    if (!stopped) {
+      metadataReader.removeCursor()
+      metadataReader.close()
+      stopped = true
+    }
   }
 }
 
