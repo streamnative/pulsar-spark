@@ -65,19 +65,19 @@
     <scala.version>2.11.12</scala.version>
     <scala.binary.version>2.11</scala.binary.version>
     <scalatest.version>3.0.3</scalatest.version>
-    <spark.version>2.4.2</spark.version>
+    <spark.version>2.4.8</spark.version>
     <streamnative-tests.version>2.4.2</streamnative-tests.version>
     <testcontainers.version>1.10.6</testcontainers.version>
     <!-- plugin dependencies -->
     <maven.version>3.5.4</maven.version>
-    <license-maven-plugin.version>3.0.rc1</license-maven-plugin.version>
-    <maven-compiler-plugin.version>3.7.0</maven-compiler-plugin.version>
-    <maven-dependency-plugin.version>3.1.1</maven-dependency-plugin.version>
-    <maven-shade-plugin.version>3.1.0</maven-shade-plugin.version>
-    <maven-source-plugin.version>2.2.1</maven-source-plugin.version>
-    <maven-surefire-plugin.version>2.21.0</maven-surefire-plugin.version>
-    <scala-maven-plugin.version>4.0.2</scala-maven-plugin.version>
-    <scalatest-maven-plugin.version>2.0.0</scalatest-maven-plugin.version>
+    <license-maven-plugin.version>3.0</license-maven-plugin.version>
+    <maven-compiler-plugin.version>3.8.1</maven-compiler-plugin.version>
+    <maven-dependency-plugin.version>3.2.0</maven-dependency-plugin.version>
+    <maven-shade-plugin.version>3.2.4</maven-shade-plugin.version>
+    <maven-source-plugin.version>3.2.0</maven-source-plugin.version>
+    <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
+    <scala-maven-plugin.version>4.4.1</scala-maven-plugin.version>
+    <scalatest-maven-plugin.version>2.0.2</scalatest-maven-plugin.version>
   </properties>
 
   <!-- dependencies for all modules -->
