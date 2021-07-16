@@ -21,7 +21,7 @@ import org.apache.spark.sql.ForeachWriter
 import org.apache.spark.sql.execution.streaming.StreamingExecutionRelation
 import org.apache.spark.sql.functions.{count, window}
 import org.apache.spark.sql.pulsar.PulsarOptions.{ADMIN_URL_OPTION_KEY, SERVICE_URL_OPTION_KEY, TOPIC_PATTERN}
-import org.apache.spark.sql.streaming.ProcessingTime
+import org.apache.spark.sql.execution.streaming.ProcessingTimeTrigger
 import org.apache.spark.util.Utils
 
 class PulsarMicroBatchV1SourceSuite extends PulsarMicroBatchSourceSuiteBase {
@@ -110,7 +110,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
 
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
     testStream(mapped)(
-      StartStream(trigger = ProcessingTime(1)),
+      StartStream(trigger = ProcessingTimeTrigger(1)),
       makeSureGetOffsetCalled,
       AddPulsarData(Set(topic), 1, 2, 3),
       CheckAnswer(2, 3, 4),
