@@ -22,10 +22,10 @@ import scala.reflect.ClassTag
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaType
-import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.{DataFrame, Encoder, Encoders, QueryTest}
 
-class PulsarRelationSuite extends QueryTest with SharedSQLContext with PulsarTest {
+class PulsarRelationSuite extends QueryTest with SharedSparkSession with PulsarTest {
   import PulsarOptions._
   import SchemaData._
   import testImplicits._

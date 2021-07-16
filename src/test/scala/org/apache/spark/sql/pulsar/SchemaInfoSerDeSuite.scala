@@ -13,16 +13,14 @@
  */
 package org.apache.spark.sql.pulsar
 
+import org.apache.avro.{Schema => ASchema}
+import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
+import org.apache.spark.SparkFunSuite
+
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
 import java.nio.charset.StandardCharsets
 
-import org.scalatest.FunSuite
-
-import org.apache.avro.{Schema => ASchema}
-
-import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
-
-class SchemaInfoSerDeSuite extends FunSuite {
+class SchemaInfoSerDeSuite extends SparkFunSuite {
 
   test("serialized schemaInfo serde") {
 

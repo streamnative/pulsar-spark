@@ -145,7 +145,7 @@ class PulsarSourceInitialOffsetWriter(sparkSession: SparkSession, metadataPath: 
       val indexOfNewLine = content.indexOf("\n")
       if (indexOfNewLine > 0) {
 
-        val version = parseVersion(content.substring(0, indexOfNewLine), VERSION)
+        val version = validateVersion(content.substring(0, indexOfNewLine), VERSION)
         SpecificPulsarOffset(SerializedOffset(content.substring(indexOfNewLine + 1)))
       } else {
         throw new IllegalStateException(

@@ -28,11 +28,11 @@ import org.apache.pulsar.common.schema.SchemaInfo
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, SpecificInternalRow, UnsafeProjection}
 import org.apache.spark.sql.execution.streaming.MemoryStream
 import org.apache.spark.sql.streaming._
-import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{BinaryType, DataType}
 import org.apache.spark.sql._
 
-class PulsarSinkSuite extends StreamTest with SharedSQLContext with PulsarTest {
+class PulsarSinkSuite extends StreamTest with SharedSparkSession with PulsarTest {
   import PulsarOptions._
   import SchemaData._
   import testImplicits._
