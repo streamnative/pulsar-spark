@@ -417,7 +417,10 @@
               </execution>
             </executions>
             <configuration>
-              <additionalJOption>-Xdoclint:none -package</additionalJOption>
+              <additionalJOptions>
+                  <additionalJOption>-Xdoclint:none</additionalJOption>
+                  <additionalJOption>-package</additionalJOption>
+              </additionalJOptions>
             </configuration>
           </plugin>
           <plugin>
