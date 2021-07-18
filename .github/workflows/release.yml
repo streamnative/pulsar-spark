@@ -1,8 +1,8 @@
 name: Pulsar-Spark Release
 
 on:
-  push:
-    branches: [ting/migrate-maven-central]
+  release:
+    types: [created]
 
 jobs:
   upload:
