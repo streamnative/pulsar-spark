@@ -418,6 +418,7 @@
             </executions>
             <configuration>
               <additionalJOption>-Xdoclint:none</additionalJOption>
+              <additionalJOption>-package</additionalJOption>
             </configuration>
           </plugin>
           <plugin>
