@@ -80,6 +80,7 @@
     <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
     <scala-maven-plugin.version>4.4.1</scala-maven-plugin.version>
     <scalatest-maven-plugin.version>2.0.2</scalatest-maven-plugin.version>
+    <nexus-staging-maven-plugin.version>1.6.8</nexus-staging-maven-plugin.version>
   </properties>
 
   <!-- dependencies for all modules -->
