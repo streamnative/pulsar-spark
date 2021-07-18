@@ -419,7 +419,6 @@
             <configuration>
               <additionalJOptions>
                   <additionalJOption>-Xdoclint:none</additionalJOption>
-                  <additionalJOption>-package</additionalJOption>
               </additionalJOptions>
             </configuration>
           </plugin>
