@@ -220,6 +220,12 @@
         <version>${scala-maven-plugin.version}</version>
         <executions>
           <execution>
+            <id>attach-javadocs</id>
+            <goals>
+                <goal>doc-jar</goal>
+            </goals>
+          </execution>
+          <execution>
             <id>eclipse-add-source</id>
             <goals>
               <goal>add-source</goal>
@@ -395,33 +401,6 @@
       <id>release</id>
       <build>
         <plugins>
-          <plugin>
-            <artifactId>maven-source-plugin</artifactId>
-            <executions>
-              <execution>
-                <id>attach-sources</id>
-                <goals>
-                  <goal>jar</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-          <plugin>
-            <artifactId>maven-javadoc-plugin</artifactId>
-            <executions>
-              <execution>
-                <id>attach-javadocs</id>
-                <goals>
-                  <goal>jar</goal>
-                </goals>
-              </execution>
-            </executions>
-            <configuration>
-              <additionalJOptions>
-                  <additionalJOption>-Xdoclint:none</additionalJOption>
-              </additionalJOptions>
-            </configuration>
-          </plugin>
           <plugin>
             <artifactId>maven-gpg-plugin</artifactId>
             <executions>
