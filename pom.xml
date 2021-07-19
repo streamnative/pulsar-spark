@@ -52,6 +52,7 @@
     </developer>
   </developers>
   <properties>
+    <project.build.outputTimestamp>1</project.build.outputTimestamp>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <project.scm.id>snbot-github</project.scm.id>
