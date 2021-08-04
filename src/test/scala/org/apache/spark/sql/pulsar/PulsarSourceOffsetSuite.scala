@@ -13,34 +13,35 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.io.File
-
 import org.apache.pulsar.client.impl.MessageIdImpl
 
 import org.apache.spark.sql.execution.streaming.{LongOffset, OffsetSeq, OffsetSeqLog, SerializedOffset}
 import org.apache.spark.sql.streaming.OffsetSuite
-import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.test.SharedSparkSession
+import org.apache.spark.sql.execution.streaming.Offset
 
-class PulsarSourceOffsetSuite extends OffsetSuite with SharedSQLContext {
+import java.io.File
+
+class PulsarSourceOffsetSuite extends OffsetSuite with SharedSparkSession {
 
   compare(
-    one = SpecificPulsarOffset(("t", new MessageIdImpl(1, 1, -1))),
-    two = SpecificPulsarOffset(("t", new MessageIdImpl(1, 2, -1))))
+    one = SpecificPulsarOffset(("t", new MessageIdImpl(1, 1, -1))).asInstanceOf[Offset],
+    two = SpecificPulsarOffset(("t", new MessageIdImpl(1, 2, -1))).asInstanceOf[Offset])
 
   compare(
     one = SpecificPulsarOffset(
       ("t", new MessageIdImpl(1, 1, -1)),
-      ("t1", new MessageIdImpl(1, 1, -1))),
+      ("t1", new MessageIdImpl(1, 1, -1))).asInstanceOf[Offset],
     two = SpecificPulsarOffset(
       ("t", new MessageIdImpl(1, 2, -1)),
-      ("t1", new MessageIdImpl(1, 2, -1)))
+      ("t1", new MessageIdImpl(1, 2, -1))).asInstanceOf[Offset],
   )
 
   compare(
-    one = SpecificPulsarOffset(("t", new MessageIdImpl(1, 1, -1))),
+    one = SpecificPulsarOffset(("t", new MessageIdImpl(1, 1, -1))).asInstanceOf[Offset],
     two = SpecificPulsarOffset(
       ("t", new MessageIdImpl(1, 2, -1)),
-      ("t1", new MessageIdImpl(1, 1, -1))))
+      ("t1", new MessageIdImpl(1, 1, -1))).asInstanceOf[Offset])
 
   val kso1 = SpecificPulsarOffset(("t", new MessageIdImpl(1, 1, -1)))
   val kso2 =
@@ -51,8 +52,8 @@ class PulsarSourceOffsetSuite extends OffsetSuite with SharedSQLContext {
     ("t2", new MessageIdImpl(1, 4, -1)))
 
   compare(
-    SpecificPulsarOffset(SerializedOffset(kso1.json)),
-    SpecificPulsarOffset(SerializedOffset(kso2.json)))
+    SpecificPulsarOffset(SerializedOffset(kso1.json)).asInstanceOf[Offset],
+    SpecificPulsarOffset(SerializedOffset(kso2.json)).asInstanceOf[Offset])
 
   test("basic serialization - deserialization") {
     assert(
@@ -96,5 +97,4 @@ class PulsarSourceOffsetSuite extends OffsetSuite with SharedSQLContext {
           Array(0 -> batch0Serialized, 1 -> batch1Serialized))
     }
   }
-
 }

@@ -27,8 +27,8 @@ object PulsarConfigurationUtils {
     val fields = typeOf[T].members.collect{ case s: TermSymbol => s }.
       filter(s => s.isVal || s.isVar)
 
-    // then only keep the ones with a JsonIgnore annotation
-    val ignores = fields.flatMap(f => f.annotations.find(_.tpe =:= typeOf[JsonIgnore]).
+    // then only keep the ones without a JsonIgnore annotation
+    val ignores = fields.flatMap(f => f.annotations.find(_.tree.tpe =:= typeOf[JsonIgnore]).
       map((f, _))).map(t => t._1).toList
 
     fields.filterNot(ignores.contains).map(_.name.toString)

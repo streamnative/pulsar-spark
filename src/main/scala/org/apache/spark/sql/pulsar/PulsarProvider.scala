@@ -14,9 +14,7 @@
 package org.apache.spark.sql.pulsar
 
 import java.{util => ju}
-import java.util.{Locale, Optional, UUID}
-
-import scala.collection.JavaConverters._
+import java.util.{Locale, UUID}
 
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.common.naming.TopicName
@@ -29,9 +27,6 @@ import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.execution.streaming.{Sink, Source}
 import org.apache.spark.sql.pulsar.PulsarSourceUtils.reportDataLossFunc
 import org.apache.spark.sql.sources._
-import org.apache.spark.sql.sources.v2.{ContinuousReadSupport, DataSourceOptions, MicroBatchReadSupport, StreamWriteSupport}
-import org.apache.spark.sql.sources.v2.reader.streaming.MicroBatchReader
-import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
 import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.util.Utils
@@ -47,9 +42,6 @@ private[pulsar] class PulsarProvider
     with StreamSinkProvider
     with RelationProvider
     with CreatableRelationProvider
-    with StreamWriteSupport
-    with ContinuousReadSupport
-    with MicroBatchReadSupport
     with Logging {
 
   import PulsarOptions._
@@ -120,81 +112,6 @@ private[pulsar] class PulsarProvider
       subscriptionNamePrefix,
       jsonOptions
     )
-  }
-
-  override def createMicroBatchReader(
-      schema: Optional[StructType],
-      metadataPath: String,
-      options: DataSourceOptions): MicroBatchReader = {
-    val parameters = options.asMap().asScala.toMap
-    val caseInsensitiveParams = validateStreamOptions(parameters)
-    val (clientConfig, readerConfig, adminClientConfig, serviceUrl, adminUrl) =
-      prepareConfForReader(parameters)
-
-    val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}-${metadataPath.hashCode}"
-    val metadataReader = new PulsarMetadataReader(
-      serviceUrl,
-      adminUrl,
-      clientConfig,
-      adminClientConfig,
-      subscriptionNamePrefix,
-      caseInsensitiveParams)
-
-    metadataReader.getAndCheckCompatible(schema)
-
-    // start from latest offset if not specified to be consistent with Pulsar source
-    val offset = metadataReader.startingOffsetForEachTopic(
-      caseInsensitiveParams,
-      LatestOffset)
-    metadataReader.setupCursor(offset)
-
-    new PulsarMicroBatchReader(
-      metadataReader,
-      clientConfig,
-      readerConfig,
-      metadataPath,
-      offset,
-      pollTimeoutMs(caseInsensitiveParams),
-      failOnDataLoss(caseInsensitiveParams),
-      subscriptionNamePrefix,
-      jsonOptions
-    )
-  }
-
-  override def createContinuousReader(
-      schema: Optional[StructType],
-      metadataPath: String,
-      options: DataSourceOptions): PulsarContinuousReader = {
-    val parameters = options.asMap().asScala.toMap
-    val caseInsensitiveParams = validateStreamOptions(parameters)
-    val (clientConfig, readerConfig, adminClientConfig, serviceUrl, adminUrl) =
-      prepareConfForReader(parameters)
-
-    val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}-${metadataPath.hashCode}"
-    val metadataReader = new PulsarMetadataReader(
-      serviceUrl,
-      adminUrl,
-      clientConfig,
-      adminClientConfig,
-      subscriptionNamePrefix,
-      caseInsensitiveParams)
-
-    metadataReader.getAndCheckCompatible(schema)
-
-    val offset = metadataReader.startingOffsetForEachTopic(
-      caseInsensitiveParams,
-      LatestOffset)
-    metadataReader.setupCursor(offset)
-
-    new PulsarContinuousReader(
-      metadataReader,
-      clientConfig,
-      readerConfig,
-      offset,
-      pollTimeoutMs(caseInsensitiveParams),
-      failOnDataLoss(caseInsensitiveParams),
-      subscriptionNamePrefix,
-      jsonOptions)
   }
 
   override def createRelation(
@@ -314,27 +231,11 @@ private[pulsar] class PulsarProvider
       adminUrl
     )
   }
-
-  override def createStreamWriter(
-      queryId: String,
-      schema: StructType,
-      mode: OutputMode,
-      options: DataSourceOptions): StreamWriter = {
-
-    import scala.collection.JavaConverters._
-    val parameters = options.asMap().asScala.toMap
-    val caseInsensitiveParams = validateSinkOptions(parameters)
-
-    val (clientConfig, producerConfig, topic, adminUrl) = prepareConfForProducer(parameters)
-    PulsarSinks.validateQuery(schema.toAttributes, topic)
-
-    new PulsarStreamWriter(schema, clientConfig, producerConfig, topic, adminUrl)
-  }
 }
 
 private[pulsar] object PulsarProvider extends Logging {
-  import PulsarOptions._
   import PulsarConfigurationUtils._
+  import PulsarOptions._
 
   val LATEST_TIME = -2L
   val EARLIEST_TIME = -1L

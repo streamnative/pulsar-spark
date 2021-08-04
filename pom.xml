@@ -19,12 +19,12 @@
   <parent>
     <groupId>org.apache</groupId>
     <artifactId>apache</artifactId>
-    <version>18</version>
+    <version>24</version>
   </parent>
 
   <groupId>io.streamnative.connectors</groupId>
-  <artifactId>pulsar-spark-connector_${scala.binary.version}</artifactId>
-  <version>2.4.6-SNAPSHOT</version>
+  <artifactId>pulsar-spark-connector_2.12</artifactId>
+  <version>3.1.1.1-SNAPSHOT</version>
   <name>StreamNative :: Pulsar Spark Connector</name>
   <url>https://pulsar.apache.org</url>
   <inceptionYear>2019</inceptionYear>
@@ -39,7 +39,7 @@
     <connection>scm:git:https://github.com/streamnative/pulsar-spark.git</connection>
     <developerConnection>scm:git:https://github.com/streamnative/pulsar-spark.git</developerConnection>
     <url>https://github.com/streamnative/pulsar-spark</url>
-    <tag>branch-2.4.0</tag>
+    <tag>master</tag>
   </scm>
   <issueManagement>
     <system>Github</system>
@@ -52,32 +52,36 @@
     </developer>
   </developers>
   <properties>
+    <project.build.outputTimestamp>1</project.build.outputTimestamp>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <project.scm.id>snbot-github</project.scm.id>
     <javac.target>1.8</javac.target>
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <maven.compiler.target>1.8</maven.compiler.target>
     <redirectTestOutputToFile>true</redirectTestOutputToFile>
     <testRetryCount>2</testRetryCount>
 
     <!-- dependencies -->
     <!-- latest version from apache pulsar master -->
     <pulsar.version>2.4.2</pulsar.version>
-    <scala.version>2.11.12</scala.version>
-    <scala.binary.version>2.11</scala.binary.version>
-    <scalatest.version>3.0.3</scalatest.version>
-    <spark.version>2.4.2</spark.version>
+    <scala.version>2.12.10</scala.version>
+    <scala.binary.version>2.12</scala.binary.version>
+    <scalatest.version>3.2.2</scalatest.version>
+    <spark.version>3.1.1</spark.version>
     <streamnative-tests.version>2.4.2</streamnative-tests.version>
     <testcontainers.version>1.10.6</testcontainers.version>
     <!-- plugin dependencies -->
     <maven.version>3.5.4</maven.version>
-    <license-maven-plugin.version>3.0.rc1</license-maven-plugin.version>
-    <maven-compiler-plugin.version>3.7.0</maven-compiler-plugin.version>
-    <maven-dependency-plugin.version>3.1.1</maven-dependency-plugin.version>
-    <maven-shade-plugin.version>3.1.0</maven-shade-plugin.version>
-    <maven-source-plugin.version>2.2.1</maven-source-plugin.version>
-    <maven-surefire-plugin.version>2.21.0</maven-surefire-plugin.version>
-    <scala-maven-plugin.version>4.0.2</scala-maven-plugin.version>
-    <scalatest-maven-plugin.version>2.0.0</scalatest-maven-plugin.version>
+    <license-maven-plugin.version>3.0</license-maven-plugin.version>
+    <maven-compiler-plugin.version>3.8.1</maven-compiler-plugin.version>
+    <maven-dependency-plugin.version>3.2.0</maven-dependency-plugin.version>
+    <maven-shade-plugin.version>3.2.4</maven-shade-plugin.version>
+    <maven-source-plugin.version>3.2.0</maven-source-plugin.version>
+    <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
+    <scala-maven-plugin.version>4.4.1</scala-maven-plugin.version>
+    <scalatest-maven-plugin.version>2.0.2</scalatest-maven-plugin.version>
+    <nexus-staging-maven-plugin.version>1.6.8</nexus-staging-maven-plugin.version>
   </properties>
 
   <!-- dependencies for all modules -->
@@ -216,6 +220,12 @@
         <artifactId>scala-maven-plugin</artifactId>
         <version>${scala-maven-plugin.version}</version>
         <executions>
+          <execution>
+            <id>attach-javadocs</id>
+            <goals>
+                <goal>doc-jar</goal>
+            </goals>
+          </execution>
           <execution>
             <id>eclipse-add-source</id>
             <goals>
@@ -365,8 +375,6 @@
       </plugin>
     </plugins>
   </build>
-  <profiles>
-  </profiles>
   <repositories>
     <repository>
       <id>central</id>
@@ -380,9 +388,52 @@
     </repository>
   </repositories>
   <distributionManagement>
+    <snapshotRepository>
+      <id>ossrh</id>
+      <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+    </snapshotRepository>
     <repository>
-      <id>streamnative</id>
-      <url>https://api.bintray.com/maven/streamnative/maven/io.streamnative.pulsar-spark/;publish=1</url>
+      <id>ossrh</id>
+      <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
     </repository>
   </distributionManagement>
+  <profiles>
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+            <configuration>
+              <!-- Prevent `gpg` from using pinentry programs -->
+              <gpgArguments>
+                <arg>--pinentry-mode</arg>
+                <arg>loopback</arg>
+              </gpgArguments>
+            </configuration>
+          </plugin>
+          <plugin>
+            <groupId>org.sonatype.plugins</groupId>
+            <artifactId>nexus-staging-maven-plugin</artifactId>
+            <version>${nexus-staging-maven-plugin.version}</version>
+            <extensions>true</extensions>
+            <configuration>
+              <serverId>ossrh</serverId>
+              <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+              <autoReleaseAfterClose>true</autoReleaseAfterClose>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>
