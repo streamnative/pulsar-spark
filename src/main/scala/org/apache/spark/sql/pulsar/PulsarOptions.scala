@@ -55,6 +55,10 @@ private[pulsar] object PulsarOptions {
   val USE_TLS = "useTls"
   val TLS_HOSTNAME_VERIFICATION_ENABLE = "tlsHostnameVerificationEnable"
 
+  val MaxRetries = "maxretries"
+  val RetryMultiplier = "retrymultiplier"
+  val InitialInterval = "initialinterval"
+  val RandomizationFactor = "randomizationfactor"
 
   val INSTRUCTION_FOR_FAIL_ON_DATA_LOSS_FALSE =
     """

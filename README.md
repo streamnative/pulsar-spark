@@ -327,6 +327,46 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
   A batch query always fails if it fails to read any data from the provided offsets due to data loss.</td>
 
 </tr>
+<tr>
+<td>`maxRetries`</td>
+<td>Maximum number of retries to attempt before failing.</td>
+<td>0</td>
+<td>Streaming and batch queries</td>
+<td>Currently this *only* works for `pulsar-admin` API calls.
+The retry time is calculated using the following formula:
+
+`nextWaitTime = previousWaitTime * retryMultiplier * 
+random value from [1.0 - randomizationFactor, 1.0 + randomizationFactor]`
+
+For example, the following sequence of wait times might be generated 
+by this logic (with parameters `maxRetries=10`, `initialInterval=500`,
+`randomizationFactor=0.5`, `retryMultiplier=1.5`: 
+500 ms, 841 ms, 1587 ms, 2849 ms, 5765 ms.
+</tr>
+
+<tr>
+<td>`retryMultiplier`</td>
+<td>Real number such as `1.25`.</td>
+<td>1.5</td>
+<td>Streaming and batch queries</td>
+<td>Parameter used in conjunction with the `maxRetries` parameter.</td>
+</tr>
+
+<tr>
+<td>`initialInterval`</td>
+<td>Initial wait time in ms.</td>
+<td>500</td>
+<td>Streaming and batch queries</td>
+<td>Parameter used in conjunction with the `maxRetries` parameter.</td>
+</tr>
+
+<tr>
+<td>`randomizationFactor`</td>
+<td>Real number between 0.0 and 1.0 such as `0.75`.</td>
+<td>0.5</td>
+<td>Streaming and batch queries</td>
+<td>Parameter used in conjunction with the `maxRetries` parameter.</td>
+</tr>
 
 </table>
 
