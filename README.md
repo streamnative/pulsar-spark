@@ -305,7 +305,74 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
   This may cause a false alarm. You can set it to `false` when it doesn't work as you expected. <br>
 
   A batch query always fails if it fails to read any data from the provided offsets due to data loss.</td>
+</tr>
+<tr>
+<td>
+`maxEntriesPerTrigger`
+</td>
+<td>
+Number of entries to include in a single micro-batch during
+streaming.
+</td>
+<td>-1</td>
+<td>Streaming query</td>
+<td>This parameter controls how many Pulsar entries are read by
+the connector from the topic backlog at once. If the topic
+backlog is considerably high, users can use this parameter
+to limit the size of the micro-batch. If multiple topics are read,
+this parameter controls the complete number of entries fetched from
+all of them.
 
+*Note:* Entries might contain multiple messages. The default value of `-1` means that the
+complete backlog is read at once.</td>
+</tr>
+
+<tr>
+<td>
+`forwardStrategy`
+</td>
+<td>
+`simple`, `large-first` or `proportional`
+</td>
+<td>`simple`</td>
+<td>Streaming query</td>
+<td>If `maxEntriesPerTrigger` is set, this parameter controls
+which forwarding strategy is in use during the read of multiple
+topics.
+<li>
+`simple` just divides the allowed number of entries equally 
+between all topics, regardless of their backlog size
+</li>
+<li>
+`large-first` will load the largest topic backlogs first, 
+as the maximum number of allowed entries allows
+</li>
+<li>
+`proportional` will forward all topics proportional to the
+topic backlog/overall backlog ratio
+</li>
+</td>
+</tr>
+
+<tr>
+<td>
+`ensureEntriesPerTopic`
+</td>
+<td>Number to forward each topic with during a micro-batch.</td>
+<td>0</td>
+<td>Streaming query</td>
+<td>If multiple topics are read, and the maximum number of
+entries is also specified, always forward all topics with the 
+amount of entries specified here. Using this, users can ensure that topics 
+with considerably smaller backlogs than others are also forwarded 
+and read. Note that:
+<li>If this number is higher than the maximum allowed entries divided
+by the number of topics, then this value is taken into account, overriding
+the maximum number of entries per micro-batch.
+</li>
+<li>This parameter has an effect only for forwarding strategies
+`large-first` and `proportional`.</li>
+</td>
 </tr>
 <tr>
 <td>
@@ -332,6 +399,7 @@ this is `true`, Pulsar topic schema(s) are not
 taken into account during operation.
 </td>
 </tr>
+
 
 </table>
 

@@ -36,7 +36,10 @@ private[pulsar] class PulsarSource(
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
-    jsonOptions: JSONOptionsInRead)
+    jsonOptions: JSONOptionsInRead,
+    maxEntriesPerTrigger: Long,
+    ensureEntriesPerTopic: Long,
+    forwardStrategy: String)
     extends Source
     with Logging {
 
@@ -59,12 +62,21 @@ private[pulsar] class PulsarSource(
   override def schema(): StructType = SchemaUtils.pulsarSourceSchema(pulsarSchema)
 
   override def getOffset: Option[Offset] = {
-    // Make sure initialTopicOffsets is initialized
     initialTopicOffsets
-    val latest = metadataReader.fetchLatestOffsets()
-    currentTopicOffsets = Some(latest.topicOffsets)
-    logDebug(s"GetOffset: ${latest.topicOffsets.toSeq.map(_.toString).sorted}")
-    Some(latest.asInstanceOf[Offset])
+    val nextOffsets = if (maxEntriesPerTrigger == -1) {
+      metadataReader.fetchLatestOffsets()
+    } else {
+      currentTopicOffsets match {
+        case Some(value) =>
+          metadataReader.forwardOffset(value,
+            forwardStrategy, maxEntriesPerTrigger, ensureEntriesPerTopic)
+        case _ =>
+          metadataReader.forwardOffset(initialTopicOffsets.topicOffsets,
+            forwardStrategy, maxEntriesPerTrigger, ensureEntriesPerTopic)
+      }
+    }
+    logDebug(s"GetOffset: ${nextOffsets.topicOffsets.toSeq.map(_.toString).sorted}")
+    Some(nextOffsets.asInstanceOf[Offset])
   }
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
@@ -74,9 +86,7 @@ private[pulsar] class PulsarSource(
     logInfo(s"getBatch called with start = $start, end = $end")
     val endTopicOffsets = SpecificPulsarOffset.getTopicOffsets(end)
 
-    if (currentTopicOffsets.isEmpty) {
-      currentTopicOffsets = Some(endTopicOffsets)
-    }
+    currentTopicOffsets = Some(endTopicOffsets)
 
     if (start.isDefined && start.get == end) {
       return sqlContext.internalCreateDataFrame(
