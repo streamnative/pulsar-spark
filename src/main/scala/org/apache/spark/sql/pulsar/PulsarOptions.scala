@@ -56,6 +56,8 @@ private[pulsar] object PulsarOptions {
   val UseTls = "useTls"
   val TlsHostnameVerificationEnable = "tlsHostnameVerificationEnable"
 
+  val AllowDifferentTopicSchemas = "allowdifferenttopicschemas"
+
   val InstructionForFailOnDataLossFalse: String =
     """
       |Some data may have been lost because they are not available in Pulsar any more; either the
