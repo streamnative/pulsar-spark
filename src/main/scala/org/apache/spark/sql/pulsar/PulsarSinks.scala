@@ -25,6 +25,7 @@ import org.apache.spark.sql.catalyst.expressions.{Attribute, Literal}
 import org.apache.spark.sql.execution.QueryExecution
 import org.apache.spark.sql.execution.streaming.Sink
 import org.apache.spark.sql.types._
+import org.apache.spark.unsafe.types.UTF8String
 import org.apache.spark.util.Utils
 
 private[pulsar] class PulsarSink(
@@ -86,7 +87,7 @@ private[pulsar] object PulsarSinks extends Logging {
               s"'$TOPIC_ATTRIBUTE_NAME' attribute is present. Use the " +
               s"$TOPIC_SINGLE option for setting a topic.")
         } else {
-          Literal(topic.get, StringType)
+          Literal(UTF8String.fromString(topic.get), StringType)
         }
       )
       .dataType match {
