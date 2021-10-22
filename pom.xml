@@ -24,7 +24,7 @@
 
   <groupId>io.streamnative.connectors</groupId>
   <artifactId>pulsar-spark-connector_${scala.binary.version}</artifactId>
-  <version>2.4.6-SNAPSHOT</version>
+  <version>3.1.1.2-rc1</version>
   <name>StreamNative :: Pulsar Spark Connector</name>
   <url>http://pulsar.apache.org</url>
   <inceptionYear>2019</inceptionYear>
