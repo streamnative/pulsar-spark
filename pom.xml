@@ -24,7 +24,7 @@
 
   <groupId>io.streamnative.connectors</groupId>
   <artifactId>pulsar-spark-connector_${scala.binary.version}</artifactId>
-  <version>3.1.1.2-rc1</version>
+  <version>3.1.1.2-rc2</version>
   <name>StreamNative :: Pulsar Spark Connector</name>
   <url>http://pulsar.apache.org</url>
   <inceptionYear>2019</inceptionYear>
@@ -52,6 +52,7 @@
     </developer>
   </developers>
   <properties>
+    <project.build.outputTimestamp>1</project.build.outputTimestamp>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <project.scm.id>snbot-github</project.scm.id>
@@ -80,6 +81,7 @@
     <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
     <scala-maven-plugin.version>4.4.1</scala-maven-plugin.version>
     <scalatest-maven-plugin.version>2.0.2</scalatest-maven-plugin.version>
+    <nexus-staging-maven-plugin.version>1.6.8</nexus-staging-maven-plugin.version>
   </properties>
 
   <!-- dependencies for all modules -->
@@ -152,35 +154,6 @@
       <version>${spark.version}</version>
       <classifier>tests</classifier>
       <scope>test</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>io.streamnative.tests</groupId>
-      <artifactId>framework-common</artifactId>
-      <version>${streamnative-tests.version}</version>
-      <scope>test</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>io.netty</groupId>
-          <artifactId>netty-common</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>io.streamnative.tests</groupId>
-      <artifactId>framework-pulsar</artifactId>
-      <version>${streamnative-tests.version}</version>
-      <scope>test</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>org.apache.pulsar</groupId>
-          <artifactId>pulsar-client-original</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>org.apache.pulsar</groupId>
-          <artifactId>pulsar-client-admin-original</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
 
     <dependency>
@@ -396,8 +369,6 @@
       </plugin>
     </plugins>
   </build>
-  <profiles>
-  </profiles>
   <repositories>
     <repository>
       <id>central</id>
@@ -411,9 +382,52 @@
     </repository>
   </repositories>
   <distributionManagement>
+    <snapshotRepository>
+      <id>ossrh</id>
+      <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+    </snapshotRepository>
     <repository>
-      <id>streamnative</id>
-      <url>https://api.bintray.com/maven/streamnative/maven/io.streamnative.pulsar-spark/;publish=1</url>
+      <id>ossrh</id>
+      <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
     </repository>
   </distributionManagement>
+  <profiles>
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+            <configuration>
+              <!-- Prevent `gpg` from using pinentry programs -->
+              <gpgArguments>
+                <arg>--pinentry-mode</arg>
+                <arg>loopback</arg>
+              </gpgArguments>
+            </configuration>
+          </plugin>
+          <plugin>
+            <groupId>org.sonatype.plugins</groupId>
+            <artifactId>nexus-staging-maven-plugin</artifactId>
+            <version>${nexus-staging-maven-plugin.version}</version>
+            <extensions>true</extensions>
+            <configuration>
+              <serverId>ossrh</serverId>
+              <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+              <autoReleaseAfterClose>true</autoReleaseAfterClose>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>
