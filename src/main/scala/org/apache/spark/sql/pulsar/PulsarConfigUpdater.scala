@@ -26,7 +26,7 @@ private[pulsar] case class PulsarConfigUpdater(
     module: String,
     pulsarParams: Map[String, Object],
     blacklistedKeys: Set[String] = Set(),
-    keysToHideInLog: Set[String] = Set(PulsarOptions.AUTH_PARAMS))
+    keysToHideInLog: Set[String] = Set(PulsarOptions.AuthParams))
   extends Logging {
 
   private val map = new ju.HashMap[String, Object](pulsarParams.asJava)

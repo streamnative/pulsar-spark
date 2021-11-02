@@ -15,18 +15,18 @@ package org.apache.spark.sql.pulsar
 
 import java.{util => ju}
 import java.io.Closeable
-import java.util.{Optional, UUID}
+import java.util.Optional
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
-import org.apache.pulsar.client.api.{Message, MessageId, PulsarClient, SubscriptionInitialPosition, SubscriptionType}
+import org.apache.pulsar.client.api.{Message, MessageId, PulsarClient}
 import org.apache.pulsar.client.impl.schema.BytesSchema
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.pulsar.PulsarOptions.{AUTH_PARAMS, AUTH_PLUGIN_CLASS_NAME, TLS_ALLOW_INSECURE_CONNECTION, TLS_HOSTNAME_VERIFICATION_ENABLE, TLS_TRUST_CERTS_FILE_PATH, TOPIC_OPTION_KEYS}
+import org.apache.spark.sql.pulsar.PulsarOptions._
 import org.apache.spark.sql.types.StructType
 
 /**
@@ -71,6 +71,9 @@ private[pulsar] case class PulsarMetadataReader(
         try {
           admin.topics().createSubscription(tp, s"$driverGroupIdPrefix-$tp", umid.mid)
         } catch {
+          case _: PulsarAdminException.ConflictException =>
+            log.info("Subscription already exists, resetting the cursor to given offset")
+            admin.topics().resetCursor(tp, s"$driverGroupIdPrefix-$tp", umid.mid)
           case e: Throwable =>
             throw new RuntimeException(
               s"Failed to setup cursor for ${TopicName.get(tp).toString}",
@@ -82,18 +85,25 @@ private[pulsar] case class PulsarMetadataReader(
   def setupCursorByTime(time: SpecificPulsarStartingTime): Unit = {
     time.topicTimes.foreach {
       case (tp, time) =>
+        val msgID = time match {
+          case PulsarProvider.EARLIEST_TIME => MessageId.earliest
+          case PulsarProvider.LATEST_TIME => MessageId.latest
+          case t if t >= 0 => MessageId.latest
+          case _ => throw new RuntimeException(s"Invalid starting time for $tp: $time")
+        }
+
+        // setup the subscription
         try {
-          if (time == PulsarProvider.EARLIEST_TIME) {
-            admin.topics().createSubscription(tp, s"$driverGroupIdPrefix-$tp", MessageId.earliest)
-          } else if (time == PulsarProvider.LATEST_TIME) {
-            admin.topics().createSubscription(tp, s"$driverGroupIdPrefix-$tp", MessageId.latest)
-          } else if (time < 0) {
-            throw new RuntimeException(s"Invalid starting time for $tp: $time")
-          } else {
-            admin.topics().createSubscription(tp, s"$driverGroupIdPrefix-$tp", MessageId.latest)
-            admin.topics().resetCursor(tp, s"$driverGroupIdPrefix-$tp", time)
-          }
+          admin.topics().createSubscription(tp, s"$driverGroupIdPrefix-$tp", msgID)
         } catch {
+          case _: PulsarAdminException.ConflictException =>
+            log.info("subscription already exists, resetting the cursor to given offset")
+            time match {
+              case PulsarProvider.EARLIEST_TIME | PulsarProvider.LATEST_TIME =>
+                admin.topics().resetCursor(tp, s"$driverGroupIdPrefix-$tp", msgID)
+              case _ =>
+                admin.topics().resetCursor(tp, s"$driverGroupIdPrefix-$tp", time)
+            }
           case e: Throwable =>
             throw new RuntimeException(
               s"Failed to setup cursor for ${TopicName.get(tp).toString}", e)
@@ -227,15 +237,17 @@ private[pulsar] case class PulsarMetadataReader(
   }
 
   private def getTopics(): Seq[String] = {
-    topics = caseInsensitiveParameters.find(x => TOPIC_OPTION_KEYS.contains(x._1)).get match {
-      case ("topic", value) =>
+    val topics = caseInsensitiveParameters.find({case (key, _) => TopicOptionKeys.contains(key)})
+    topics match {
+      case Some((TopicSingle, value)) =>
         TopicName.get(value).toString :: Nil
-      case ("topics", value) =>
+      case Some((TopicMulti, value)) =>
         value.split(",").map(_.trim).filter(_.nonEmpty).map(TopicName.get(_).toString)
-      case ("topicspattern", value) =>
+      case Some((TopicPattern, value)) =>
         getTopics(value)
+      case None =>
+        throw new RuntimeException("Failed to get topics from configurations")
     }
-    topics
   }
 
   private def getTopicPartitions(): Seq[String] = {
@@ -245,7 +257,7 @@ private[pulsar] case class PulsarMetadataReader(
       if (partNum == 0) {
         tp :: Nil
       } else {
-        (0 until partNum).map(tp + PulsarOptions.PARTITION_SUFFIX + _)
+        (0 until partNum).map(tp + PulsarOptions.PartitionSuffix + _)
       }
     }
     topicPartitions
@@ -296,7 +308,7 @@ private[pulsar] case class PulsarMetadataReader(
         assert(
           specified.keySet.subsetOf(topicPartitions.toSet),
           s"topics designated in startingOffsets/endingOffsets" +
-            s" should all appear in $TOPIC_OPTION_KEYS .\n" +
+            s" should all appear in $TopicOptionKeys .\n" +
             s"topics: $topicPartitions, topics in offsets: ${specified.keySet}"
         )
         val nonSpecifiedTopics = topicPartitions.toSet -- specified.keySet
@@ -316,7 +328,7 @@ private[pulsar] case class PulsarMetadataReader(
         assert(
           specified.keySet.subsetOf(topicPartitions.toSet),
           s"topics designated in startingTime" +
-            s" should all appear in $TOPIC_OPTION_KEYS .\n" +
+            s" should all appear in $TopicOptionKeys .\n" +
             s"topics: $topicPartitions, topics in startingTime: ${specified.keySet}"
         )
         val nonSpecifiedTopics = topicPartitions.toSet -- specified.keySet
@@ -348,7 +360,7 @@ private[pulsar] case class PulsarMetadataReader(
         assert(
           specified.keySet.subsetOf(topicPartitions.toSet),
           s"topics designated in startingOffsets/endingOffsets" +
-            s" should all appear in $TOPIC_OPTION_KEYS .\n" +
+            s" should all appear in $TopicOptionKeys .\n" +
             s"topics: $topicPartitions, topics in offsets: ${specified.keySet}"
         )
         val nonSpecifiedTopics = topicPartitions.toSet -- specified.keySet

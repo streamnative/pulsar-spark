@@ -26,7 +26,7 @@ import org.apache.pulsar.client.api.{ClientBuilder, PulsarClient}
 
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.pulsar.PulsarOptions.{AUTH_PARAMS, AUTH_PLUGIN_CLASS_NAME, TLS_ALLOW_INSECURE_CONNECTION, TLS_HOSTNAME_VERIFICATION_ENABLE, TLS_TRUST_CERTS_FILE_PATH}
+import org.apache.spark.sql.pulsar.PulsarOptions.{AuthParams, AuthPluginClassName, TlsAllowInsecureConnection, TlsHostnameVerificationEnable, TlsTrustCertsFilePath}
 
 private[pulsar] object CachedPulsarClient extends Logging {
 
@@ -69,11 +69,11 @@ private[pulsar] object CachedPulsarClient extends Logging {
                           pulsarConf: ju.Map[String, Object],
                           pulsarClientBuilder: ClientBuilder = PulsarClient.builder()): Client = {
     val pulsarServiceUrl =
-      pulsarConf.get(PulsarOptions.SERVICE_URL_OPTION_KEY).asInstanceOf[String]
+      pulsarConf.get(PulsarOptions.ServiceUrlOptionKey).asInstanceOf[String]
     val clientConf = new PulsarConfigUpdater(
       "pulsarClientCache",
       pulsarConf.asScala.toMap,
-      PulsarOptions.FILTERED_KEYS
+      PulsarOptions.FilteredKeys
     ).rebuild()
     logInfo(s"Client Conf = ${clientConf}")
     try {
@@ -81,21 +81,21 @@ private[pulsar] object CachedPulsarClient extends Logging {
         .serviceUrl(pulsarServiceUrl)
         .loadConf(clientConf)
       // Set TLS and authentication parameters if they were given
-      if (clientConf.containsKey(AUTH_PLUGIN_CLASS_NAME)) {
+      if (clientConf.containsKey(AuthPluginClassName)) {
         pulsarClientBuilder.authentication(
-          clientConf.get(AUTH_PLUGIN_CLASS_NAME).toString, clientConf.get(AUTH_PARAMS).toString)
+          clientConf.get(AuthPluginClassName).toString, clientConf.get(AuthParams).toString)
       }
-      if (clientConf.containsKey(TLS_ALLOW_INSECURE_CONNECTION)) {
+      if (clientConf.containsKey(TlsAllowInsecureConnection)) {
         pulsarClientBuilder.allowTlsInsecureConnection(
-          clientConf.get(TLS_ALLOW_INSECURE_CONNECTION).toString.toBoolean)
+          clientConf.get(TlsAllowInsecureConnection).toString.toBoolean)
       }
-      if (clientConf.containsKey(TLS_HOSTNAME_VERIFICATION_ENABLE)) {
+      if (clientConf.containsKey(TlsHostnameVerificationEnable)) {
         pulsarClientBuilder.enableTlsHostnameVerification(
-          clientConf.get(TLS_HOSTNAME_VERIFICATION_ENABLE).toString.toBoolean)
+          clientConf.get(TlsHostnameVerificationEnable).toString.toBoolean)
       }
-      if (clientConf.containsKey(TLS_TRUST_CERTS_FILE_PATH)) {
+      if (clientConf.containsKey(TlsTrustCertsFilePath)) {
         pulsarClientBuilder.tlsTrustCertsFilePath(
-          clientConf.get(TLS_TRUST_CERTS_FILE_PATH).toString)
+          clientConf.get(TlsTrustCertsFilePath).toString)
       }
       val pulsarClient: Client = pulsarClientBuilder.build()
       logDebug(
