@@ -109,7 +109,7 @@ private[pulsar] abstract class PulsarRowWriter(
       inputSchema)
 
     val valuesExpression =
-      inputSchema.filter(n => !PulsarOptions.META_FIELD_NAMES.contains(n.name))
+      inputSchema.filter(n => !PulsarOptions.MetaFieldNames.contains(n.name))
 
     val valueProj = UnsafeProjection.create(valuesExpression, inputSchema)
 

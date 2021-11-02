@@ -132,7 +132,7 @@ private[pulsar] object PulsarSinks extends Logging {
           "Choose another name if you want to keep this field or it will be ignored by pulsar."))
 
     val valuesExpression =
-      schema.filter(n => !PulsarOptions.META_FIELD_NAMES.contains(n.name))
+      schema.filter(n => !PulsarOptions.MetaFieldNames.contains(n.name))
 
     if (valuesExpression.length == 0) {
       throw new AnalysisException("Schema should have at least one non-key/non-topic field")

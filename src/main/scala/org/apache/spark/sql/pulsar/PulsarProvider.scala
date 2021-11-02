@@ -354,11 +354,11 @@ private[pulsar] object PulsarProvider extends Logging {
   }
 
   private def getServiceUrl(parameters: Map[String, String]): String = {
-    parameters.get(ServiceUrlOptionKey).get
+    parameters(ServiceUrlOptionKey)
   }
 
   private def getAdminUrl(parameters: Map[String, String]): String = {
-    parameters.get(AdminUrlOptionKey).get
+    parameters(AdminUrlOptionKey)
   }
 
   private def failOnDataLoss(caseInsensitiveParams: Map[String, String]): Boolean =
@@ -390,7 +390,7 @@ private[pulsar] object PulsarProvider extends Logging {
         "You should specify topic(s) using one of the topic options: "
           + TopicOptionKeys.mkString(", "))
     }
-    caseInsensitiveParams.find(x => TopicOptionKeys.contains(x._1)).get match {
+    topicOptions.head match {
       case ("topic", value) =>
         if (value.contains(",")) {
           throw new IllegalArgumentException(
@@ -407,7 +407,7 @@ private[pulsar] object PulsarProvider extends Logging {
         }
 
       case ("topicspattern", value) =>
-        if (value.trim.length == 0) {
+        if (value.trim.isEmpty) {
           throw new IllegalArgumentException("TopicsPattern is empty")
         }
     }
