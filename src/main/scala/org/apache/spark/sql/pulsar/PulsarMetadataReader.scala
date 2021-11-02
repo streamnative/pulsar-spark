@@ -13,8 +13,8 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.io.Closeable
 import java.{util => ju}
+import java.io.Closeable
 import java.util.Optional
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
