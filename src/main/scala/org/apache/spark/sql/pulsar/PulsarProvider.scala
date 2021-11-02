@@ -83,7 +83,7 @@ private[pulsar] class PulsarProvider
     val (clientConfig, readerConfig, adminClientConfig, serviceUrl, adminUrl) =
       prepareConfForReader(parameters)
 
-    val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}-${metadataPath.hashCode}"
+    val subscriptionNamePrefix = getSubscriptionPrefix(parameters)
     val metadataReader = new PulsarMetadataReader(
       serviceUrl,
       adminUrl,
@@ -119,7 +119,7 @@ private[pulsar] class PulsarProvider
       parameters: Map[String, String]): BaseRelation = {
     val caseInsensitiveParams = validateBatchOptions(parameters)
 
-    val subscriptionNamePrefix = s"spark-pulsar-batch-${UUID.randomUUID}"
+    val subscriptionNamePrefix = getSubscriptionPrefix(parameters, isBatch = true)
 
     val (clientConfig, readerConfig, adminClientConfig, serviceUrl, adminUrl) =
       prepareConfForReader(parameters)
@@ -345,6 +345,12 @@ private[pulsar] object PulsarProvider extends Logging {
 
   def paramsToPulsarConf(module: String, params: Map[String, String]): ju.Map[String, Object] = {
     PulsarConfigUpdater(module, params).rebuild()
+  }
+
+  private def getSubscriptionPrefix(parameters: Map[String, String],
+                                    isBatch: Boolean = false): String = {
+    val defaultPrefix = if (isBatch) "spark-pulsar-batch" else "spar-pulsar"
+    parameters.getOrElse(SUBSCRIPTION_PREFIX, s"$defaultPrefix-${UUID.randomUUID}")
   }
 
   private def getServiceUrl(parameters: Map[String, String]): String = {

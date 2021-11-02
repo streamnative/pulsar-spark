@@ -71,6 +71,9 @@ private[pulsar] case class PulsarMetadataReader(
         try {
           admin.topics().createSubscription(tp, s"$driverGroupIdPrefix-$tp", umid.mid)
         } catch {
+          case e: PulsarAdminException.ConnectException =>
+            log.info("Subscription already exists, resetting the cursor to given offset")
+            admin.topics().resetCursor(tp, s"$driverGroupIdPrefix-$tp", umid.mid)
           case e: Throwable =>
             throw new RuntimeException(
               s"Failed to setup cursor for ${TopicName.get(tp).toString}",
@@ -82,21 +85,28 @@ private[pulsar] case class PulsarMetadataReader(
   def setupCursorByTime(time: SpecificPulsarStartingTime): Unit = {
     time.topicTimes.foreach {
       case (tp, time) =>
+        if (time < 0) {
+          throw new RuntimeException(s"Invalid starting time for $tp: $time")
+        }
+
+        // setup the subscription
+        val msgID = if (time == PulsarProvider.EARLIEST_TIME) MessageId.earliest
+                    else MessageId.latest
         try {
-          if (time == PulsarProvider.EARLIEST_TIME) {
-            admin.topics().createSubscription(tp, s"$driverGroupIdPrefix-$tp", MessageId.earliest)
-          } else if (time == PulsarProvider.LATEST_TIME) {
-            admin.topics().createSubscription(tp, s"$driverGroupIdPrefix-$tp", MessageId.latest)
-          } else if (time < 0) {
-            throw new RuntimeException(s"Invalid starting time for $tp: $time")
-          } else {
-            admin.topics().createSubscription(tp, s"$driverGroupIdPrefix-$tp", MessageId.latest)
-            admin.topics().resetCursor(tp, s"$driverGroupIdPrefix-$tp", time)
-          }
+          admin.topics().createSubscription(tp, s"$driverGroupIdPrefix-$tp", msgID)
         } catch {
+          case _: PulsarAdminException.ConflictException =>
+            log.info("subscription already exists, resetting the cursor to given offset")
           case e: Throwable =>
             throw new RuntimeException(
               s"Failed to setup cursor for ${TopicName.get(tp).toString}", e)
+        }
+
+        // adjust subscription position
+        if (time == PulsarProvider.EARLIEST_TIME || time == PulsarProvider.LATEST_TIME) {
+          admin.topics().resetCursor(tp, s"$driverGroupIdPrefix-$tp", msgID)
+        } else {
+          admin.topics().resetCursor(tp, s"$driverGroupIdPrefix-$tp", time)
         }
     }
   }
