@@ -237,7 +237,8 @@ private[pulsar] case class PulsarMetadataReader(
   }
 
   private def getTopics(): Seq[String] = {
-    topics = caseInsensitiveParameters.filterKeys(x => TopicOptionKeys.contains(x)).toSeq.head match {
+    topics = caseInsensitiveParameters
+      .filterKeys(x => TopicOptionKeys.contains(x)).toSeq.head match {
       case ("topic", value) =>
         TopicName.get(value).toString :: Nil
       case ("topics", value) =>
