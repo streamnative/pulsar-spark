@@ -13,20 +13,21 @@
  */
 package org.apache.spark.sql.pulsar
 
-import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
-import org.apache.pulsar.client.api.{Message, MessageId, PulsarClient}
-import org.apache.pulsar.client.impl.schema.BytesSchema
-import org.apache.pulsar.common.naming.TopicName
-import org.apache.pulsar.common.schema.SchemaInfo
-import org.apache.spark.internal.Logging
-import org.apache.spark.sql.pulsar.PulsarOptions._
-import org.apache.spark.sql.types.StructType
-
 import java.io.Closeable
 import java.util.Optional
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 import java.{util => ju}
+
+import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
+import org.apache.pulsar.client.api.{Message, MessageId, PulsarClient}
+import org.apache.pulsar.client.impl.schema.BytesSchema
+import org.apache.pulsar.common.naming.TopicName
+import org.apache.pulsar.common.schema.SchemaInfo
+
+import org.apache.spark.internal.Logging
+import org.apache.spark.sql.pulsar.PulsarOptions._
+import org.apache.spark.sql.types.StructType
 
 /**
  * A Helper class that responsible for:
