@@ -19,45 +19,44 @@ import org.apache.pulsar.common.naming.TopicName
 private[pulsar] object PulsarOptions {
 
   // option key prefix for different modules
-  val PULSAR_ADMIN_OPTION_KEY_PREFIX = "pulsar.admin."
-  val PULSAR_CLIENT_OPTION_KEY_PREFIX = "pulsar.client."
-  val PULSAR_PRODUCER_OPTION_KEY_PREFIX = "pulsar.producer."
-  val PULSAR_CONSUMER_OPTION_KEY_PREFIX = "pulsar.consumer."
-  val PULSAR_READER_OPTION_KEY_PREFIX = "pulsar.reader."
+  val PulsarAdminOptionKeyPrefix = "pulsar.admin."
+  val PulsarClientOptionKeyPrefix = "pulsar.client."
+  val PulsarProducerOptionKeyPrefix = "pulsar.producer."
+  val PulsarConsumerOptionKeyPrefix = "pulsar.consumer."
+  val PulsarReaderOptionKeyPrefix = "pulsar.reader."
 
   // options
 
-  val TOPIC_SINGLE = "topic"
-  val TOPIC_MULTI = "topics"
-  val TOPIC_PATTERN = "topicspattern"
+  val TopicSingle = "topic"
+  val TopicMulti = "topics"
+  val TopicPattern = "topicspattern"
 
-  val PARTITION_SUFFIX = TopicName.PARTITIONED_TOPIC_SUFFIX
+  val PartitionSuffix: String = TopicName.PARTITIONED_TOPIC_SUFFIX
 
-  val TOPIC_OPTION_KEYS = Set(
-    TOPIC_SINGLE,
-    TOPIC_MULTI,
-    TOPIC_PATTERN
+  val TopicOptionKeys = Set(
+    TopicSingle,
+    TopicMulti,
+    TopicPattern
   )
 
-  val SERVICE_URL_OPTION_KEY = "service.url"
-  val ADMIN_URL_OPTION_KEY = "admin.url"
-  val STARTING_OFFSETS_OPTION_KEY = "startingoffsets"
-  val STARTING_TIME = "startingtime"
-  val ENDING_OFFSETS_OPTION_KEY = "endingoffsets"
-  val SUBSCRIPTION_PREFIX = "subscriptionprefix"
+  val ServiceUrlOptionKey = "service.url"
+  val AdminUrlOptionKey = "admin.url"
+  val StartingOffsetsOptionKey = "startingoffsets"
+  val StartingTime = "startingtime"
+  val EndingOffsetsOptionKey = "endingoffsets"
+  val SubscriptionPrefix = "subscriptionprefix"
 
-  val POLL_TIMEOUT_MS = "polltimeoutms"
-  val FAIL_ON_DATA_LOSS_OPTION_KEY = "failondataloss"
+  val PollTimeoutMS = "polltimeoutms"
+  val FailOnDataLossOptionKey = "failondataloss"
 
-  val AUTH_PLUGIN_CLASS_NAME = "authPluginClassName"
-  val AUTH_PARAMS = "authParams"
-  val TLS_TRUST_CERTS_FILE_PATH = "tlsTrustCertsFilePath"
-  val TLS_ALLOW_INSECURE_CONNECTION = "tlsAllowInsecureConnection"
-  val USE_TLS = "useTls"
-  val TLS_HOSTNAME_VERIFICATION_ENABLE = "tlsHostnameVerificationEnable"
+  val AuthPluginClassName = "authPluginClassName"
+  val AuthParams = "authParams"
+  val TlsTrustCertsFilePath = "tlsTrustCertsFilePath"
+  val TlsAllowInsecureConnection = "tlsAllowInsecureConnection"
+  val UseTls = "useTls"
+  val TlsHostnameVerificationEnable = "tlsHostnameVerificationEnable"
 
-
-  val INSTRUCTION_FOR_FAIL_ON_DATA_LOSS_FALSE =
+  val InstructionForFailOnDataLossFalse: String =
     """
       |Some data may have been lost because they are not available in Pulsar any more; either the
       | data was aged out by Pulsar or the topic may have been deleted before all the data in the
@@ -65,7 +64,7 @@ private[pulsar] object PulsarOptions {
       | option "failOnDataLoss" to "true".
     """.stripMargin
 
-  val INSTRUCTION_FOR_FAIL_ON_DATA_LOSS_TRUE =
+  val InstructionForFailOnDataLossTrue: String =
     """
       |Some data may have been lost because they are not available in Pulsar any more; either the
       | data was aged out by Pulsar or the topic may have been deleted before all the data in the
@@ -73,22 +72,22 @@ private[pulsar] object PulsarOptions {
       | source option "failOnDataLoss" to "false".
     """.stripMargin
 
-  val TOPIC_SCHEMA_CLASS_OPTION_KEY = "topic.schema.class"
+  val TopicSchemaClassOptionKey = "topic.schema.class"
 
-  val FILTERED_KEYS: Set[String] =
-    Set(TOPIC_SINGLE, SERVICE_URL_OPTION_KEY, TOPIC_SCHEMA_CLASS_OPTION_KEY)
+  val FilteredKeys: Set[String] =
+    Set(TopicSingle, ServiceUrlOptionKey, TopicSchemaClassOptionKey)
 
-  val TOPIC_ATTRIBUTE_NAME: String = "__topic"
-  val KEY_ATTRIBUTE_NAME: String = "__key"
-  val MESSAGE_ID_NAME: String = "__messageId"
-  val PUBLISH_TIME_NAME: String = "__publishTime"
-  val EVENT_TIME_NAME: String = "__eventTime"
+  val TopicAttributeName: String = "__topic"
+  val KeyAttributeName: String = "__key"
+  val MessageIdName: String = "__messageId"
+  val PublishTimeName: String = "__publishTime"
+  val EventTimeName: String = "__eventTime"
 
-  val META_FIELD_NAMES = Set(
-    TOPIC_ATTRIBUTE_NAME,
-    KEY_ATTRIBUTE_NAME,
-    MESSAGE_ID_NAME,
-    PUBLISH_TIME_NAME,
-    EVENT_TIME_NAME
+  val MetaFieldNames = Set(
+    TopicAttributeName,
+    KeyAttributeName,
+    MessageIdName,
+    PublishTimeName,
+    EventTimeName
   )
 }

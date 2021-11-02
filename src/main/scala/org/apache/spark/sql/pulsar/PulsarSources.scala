@@ -60,9 +60,9 @@ private[pulsar] object PulsarSourceUtils extends Logging {
    */
   def reportDataLossFunc(failOnDataLoss: Boolean): (String) => Unit = { (message: String) =>
     if (failOnDataLoss) {
-      throw new IllegalStateException(message + s". $INSTRUCTION_FOR_FAIL_ON_DATA_LOSS_TRUE")
+      throw new IllegalStateException(message + s". $InstructionForFailOnDataLossTrue")
     } else {
-      logWarning(message + s". $INSTRUCTION_FOR_FAIL_ON_DATA_LOSS_FALSE")
+      logWarning(message + s". $InstructionForFailOnDataLossFalse")
     }
   }
 

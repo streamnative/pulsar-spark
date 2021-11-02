@@ -383,11 +383,11 @@ private[pulsar] object SchemaUtils {
   import PulsarOptions._
 
   val metaDataFields: Seq[StructField] = Seq(
-    StructField(KEY_ATTRIBUTE_NAME, BinaryType),
-    StructField(TOPIC_ATTRIBUTE_NAME, StringType),
-    StructField(MESSAGE_ID_NAME, BinaryType),
-    StructField(PUBLISH_TIME_NAME, TimestampType),
-    StructField(EVENT_TIME_NAME, TimestampType)
+    StructField(KeyAttributeName, BinaryType),
+    StructField(TopicAttributeName, StringType),
+    StructField(MessageIdName, BinaryType),
+    StructField(PublishTimeName, TimestampType),
+    StructField(EventTimeName, TimestampType)
   )
 
 }

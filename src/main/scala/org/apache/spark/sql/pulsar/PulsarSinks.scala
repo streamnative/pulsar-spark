@@ -78,13 +78,13 @@ private[pulsar] object PulsarSinks extends Logging {
 
   def validateQuery(schema: Seq[Attribute], topic: Option[String]): Unit = {
     schema
-      .find(_.name == TOPIC_ATTRIBUTE_NAME)
+      .find(_.name == TopicAttributeName)
       .getOrElse(
         if (topic.isEmpty) {
           throw new AnalysisException(
             s"topic option required when no " +
-              s"'$TOPIC_ATTRIBUTE_NAME' attribute is present. Use the " +
-              s"$TOPIC_SINGLE option for setting a topic.")
+              s"'$TopicAttributeName' attribute is present. Use the " +
+              s"$TopicSingle option for setting a topic.")
         } else {
           Literal(topic.get, StringType)
         }
@@ -96,7 +96,7 @@ private[pulsar] object PulsarSinks extends Logging {
     }
 
     schema
-      .find(_.name == PulsarOptions.KEY_ATTRIBUTE_NAME)
+      .find(_.name == PulsarOptions.KeyAttributeName)
       .getOrElse(
         Literal(null, StringType)
       )
@@ -104,12 +104,12 @@ private[pulsar] object PulsarSinks extends Logging {
       case StringType | BinaryType => // good
       case _ =>
         throw new AnalysisException(
-          s"${PulsarOptions.KEY_ATTRIBUTE_NAME} attribute type " +
+          s"${PulsarOptions.KeyAttributeName} attribute type " +
             s"must be a ${StringType.catalogString} or ${BinaryType.catalogString}")
     }
 
     schema
-      .find(_.name == PulsarOptions.EVENT_TIME_NAME)
+      .find(_.name == PulsarOptions.EventTimeName)
       .getOrElse(
         Literal(null, LongType)
       )
@@ -117,15 +117,15 @@ private[pulsar] object PulsarSinks extends Logging {
       case LongType | TimestampType => // good
       case _ =>
         throw new AnalysisException(
-          s"${PulsarOptions.EVENT_TIME_NAME} attribute type " +
+          s"${PulsarOptions.EventTimeName} attribute type " +
             s"must be a ${LongType.catalogString} or ${TimestampType.catalogString}")
     }
 
     schema
       .find(
         a =>
-          a.name == PulsarOptions.MESSAGE_ID_NAME ||
-            a.name == PulsarOptions.PUBLISH_TIME_NAME)
+          a.name == PulsarOptions.MessageIdName ||
+            a.name == PulsarOptions.PublishTimeName)
       .map(a =>
         logWarning(s"${a.name} attribute exists in schema," +
           "it's reserved by Pulsar Source and generated automatically by pulsar for each record." +

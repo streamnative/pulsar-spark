@@ -66,41 +66,41 @@ private[pulsar] abstract class PulsarRowWriter(
     val topicExpression = topic
       .map(Literal(_))
       .orElse {
-        inputSchema.find(_.name == TOPIC_ATTRIBUTE_NAME)
+        inputSchema.find(_.name == TopicAttributeName)
       }
       .getOrElse {
         throw new IllegalStateException(
           s"topic option required when no " +
-            s"'$TOPIC_ATTRIBUTE_NAME' attribute is present")
+            s"'$TopicAttributeName' attribute is present")
       }
     topicExpression.dataType match {
       case StringType => // good
       case t =>
         throw new IllegalStateException(
-          TOPIC_ATTRIBUTE_NAME +
-            s"attribute unsupported type $t. $TOPIC_ATTRIBUTE_NAME " +
+          TopicAttributeName +
+            s"attribute unsupported type $t. $TopicAttributeName " +
             s"must be a ${StringType.catalogString}")
     }
 
     val keyExpression = inputSchema
-      .find(_.name == KEY_ATTRIBUTE_NAME)
+      .find(_.name == KeyAttributeName)
       .getOrElse(Literal(null, BinaryType))
     keyExpression.dataType match {
       case StringType | BinaryType => // good
       case t =>
         throw new IllegalStateException(
-          KEY_ATTRIBUTE_NAME +
+          KeyAttributeName +
             s"attribute unsupported type ${t.catalogString}")
     }
 
     val eventTimeExpression = inputSchema
-      .find(_.name == EVENT_TIME_NAME)
+      .find(_.name == EventTimeName)
       .getOrElse(Literal(null, LongType))
     eventTimeExpression.dataType match {
       case LongType | TimestampType => // good
       case t =>
         throw new IllegalStateException(
-          EVENT_TIME_NAME +
+          EventTimeName +
             s"attribute unsupported type ${t.catalogString}")
     }
 
@@ -182,7 +182,7 @@ private[pulsar] abstract class PulsarRowWriter(
     if (topic == null) {
       throw new NullPointerException(
         s"null topic present in the data. Use the " +
-          s"$TOPIC_SINGLE option for setting a topic.")
+          s"$TopicSingle option for setting a topic.")
     }
 
     val mb = getProducer(topic.toString).newMessage().value(value)

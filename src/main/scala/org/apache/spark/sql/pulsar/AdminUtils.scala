@@ -24,23 +24,23 @@ object AdminUtils {
   def buildAdmin(adminUrl: String, clientConf: ju.Map[String, Object]): PulsarAdmin = {
     val builder = PulsarAdmin.builder().serviceHttpUrl(adminUrl)
 
-    if (clientConf.containsKey(AUTH_PLUGIN_CLASS_NAME)) {
+    if (clientConf.containsKey(AuthPluginClassName)) {
       builder.authentication(
-        clientConf.get(AUTH_PLUGIN_CLASS_NAME).toString, clientConf.get(AUTH_PARAMS).toString)
+        clientConf.get(AuthPluginClassName).toString, clientConf.get(AuthParams).toString)
     }
 
-    if (clientConf.containsKey(TLS_ALLOW_INSECURE_CONNECTION)) {
+    if (clientConf.containsKey(TlsAllowInsecureConnection)) {
       builder.allowTlsInsecureConnection(
-        clientConf.get(TLS_ALLOW_INSECURE_CONNECTION).toString.toBoolean)
+        clientConf.get(TlsAllowInsecureConnection).toString.toBoolean)
     }
 
-    if (clientConf.containsKey(TLS_HOSTNAME_VERIFICATION_ENABLE)) {
+    if (clientConf.containsKey(TlsHostnameVerificationEnable)) {
       builder.enableTlsHostnameVerification(
-        clientConf.get(TLS_HOSTNAME_VERIFICATION_ENABLE).toString.toBoolean)
+        clientConf.get(TlsHostnameVerificationEnable).toString.toBoolean)
     }
 
-    if (clientConf.containsKey(TLS_TRUST_CERTS_FILE_PATH)) {
-      builder.tlsTrustCertsFilePath(clientConf.get(TLS_TRUST_CERTS_FILE_PATH).toString)
+    if (clientConf.containsKey(TlsTrustCertsFilePath)) {
+      builder.tlsTrustCertsFilePath(clientConf.get(TlsTrustCertsFilePath).toString)
     }
 
     builder.build()

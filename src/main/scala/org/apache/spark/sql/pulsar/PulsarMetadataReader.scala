@@ -26,7 +26,7 @@ import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.pulsar.PulsarOptions.{AUTH_PARAMS, AUTH_PLUGIN_CLASS_NAME, TLS_ALLOW_INSECURE_CONNECTION, TLS_HOSTNAME_VERIFICATION_ENABLE, TLS_TRUST_CERTS_FILE_PATH, TOPIC_OPTION_KEYS}
+import org.apache.spark.sql.pulsar.PulsarOptions.{AuthParams, AuthPluginClassName, TlsAllowInsecureConnection, TlsHostnameVerificationEnable, TlsTrustCertsFilePath, TopicOptionKeys}
 import org.apache.spark.sql.types.StructType
 
 /**
@@ -237,7 +237,7 @@ private[pulsar] case class PulsarMetadataReader(
   }
 
   private def getTopics(): Seq[String] = {
-    topics = caseInsensitiveParameters.find(x => TOPIC_OPTION_KEYS.contains(x._1)).get match {
+    topics = caseInsensitiveParameters.find(x => TopicOptionKeys.contains(x._1)).get match {
       case ("topic", value) =>
         TopicName.get(value).toString :: Nil
       case ("topics", value) =>
@@ -255,7 +255,7 @@ private[pulsar] case class PulsarMetadataReader(
       if (partNum == 0) {
         tp :: Nil
       } else {
-        (0 until partNum).map(tp + PulsarOptions.PARTITION_SUFFIX + _)
+        (0 until partNum).map(tp + PulsarOptions.PartitionSuffix + _)
       }
     }
     topicPartitions
@@ -306,7 +306,7 @@ private[pulsar] case class PulsarMetadataReader(
         assert(
           specified.keySet.subsetOf(topicPartitions.toSet),
           s"topics designated in startingOffsets/endingOffsets" +
-            s" should all appear in $TOPIC_OPTION_KEYS .\n" +
+            s" should all appear in $TopicOptionKeys .\n" +
             s"topics: $topicPartitions, topics in offsets: ${specified.keySet}"
         )
         val nonSpecifiedTopics = topicPartitions.toSet -- specified.keySet
@@ -326,7 +326,7 @@ private[pulsar] case class PulsarMetadataReader(
         assert(
           specified.keySet.subsetOf(topicPartitions.toSet),
           s"topics designated in startingTime" +
-            s" should all appear in $TOPIC_OPTION_KEYS .\n" +
+            s" should all appear in $TopicOptionKeys .\n" +
             s"topics: $topicPartitions, topics in startingTime: ${specified.keySet}"
         )
         val nonSpecifiedTopics = topicPartitions.toSet -- specified.keySet
@@ -358,7 +358,7 @@ private[pulsar] case class PulsarMetadataReader(
         assert(
           specified.keySet.subsetOf(topicPartitions.toSet),
           s"topics designated in startingOffsets/endingOffsets" +
-            s" should all appear in $TOPIC_OPTION_KEYS .\n" +
+            s" should all appear in $TopicOptionKeys .\n" +
             s"topics: $topicPartitions, topics in offsets: ${specified.keySet}"
         )
         val nonSpecifiedTopics = topicPartitions.toSet -- specified.keySet
