@@ -237,8 +237,9 @@ private[pulsar] case class PulsarMetadataReader(
   }
 
   private def getTopics(): Seq[String] = {
-    val topics = caseInsensitiveParameters.find({case (key, _) => TopicOptionKeys.contains(key)})
-    topics match {
+    val optionalTopics =
+      caseInsensitiveParameters.find({case (key, _) => TopicOptionKeys.contains(key)})
+    topics = optionalTopics match {
       case Some((TopicSingle, value)) =>
         TopicName.get(value).toString :: Nil
       case Some((TopicMulti, value)) =>
@@ -248,6 +249,7 @@ private[pulsar] case class PulsarMetadataReader(
       case None =>
         throw new RuntimeException("Failed to get topics from configurations")
     }
+    topics
   }
 
   private def getTopicPartitions(): Seq[String] = {
