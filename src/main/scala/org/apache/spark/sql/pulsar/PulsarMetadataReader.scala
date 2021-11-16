@@ -244,9 +244,10 @@ private[pulsar] case class PulsarMetadataReader(
     }
   }
 
-  private def getTopics(): Seq[String] = {
-    val topics = caseInsensitiveParameters.find({case (key, _) => TopicOptionKeys.contains(key)})
-    topics match {
+  private def getTopics(): Unit = {
+    val optionalTopics =
+      caseInsensitiveParameters.find({case (key, _) => TopicOptionKeys.contains(key)})
+    topics = optionalTopics match {
       case Some((TopicSingle, value)) =>
         TopicName.get(value).toString :: Nil
       case Some((TopicMulti, value)) =>
