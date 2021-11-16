@@ -40,7 +40,8 @@ private[pulsar] case class PulsarMetadataReader(
     clientConf: ju.Map[String, Object],
     adminClientConf: ju.Map[String, Object],
     driverGroupIdPrefix: String,
-    caseInsensitiveParameters: Map[String, String])
+    caseInsensitiveParameters: Map[String, String],
+    allowDifferentTopicSchemas: Boolean)
     extends Closeable
     with Logging {
 
@@ -167,20 +168,27 @@ private[pulsar] case class PulsarMetadataReader(
 
   def getPulsarSchema(): SchemaInfo = {
     getTopics()
-    if (topics.size > 0) {
-      val schemas = topics.map { tp =>
-        getPulsarSchema(tp)
-      }
-      val sset = schemas.toSet
-      if (sset.size != 1) {
-        throw new IllegalArgumentException(
-          s"Topics to read must share identical schema, " +
-            s"however we got ${sset.size} distinct schemas:[${sset.mkString(", ")}]")
-      }
-      sset.head
-    } else {
-      // if no topic exists, and we are getting schema, then auto created topic has schema of None
-      SchemaUtils.emptySchemaInfo()
+    allowDifferentTopicSchemas match {
+      case false => if (topics.size > 0) {
+          val schemas = topics.map { tp =>
+            getPulsarSchema(tp)
+          }
+          val sset = schemas.toSet
+          if (sset.size != 1) {
+            throw new IllegalArgumentException(
+              "Topics to read must share identical schema. Consider setting " +
+                s"'$AllowDifferentTopicSchemas' to 'false' to read topics with empty " +
+                s"schemas instead. We got ${sset.size} distinct " +
+                s"schemas:[${sset.mkString(", ")}]")
+          } else {
+            sset.head
+          }
+        } else {
+          // if no topic exists, and we are getting schema,
+          // then auto created topic has schema of None
+          SchemaUtils.emptySchemaInfo()
+        }
+      case true => SchemaUtils.emptySchemaInfo()
     }
   }
 

@@ -327,6 +327,31 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
   A batch query always fails if it fails to read any data from the provided offsets due to data loss.</td>
 
 </tr>
+<tr>
+<td>
+`allowDifferentTopicSchemas`
+</td>
+<td>
+Boolean value
+</td>
+<td>
+`false`
+</td>
+<td>
+Streaming query
+</td>
+<td>
+If multiple topics with different schemas are read, 
+using this parameter automatic schema-based topic 
+value deserialization can be turned off. 
+In that way, topics with different schemas can
+be read in the same pipeline - which is then responsible
+for deserializing the raw values based on some
+schema. Since only the raw values are returned when
+this is `true`, Pulsar topic schema(s) are not
+taken into account during operation.
+</td>
+</tr>
 
 </table>
 
@@ -387,10 +412,13 @@ df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
 ```
 
 #### Schema of Pulsar source
-* For topics without schema or with primitive schema in Pulsar, messages' payload
+- For topics without schema or with primitive schema in Pulsar, messages' payload
 is loaded to a `value` column with the corresponding type with Pulsar schema.
-
-* For topics with Avro or JSON schema, their field names and field types are kept in the result rows.
+- For topics with Avro or JSON schema, their field names and field types are kept in the result rows.
+- If the `topicsPattern` matches for topics which have different schemas, then setting
+`allowDifferentTopicSchemas` to `true` will allow the connector to read this content in a
+raw form. In this case it is the responsibility of the pipeline to apply the schema
+on this content, which is loaded to the `value` column. 
 
 Besides, each row in the source has the following metadata fields as well.
 <table class="table">

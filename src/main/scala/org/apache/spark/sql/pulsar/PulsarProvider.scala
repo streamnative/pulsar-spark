@@ -67,7 +67,8 @@ private[pulsar] class PulsarProvider
         clientConfig,
         adminClientConfig,
         subscriptionNamePrefix,
-        caseInsensitiveParams)) { reader =>
+        caseInsensitiveParams,
+        getAllowDifferentTopicSchemas(parameters))) { reader =>
       reader.getAndCheckCompatible(schema)
     }
     (shortName(), inferredSchema)
@@ -90,7 +91,8 @@ private[pulsar] class PulsarProvider
       clientConfig,
       adminClientConfig,
       subscriptionNamePrefix,
-      caseInsensitiveParams)
+      caseInsensitiveParams,
+      getAllowDifferentTopicSchemas(parameters))
 
     metadataReader.getAndCheckCompatible(schema)
 
@@ -130,7 +132,8 @@ private[pulsar] class PulsarProvider
         clientConfig,
         adminClientConfig,
         subscriptionNamePrefix,
-        caseInsensitiveParams)) { reader =>
+        caseInsensitiveParams,
+        getAllowDifferentTopicSchemas(parameters))) { reader =>
       val perTopicStarts = reader.startingOffsetForEachTopic(
         caseInsensitiveParams,
         EarliestOffset)
@@ -359,6 +362,10 @@ private[pulsar] object PulsarProvider extends Logging {
 
   private def getAdminUrl(parameters: Map[String, String]): String = {
     parameters(AdminUrlOptionKey)
+  }
+
+  private def getAllowDifferentTopicSchemas(parameters: Map[String, String]): Boolean = {
+    parameters.getOrElse(AllowDifferentTopicSchemas, "false").toBoolean
   }
 
   private def failOnDataLoss(caseInsensitiveParams: Map[String, String]): Boolean =
