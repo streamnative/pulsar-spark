@@ -35,7 +35,7 @@ import org.apache.pulsar.shade.org.apache.avro.util.Utf8
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{SpecificInternalRow, UnsafeArrayData}
 import org.apache.spark.sql.catalyst.json.{CreateJacksonParser, JSONOptionsInRead}
-import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, ArrayData, DateTimeUtils, GenericArrayData}
+import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, ArrayData, DateTimeUtils, GenericArrayData, MapData}
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 
@@ -101,7 +101,7 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
   }
 
   def writeMetadataFields(message: Message[_], row: SpecificInternalRow): Unit = {
-    val metaStartIdx = row.numFields - 5
+    val metaStartIdx = row.numFields - metaDataFields.size
     // key
     if (message.hasKey) {
       row.update(metaStartIdx, message.getKeyBytes)
@@ -123,6 +123,16 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
         DateTimeUtils.fromJavaTimestamp(new Timestamp(message.getEventTime)))
     } else {
       row.setNullAt(metaStartIdx + 4)
+    }
+    // properties
+    if (message.getProperties != null) {
+      row.update(metaStartIdx + 5, createMapData(message.getProperties,
+                                                 SchemaBuilder.builder().stringType(),
+                                                 StringType,
+                                                 valueContainsNull = true,
+                                                 Nil))
+    } else {
+      row.setNullAt(metaStartIdx + 5)
     }
   }
 
@@ -317,35 +327,10 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
           updater.set(ordinal, result)
 
       case (MAP, MapType(keyType, valueType, valueContainsNull)) if keyType == StringType =>
-        val keyWriter = newWriter(SchemaBuilder.builder().stringType(), StringType, path)
-        val valueWriter = newWriter(avroType.getValueType, valueType, path)
         (updater, ordinal, value) =>
-          val map = value.asInstanceOf[java.util.Map[AnyRef, AnyRef]]
-          val keyArray = createArrayData(keyType, map.size())
-          val keyUpdater = new ArrayDataUpdater(keyArray)
-          val valueArray = createArrayData(valueType, map.size())
-          val valueUpdater = new ArrayDataUpdater(valueArray)
-          val iter = map.entrySet().iterator()
-          var i = 0
-          while (iter.hasNext) {
-            val entry = iter.next()
-            assert(entry.getKey != null)
-            keyWriter(keyUpdater, i, entry.getKey)
-            if (entry.getValue == null) {
-              if (!valueContainsNull) {
-                throw new RuntimeException(
-                  s"Map value at path ${path.mkString(".")} is not " +
-                    "allowed to be null")
-              } else {
-                valueUpdater.setNullAt(i)
-              }
-            } else {
-              valueWriter(valueUpdater, i, entry.getValue)
-            }
-            i += 1
-          }
-
-          updater.set(ordinal, new ArrayBasedMapData(keyArray, valueArray))
+          val mapData =
+              createMapData(value, avroType.getValueType, valueType, valueContainsNull, path)
+          updater.set(ordinal, mapData)
 
       case (UNION, _) =>
         val allTypes = avroType.getTypes.asScala
@@ -463,6 +448,41 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
       // Otherwise, resorts to an unscaled `BigInteger` instead.
       Decimal(decimal, precision, scale)
     }
+  }
+
+  private def createMapData(value: Any,
+                            valueSchema: Schema,
+                            valueType: DataType,
+                            valueContainsNull: Boolean,
+                            path: List[String]) : MapData = {
+    val keyWriter = newWriter(SchemaBuilder.builder().stringType(), StringType, path)
+    val valueWriter = newWriter(valueSchema, valueType, path)
+    val map = value.asInstanceOf[java.util.Map[AnyRef, AnyRef]]
+    val keyArray = createArrayData(StringType, map.size())
+    val keyUpdater = new ArrayDataUpdater(keyArray)
+    val valueArray = createArrayData(valueType, map.size())
+    val valueUpdater = new ArrayDataUpdater(valueArray)
+    val iter = map.entrySet().iterator()
+    var i = 0
+    while (iter.hasNext) {
+      val entry = iter.next()
+      assert(entry.getKey != null)
+      keyWriter(keyUpdater, i, entry.getKey)
+      if (entry.getValue == null) {
+        if (!valueContainsNull) {
+          throw new RuntimeException(
+            s"Map value at path ${path.mkString(".")} is not " +
+              "allowed to be null")
+        } else {
+          valueUpdater.setNullAt(i)
+        }
+      } else {
+        valueWriter(valueUpdater, i, entry.getValue)
+      }
+      i += 1
+    }
+
+    new ArrayBasedMapData(keyArray, valueArray)
   }
 
   private def createArrayData(elementType: DataType, length: Int): ArrayData = elementType match {

@@ -84,12 +84,14 @@ private[pulsar] object PulsarOptions {
   val MessageIdName: String = "__messageId"
   val PublishTimeName: String = "__publishTime"
   val EventTimeName: String = "__eventTime"
+  val MessagePropertiesName: String = "__messageProperties"
 
   val MetaFieldNames = Set(
     TopicAttributeName,
     KeyAttributeName,
     MessageIdName,
     PublishTimeName,
-    EventTimeName
+    EventTimeName,
+    MessagePropertiesName
   )
 }
