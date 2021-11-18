@@ -1,8 +1,6 @@
 # pulsar-spark
 
-[![Build Status](https://jenkins.snio.xyz/buildStatus/icon?job=StreamNative%2Fpulsar-spark%2Fmaster)](https://jenkins.snio.xyz/job/StreamNative/job/pulsar-spark/job/master/)
 [![Version](https://img.shields.io/github/release/streamnative/pulsar-spark/all.svg)](https://github.com/streamnative/pulsar-spark/releases)
-[![Bintray](https://img.shields.io/badge/dynamic/json.svg?label=latest&query=name&style=flat-square&url=https%3A%2F%2Fapi.bintray.com%2Fpackages%2Fstreamnative%2Fmaven%2Fio.streamnative.pulsar-spark%2Fversions%2F_latest)](https://dl.bintray.com/streamnative/maven/io/streamnative/connectors/pulsar-spark-connector_2.11/)
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-spark.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-spark?ref=badge_shield)
@@ -26,22 +24,6 @@ For Scala/Java applications using SBT/Maven project definitions, link your appli
     groupId = io.streamnative.connectors
     artifactId = pulsar-spark-connector_{{SCALA_BINARY_VERSION}}
     version = {{PULSAR_SPARK_VERSION}}
-```
-Currently, the artifact is available in [Bintray Maven repository of StreamNative]( https://dl.bintray.com/streamnative/maven).
-For Maven project, you can add the repository to your `pom.xml` as follows:
-```xml
-  <repositories>
-    <repository>
-      <id>central</id>
-      <layout>default</layout>
-      <url>https://repo1.maven.org/maven2</url>
-    </repository>
-    <repository>
-      <id>bintray-streamnative-maven</id>
-      <name>bintray</name>
-      <url>https://dl.bintray.com/streamnative/maven</url>
-    </repository>
-  </repositories>
 ```
 
 ### Deploy
@@ -443,6 +425,10 @@ Besides, each row in the source has the following metadata fields as well.
   <td>`__eventTime`</td>
   <td>Timestamp</td>
 </tr>
+<tr>
+  <td>`__messageProperties`</td>
+  <td>Map &lt String, String &gt </td>
+</tr>
 </table>
 
 ** Example**
@@ -465,7 +451,9 @@ root
  |-- __topic: string (nullable = true)
  |-- __messageId: binary (nullable = true)
  |-- __publishTime: timestamp (nullable = true)
- |-- __eventTime: timestamp (nullable = true)
+ |-- __messageProperties: map (nullable = true)
+ |    |-- key: string
+ |    |-- value: string (valueContainsNull = true)
  ```
 
  For Pulsar topic with `Schema.DOUBLE`, it's schema as a DataFrame is:
@@ -477,6 +465,9 @@ root
  |-- __messageId: binary (nullable = true)
  |-- __publishTime: timestamp (nullable = true)
  |-- __eventTime: timestamp (nullable = true)
+ |-- __messageProperties: map (nullable = true)
+ |    |-- key: string
+ |    |-- value: string (valueContainsNull = true)
  ```
 
 ### Write data to Pulsar
