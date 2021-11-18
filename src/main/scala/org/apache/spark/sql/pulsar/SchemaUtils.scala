@@ -387,7 +387,8 @@ private[pulsar] object SchemaUtils {
     StructField(TopicAttributeName, StringType),
     StructField(MessageIdName, BinaryType),
     StructField(PublishTimeName, TimestampType),
-    StructField(EventTimeName, TimestampType)
+    StructField(EventTimeName, TimestampType),
+    StructField(MessagePropertiesName, MapType(StringType, StringType, valueContainsNull = true))
   )
 
 }
