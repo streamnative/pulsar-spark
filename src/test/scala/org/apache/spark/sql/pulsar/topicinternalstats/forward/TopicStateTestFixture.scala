@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -15,8 +15,8 @@ package org.apache.spark.sql.pulsar.topicinternalstats.forward
 
 import java.util
 
+import org.apache.pulsar.common.policies.data.ManagedLedgerInternalStats.LedgerInfo
 import org.apache.pulsar.common.policies.data.PersistentTopicInternalStats
-import org.apache.pulsar.common.policies.data.PersistentTopicInternalStats.LedgerInfo
 
 object TopicStateFixture {
 

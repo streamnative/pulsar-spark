@@ -329,53 +329,6 @@ complete backlog is read at once.</td>
 
 <tr>
 <td>
-`forwardStrategy`
-</td>
-<td>
-`simple`, `large-first` or `proportional`
-</td>
-<td>`simple`</td>
-<td>Streaming query</td>
-<td>If `maxEntriesPerTrigger` is set, this parameter controls
-which forwarding strategy is in use during the read of multiple
-topics.
-<li>
-`simple` just divides the allowed number of entries equally 
-between all topics, regardless of their backlog size
-</li>
-<li>
-`large-first` will load the largest topic backlogs first, 
-as the maximum number of allowed entries allows
-</li>
-<li>
-`proportional` will forward all topics proportional to the
-topic backlog/overall backlog ratio
-</li>
-</td>
-</tr>
-
-<tr>
-<td>
-`ensureEntriesPerTopic`
-</td>
-<td>Number to forward each topic with during a micro-batch.</td>
-<td>0</td>
-<td>Streaming query</td>
-<td>If multiple topics are read, and the maximum number of
-entries is also specified, always forward all topics with the 
-amount of entries specified here. Using this, users can ensure that topics 
-with considerably smaller backlogs than others are also forwarded 
-and read. Note that:
-<li>If this number is higher than the maximum allowed entries divided
-by the number of topics, then this value is taken into account, overriding
-the maximum number of entries per micro-batch.
-</li>
-<li>This parameter has an effect only for forwarding strategies
-`large-first` and `proportional`.</li>
-</td>
-</tr>
-<tr>
-<td>
 `allowDifferentTopicSchemas`
 </td>
 <td>
@@ -399,7 +352,6 @@ this is `true`, Pulsar topic schema(s) are not
 taken into account during operation.
 </td>
 </tr>
-
 
 </table>
 

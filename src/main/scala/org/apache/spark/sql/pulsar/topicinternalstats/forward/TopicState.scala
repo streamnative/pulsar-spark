@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -15,10 +15,6 @@ package org.apache.spark.sql.pulsar.topicinternalstats.forward
 
 import org.apache.pulsar.common.policies.data.PersistentTopicInternalStats
 
-trait ForwardStrategy {
-  def forward(topics: Map[String, TopicState]): Map[String, Long]
-}
-
 case class TopicState(internalStat: PersistentTopicInternalStats,
-                      actualLedgerId: Long,
-                      actualEntryId: Long)
+                      ledgerId: Long,
+                      entryId: Long)

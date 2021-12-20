@@ -114,9 +114,7 @@ private[pulsar] class PulsarProvider
       failOnDataLoss(caseInsensitiveParams),
       subscriptionNamePrefix,
       jsonOptions,
-      maxEntriesPerTrigger(caseInsensitiveParams),
-      minEntriesPerTopic(caseInsensitiveParams),
-      forwardStrategy(caseInsensitiveParams)
+      maxEntriesPerTrigger(caseInsensitiveParams)
     )
   }
 
@@ -401,12 +399,6 @@ private[pulsar] object PulsarProvider extends Logging {
 
   private def maxEntriesPerTrigger(caseInsensitiveParams: Map[String, String]): Long =
     caseInsensitiveParams.getOrElse(MaxEntriesPerTrigger, "-1").toLong
-
-  private def minEntriesPerTopic(caseInsensitiveParams: Map[String, String]): Long =
-    caseInsensitiveParams.getOrElse(EnsureEntriesPerTopic, "0").toLong
-
-  private def forwardStrategy(caseInsensitiveParams: Map[String, String]): String =
-    caseInsensitiveParams.getOrElse(ForwardStrategy, "simple")
 
   private def validateGeneralOptions(
       caseInsensitiveParams: Map[String, String]): Map[String, String] = {

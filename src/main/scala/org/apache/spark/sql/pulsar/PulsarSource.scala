@@ -37,9 +37,7 @@ private[pulsar] class PulsarSource(
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
     jsonOptions: JSONOptionsInRead,
-    maxEntriesPerTrigger: Long,
-    ensureEntriesPerTopic: Long,
-    forwardStrategy: String)
+    maxEntriesPerTrigger: Long)
     extends Source
     with Logging {
 
@@ -68,11 +66,11 @@ private[pulsar] class PulsarSource(
     } else {
       currentTopicOffsets match {
         case Some(value) =>
-          metadataReader.forwardOffset(value,
-            forwardStrategy, maxEntriesPerTrigger, ensureEntriesPerTopic)
+          metadataReader.fetchNextOffsetWithMaxEntries(value,
+            maxEntriesPerTrigger)
         case _ =>
-          metadataReader.forwardOffset(initialTopicOffsets.topicOffsets,
-            forwardStrategy, maxEntriesPerTrigger, ensureEntriesPerTopic)
+          metadataReader.fetchNextOffsetWithMaxEntries(initialTopicOffsets.topicOffsets,
+            maxEntriesPerTrigger)
       }
     }
     logDebug(s"GetOffset: ${nextOffsets.topicOffsets.toSeq.map(_.toString).sorted}")

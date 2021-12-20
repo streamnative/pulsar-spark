@@ -261,30 +261,14 @@ private[pulsar] case class PulsarMetadataReader(
     }.toMap)
   }
 
-
-  def forwardOffset(actualOffset: Map[String, MessageId],
-                    strategy: String,
-                    numberOfEntriesToForward: Long,
-                    ensureEntriesPerTopic: Long): SpecificPulsarOffset = {
+  def fetchNextOffsetWithMaxEntries(actualOffset: Map[String, MessageId],
+                                    numberOfEntries: Long): SpecificPulsarOffset = {
     getTopicPartitions()
 
     // Collect internal stats for all topics
     val topicStats = topicPartitions.map( topic => {
-      val internalStats = admin.topics().getInternalStats(topic)
-      val topicActualMessageId = actualOffset.getOrElse(topic, MessageId.earliest)
-      topic -> TopicState(internalStats,
-        PulsarSourceUtils.getLedgerId(topicActualMessageId),
-        PulsarSourceUtils.getEntryId(topicActualMessageId))
-    } ).toMap
-
-    val forwarder = strategy match {
-      case PulsarOptions.ProportionalForwardStrategy =>
-        new ProportionalForwardStrategy(numberOfEntriesToForward, ensureEntriesPerTopic)
-      case PulsarOptions.LargeFirstForwardStrategy =>
-        new LargeFirstForwardStrategy(numberOfEntriesToForward, ensureEntriesPerTopic)
-      case _ =>
-        new LinearForwardStrategy(numberOfEntriesToForward)
-    }
+      topic -> admin.topics().getInternalStats(topic)
+    } ).toMap.asJava
 
     SpecificPulsarOffset(topicPartitions.map { topic =>
       topic -> PulsarSourceUtils.seekableLatestMid {
@@ -298,39 +282,41 @@ private[pulsar] case class PulsarMetadataReader(
           // Get the partition index
           val partitionIndex = PulsarSourceUtils.getPartitionIndex(topicActualMessageId)
           // Cache topic internal stats
-          val internalStats = topicStats.get(topic).get.internalStat
+          val internalStats = topicStats.get(topic)
           // Calculate the amount of messages we will pull in
-          val numberOfEntriesPerTopic = forwarder.forward(topicStats)(topic)
-          // Get a future message ID which corresponds
-          // to the maximum number of messages
+          val numberOfEntriesPerTopic = numberOfEntries / topics.size
+          // Get a next message ID which respects
+          // the maximum number of messages
           val (nextLedgerId, nextEntryId) = TopicInternalStatsUtils.forwardMessageId(
             internalStats,
             actualLedgerId,
             actualEntryId,
             numberOfEntriesPerTopic)
-          // Build a message id
-          val forwardedMessageId =
-            DefaultImplementation.newMessageId(nextLedgerId, nextEntryId, partitionIndex)
+          // Build the next message ID
+          val nextMessageId =
+            DefaultImplementation
+              .getDefaultImplementation
+              .newMessageId(nextLedgerId, nextEntryId, partitionIndex)
           // Log state
-          val forwardedEntry = TopicInternalStatsUtils.numOfEntriesUntil(
+          val entryCountUntilNextMessageId = TopicInternalStatsUtils.numOfEntriesUntil(
             internalStats, nextLedgerId, nextEntryId)
           val entryCount = internalStats.numberOfEntries
-          val progress = f"${forwardedEntry.toFloat / entryCount.toFloat}%1.3f"
-          val logMessage = s"Pulsar Connector forward on topic. " +
-            s"[$numberOfEntriesPerTopic/$numberOfEntriesToForward]" +
+          val progress = f"${entryCountUntilNextMessageId.toFloat / entryCount.toFloat}%1.3f"
+          val logMessage = s"Pulsar Connector offset step forward. " +
+            s"[$numberOfEntriesPerTopic/$numberOfEntries]" +
             s"${topic.reverse.take(30).reverse} $topicActualMessageId -> " +
-            s"$forwardedMessageId ($forwardedEntry/$entryCount) [$progress]"
+            s"$nextMessageId ($entryCountUntilNextMessageId/$entryCount) [$progress]"
           log.debug(logMessage)
           // Return the message ID
-          forwardedMessageId
+          nextMessageId
         } catch {
           case e: PulsarAdminException if e.getStatusCode == 404 =>
             MessageId.earliest
           case e: Throwable =>
             throw new RuntimeException(
               s"Failed to get forwarded messageId for ${TopicName.get(topic).toString} " +
-                s"(tried to forward ${forwarder.forward(topicStats)(topic)} messages " +
-                s"starting from `$topicActualMessageId` using strategy $strategy)", e)
+                s"(tried to forward ${numberOfEntries} messages " +
+                s"starting from `$topicActualMessageId`)", e)
         }
 
       }
