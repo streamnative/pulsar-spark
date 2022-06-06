@@ -100,7 +100,7 @@ private[pulsar] class PulsarProvider
     val offset = metadataReader.startingOffsetForEachTopic(
       caseInsensitiveParams,
       LatestOffset)
-    metadataReader.setupCursor(offset)
+    metadataReader.setupCursor(offset, getPredefinedSubscription(parameters))
 
     new PulsarSource(
       sqlContext,
@@ -354,6 +354,14 @@ private[pulsar] object PulsarProvider extends Logging {
                                     isBatch: Boolean = false): String = {
     val defaultPrefix = if (isBatch) "spark-pulsar-batch" else "spar-pulsar"
     parameters.getOrElse(SubscriptionPrefix, s"$defaultPrefix-${UUID.randomUUID}")
+  }
+
+  private def getPredefinedSubscription(parameters: Map[String, String]): Option[String] = {
+    val sub = parameters.getOrElse(PredefinedSubscription, "")
+    sub match {
+      case "" => None
+      case s => Option(s)
+    }
   }
 
   private def getServiceUrl(parameters: Map[String, String]): String = {
