@@ -81,7 +81,8 @@ private[pulsar] case class PulsarMetadataReader(
               // if subscription already exists, log the info and continue to reset cursor
               log.info("Subscription already exists...")
             case e: Throwable =>
-              throw new RuntimeException(s"Failed to setup cursor for ${TopicName.get(tp).toString}", e)
+              throw new RuntimeException(
+                s"Failed to setup cursor for ${TopicName.get(tp).toString}", e)
           }
         }
 
@@ -128,7 +129,8 @@ private[pulsar] case class PulsarMetadataReader(
     }
   }
 
-  private def extractSubscription(subscriptionName: Option[String], topicPartition: String): (String, Boolean) = {
+  private def extractSubscription(subscriptionName: Option[String],
+                                  topicPartition: String): (String, Boolean) = {
     subscriptionName match {
       case None => (s"$driverGroupIdPrefix-$topicPartition", false)
       case Some(subName) => (subName, true)
@@ -156,7 +158,8 @@ private[pulsar] case class PulsarMetadataReader(
   def removeCursor(): Unit = {
     getTopics()
     topics.foreach { tp =>
-      val (subscriptionName, subscriptionPredefined) = extractSubscription(predefinedSubscription, tp)
+      val (subscriptionName, subscriptionPredefined) =
+        extractSubscription(predefinedSubscription, tp)
 
       // Only delete a subscription if it's not predefined and created by us
       if (!subscriptionPredefined) {
