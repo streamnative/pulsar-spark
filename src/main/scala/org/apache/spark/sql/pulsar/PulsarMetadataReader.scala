@@ -41,7 +41,8 @@ private[pulsar] case class PulsarMetadataReader(
     adminClientConf: ju.Map[String, Object],
     driverGroupIdPrefix: String,
     caseInsensitiveParameters: Map[String, String],
-    allowDifferentTopicSchemas: Boolean)
+    allowDifferentTopicSchemas: Boolean,
+    predefinedSubscription: Option[String])
     extends Closeable
     with Logging {
 
@@ -57,27 +58,27 @@ private[pulsar] case class PulsarMetadataReader(
     admin.close()
   }
 
-  def setupCursor(startingPos: PerTopicOffset, subscriptionName: Option[String]): Unit = {
+  def setupCursor(startingPos: PerTopicOffset): Unit = {
     startingPos match {
-      case off: SpecificPulsarOffset => setupCursorByMid(off, subscriptionName)
-      case time: SpecificPulsarStartingTime => setupCursorByTime(time, subscriptionName)
+      case off: SpecificPulsarOffset => setupCursorByMid(off, predefinedSubscription)
+      case time: SpecificPulsarStartingTime => setupCursorByTime(time, predefinedSubscription)
       case s => throw new UnsupportedOperationException(s"$s shouldn't appear here, a bug occurs.")
     }
   }
 
-  def setupCursorByMid(offset: SpecificPulsarOffset, subscriptionName: Option[String]): Unit = {
+  def setupCursorByMid(offset: SpecificPulsarOffset, subscription: Option[String]): Unit = {
     offset.topicOffsets.foreach {
       case (tp, mid) =>
         val umid = mid.asInstanceOf[UserProvidedMessageId]
-        val (subscription, createSubscription) = extractSubscription(subscriptionName, tp)
+        val (subscriptionName, subscriptionPredefined) = extractSubscription(subscription, tp)
 
         // setup the subscription
-        if (createSubscription) {
+        if (!subscriptionPredefined) {
           try {
-            admin.topics().createSubscription(tp, subscription, umid.mid)
+            admin.topics().createSubscription(tp, subscriptionName, umid.mid)
           } catch {
             case _: PulsarAdminException.ConflictException =>
-              // if subscription already exists, log the info and continue to resetCursor
+              // if subscription already exists, log the info and continue to reset cursor
               log.info("Subscription already exists...")
             case e: Throwable =>
               throw new RuntimeException(s"Failed to setup cursor for ${TopicName.get(tp).toString}", e)
@@ -85,12 +86,12 @@ private[pulsar] case class PulsarMetadataReader(
         }
 
         // reset cursor position
-        log.info(s"Resetting cursor for $subscription to given offset")
-        admin.topics().resetCursor(tp, subscription, umid.mid)
+        log.info(s"Resetting cursor for $subscriptionName to given offset")
+        admin.topics().resetCursor(tp, subscriptionName, umid.mid)
     }
   }
 
-  def setupCursorByTime(time: SpecificPulsarStartingTime, subscriptionName: Option[String]): Unit = {
+  def setupCursorByTime(time: SpecificPulsarStartingTime, subscription: Option[String]): Unit = {
     time.topicTimes.foreach {
       case (tp, time) =>
         val msgID = time match {
@@ -100,15 +101,15 @@ private[pulsar] case class PulsarMetadataReader(
           case _ => throw new RuntimeException(s"Invalid starting time for $tp: $time")
         }
 
-        val (subscription, createSubscription) = extractSubscription(subscriptionName, tp)
+        val (subscriptionNames, subscriptionPredefined) = extractSubscription(subscription, tp)
 
         // setup the subscription
-        if (createSubscription) {
+        if (!subscriptionPredefined) {
           try {
-            admin.topics().createSubscription(tp, s"$subscription", msgID)
+            admin.topics().createSubscription(tp, s"$subscriptionNames", msgID)
           } catch {
             case _: PulsarAdminException.ConflictException =>
-              // if subscription already exists, log the info and continue to resetCursor
+              // if subscription already exists, log the info and continue to reset cursor
               log.info("subscription already exists...")
             case e: Throwable =>
               throw new RuntimeException(
@@ -117,20 +118,20 @@ private[pulsar] case class PulsarMetadataReader(
         }
 
         // reset cursor position
-        log.info(s"Resetting cursor for $subscription to given offset")
+        log.info(s"Resetting cursor for $subscriptionNames to given offset")
         time match {
           case PulsarProvider.EARLIEST_TIME | PulsarProvider.LATEST_TIME =>
-            admin.topics().resetCursor(tp, s"$subscription", msgID)
+            admin.topics().resetCursor(tp, s"$subscriptionNames", msgID)
           case _ =>
-            admin.topics().resetCursor(tp, s"$subscription", time)
+            admin.topics().resetCursor(tp, s"$subscriptionNames", time)
         }
     }
   }
 
   private def extractSubscription(subscriptionName: Option[String], topicPartition: String): (String, Boolean) = {
     subscriptionName match {
-      case None => (s"$driverGroupIdPrefix-$topicPartition", true)
-      case Some(subName) => (subName, false)
+      case None => (s"$driverGroupIdPrefix-$topicPartition", false)
+      case Some(subName) => (subName, true)
     }
   }
 
@@ -138,7 +139,8 @@ private[pulsar] case class PulsarMetadataReader(
     offset.foreach {
       case (tp, mid) =>
         try {
-          admin.topics().resetCursor(tp, s"$driverGroupIdPrefix-$tp", mid)
+          val (subscription, _) = extractSubscription(predefinedSubscription, tp)
+          admin.topics().resetCursor(tp, s"$subscription", mid)
         } catch {
           case e: PulsarAdminException if e.getStatusCode == 404 || e.getStatusCode == 412 =>
             logInfo(
@@ -151,19 +153,23 @@ private[pulsar] case class PulsarMetadataReader(
     }
   }
 
-  // TODO(nlu): get rid of delete subscription
   def removeCursor(): Unit = {
     getTopics()
     topics.foreach { tp =>
-      try {
-        admin.topics().deleteSubscription(tp, s"$driverGroupIdPrefix-$tp")
-      } catch {
-        case e: PulsarAdminException if e.getStatusCode == 404 =>
-          logInfo(s"Cannot remove cursor since the topic $tp has been deleted during execution.")
-        case e: Throwable =>
-          throw new RuntimeException(
-            s"Failed to remove cursor for ${TopicName.get(tp).toString}",
-            e)
+      val (subscriptionName, subscriptionPredefined) = extractSubscription(predefinedSubscription, tp)
+
+      // Only delete a subscription if it's not predefined and created by us
+      if (!subscriptionPredefined) {
+        try {
+          admin.topics().deleteSubscription(tp, s"$subscriptionName")
+        } catch {
+          case e: PulsarAdminException if e.getStatusCode == 404 =>
+            logInfo(s"Cannot remove cursor since the topic $tp has been deleted during execution.")
+          case e: Throwable =>
+            throw new RuntimeException(
+              s"Failed to remove cursor for ${TopicName.get(tp).toString}",
+              e)
+        }
       }
     }
   }

@@ -68,7 +68,9 @@ private[pulsar] class PulsarProvider
         adminClientConfig,
         subscriptionNamePrefix,
         caseInsensitiveParams,
-        getAllowDifferentTopicSchemas(parameters))) { reader =>
+        getAllowDifferentTopicSchemas(parameters),
+        getPredefinedSubscription(parameters)
+      )) { reader =>
       reader.getAndCheckCompatible(schema)
     }
     (shortName(), inferredSchema)
@@ -92,7 +94,8 @@ private[pulsar] class PulsarProvider
       adminClientConfig,
       subscriptionNamePrefix,
       caseInsensitiveParams,
-      getAllowDifferentTopicSchemas(parameters))
+      getAllowDifferentTopicSchemas(parameters),
+      getPredefinedSubscription(parameters))
 
     metadataReader.getAndCheckCompatible(schema)
 
@@ -100,7 +103,7 @@ private[pulsar] class PulsarProvider
     val offset = metadataReader.startingOffsetForEachTopic(
       caseInsensitiveParams,
       LatestOffset)
-    metadataReader.setupCursor(offset, getPredefinedSubscription(parameters))
+    metadataReader.setupCursor(offset)
 
     new PulsarSource(
       sqlContext,
@@ -133,7 +136,9 @@ private[pulsar] class PulsarProvider
         adminClientConfig,
         subscriptionNamePrefix,
         caseInsensitiveParams,
-        getAllowDifferentTopicSchemas(parameters))) { reader =>
+        getAllowDifferentTopicSchemas(parameters),
+        getPredefinedSubscription(parameters)
+      )) { reader =>
       val perTopicStarts = reader.startingOffsetForEachTopic(
         caseInsensitiveParams,
         EarliestOffset)
