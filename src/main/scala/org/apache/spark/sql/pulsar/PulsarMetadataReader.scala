@@ -119,7 +119,7 @@ private[pulsar] case class PulsarMetadataReader(
         }
 
         // reset cursor position
-        log.info(s"Resetting cursor for $subscriptionNames to given offset")
+        log.info(s"Resetting cursor for $subscriptionNames to given timestamp")
         time match {
           case PulsarProvider.EARLIEST_TIME | PulsarProvider.LATEST_TIME =>
             admin.topics().resetCursor(tp, s"$subscriptionNames", msgID)
