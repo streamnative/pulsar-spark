@@ -13,14 +13,17 @@
  */
 package org.apache.spark.sql.pulsar
 
-import org.apache.avro.{Schema => ASchema}
-import org.apache.pulsar.client.impl.schema.SchemaInfoImpl
-import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
-import org.apache.spark.SparkFunSuite
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
 import java.nio.charset.StandardCharsets
 import java.util
+
+import org.apache.avro.{Schema => ASchema}
+
+import org.apache.pulsar.client.impl.schema.SchemaInfoImpl
+import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
+
+import org.apache.spark.SparkFunSuite
 
 class SchemaInfoSerDeSuite extends SparkFunSuite {
 
@@ -30,7 +33,7 @@ class SchemaInfoSerDeSuite extends SparkFunSuite {
     val ps1 = new SchemaInfoImpl("datafromkafkatopulsar",
       s1.toString.getBytes(StandardCharsets.UTF_8),
       SchemaType.AVRO,
-      new util.HashMap[String,String]())
+      new util.HashMap[String, String]())
 
     val serializedPS1 = new SchemaInfoSerializable(ps1)
 
