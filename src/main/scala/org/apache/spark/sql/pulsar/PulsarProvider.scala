@@ -68,7 +68,9 @@ private[pulsar] class PulsarProvider
         adminClientConfig,
         subscriptionNamePrefix,
         caseInsensitiveParams,
-        getAllowDifferentTopicSchemas(parameters))) { reader =>
+        getAllowDifferentTopicSchemas(parameters),
+        getPredefinedSubscription(parameters)
+      )) { reader =>
       reader.getAndCheckCompatible(schema)
     }
     (shortName(), inferredSchema)
@@ -92,7 +94,8 @@ private[pulsar] class PulsarProvider
       adminClientConfig,
       subscriptionNamePrefix,
       caseInsensitiveParams,
-      getAllowDifferentTopicSchemas(parameters))
+      getAllowDifferentTopicSchemas(parameters),
+      getPredefinedSubscription(parameters))
 
     metadataReader.getAndCheckCompatible(schema)
 
@@ -133,7 +136,9 @@ private[pulsar] class PulsarProvider
         adminClientConfig,
         subscriptionNamePrefix,
         caseInsensitiveParams,
-        getAllowDifferentTopicSchemas(parameters))) { reader =>
+        getAllowDifferentTopicSchemas(parameters),
+        getPredefinedSubscription(parameters)
+      )) { reader =>
       val perTopicStarts = reader.startingOffsetForEachTopic(
         caseInsensitiveParams,
         EarliestOffset)
@@ -354,6 +359,14 @@ private[pulsar] object PulsarProvider extends Logging {
                                     isBatch: Boolean = false): String = {
     val defaultPrefix = if (isBatch) "spark-pulsar-batch" else "spar-pulsar"
     parameters.getOrElse(SubscriptionPrefix, s"$defaultPrefix-${UUID.randomUUID}")
+  }
+
+  private def getPredefinedSubscription(parameters: Map[String, String]): Option[String] = {
+    val sub = parameters.getOrElse(PredefinedSubscription, "")
+    sub match {
+      case "" => None
+      case s => Option(s)
+    }
   }
 
   private def getServiceUrl(parameters: Map[String, String]): String = {

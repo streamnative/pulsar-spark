@@ -45,6 +45,7 @@ private[pulsar] object PulsarOptions {
   val StartingTime = "startingtime"
   val EndingOffsetsOptionKey = "endingoffsets"
   val SubscriptionPrefix = "subscriptionprefix"
+  val PredefinedSubscription = "predefinedsubscription"
 
   val PollTimeoutMS = "polltimeoutms"
   val FailOnDataLossOptionKey = "failondataloss"
