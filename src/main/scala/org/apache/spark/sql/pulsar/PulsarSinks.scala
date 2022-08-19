@@ -25,6 +25,7 @@ import org.apache.spark.sql.catalyst.expressions.{Attribute, Literal}
 import org.apache.spark.sql.execution.QueryExecution
 import org.apache.spark.sql.execution.streaming.Sink
 import org.apache.spark.sql.types._
+import org.apache.spark.unsafe.types.UTF8String
 import org.apache.spark.util.Utils
 
 private[pulsar] class PulsarSink(
@@ -80,13 +81,12 @@ private[pulsar] object PulsarSinks extends Logging {
     schema
       .find(_.name == TopicAttributeName)
       .getOrElse(
-        if (topic.isEmpty) {
-          throw new AnalysisException(
+        topic match {
+          case Some(topicValue) => Literal(UTF8String.fromString(topicValue), StringType)
+          case None =>throw new AnalysisException(
             s"topic option required when no " +
               s"'$TopicAttributeName' attribute is present. Use the " +
               s"$TopicSingle option for setting a topic.")
-        } else {
-          Literal(topic.get, StringType)
         }
       )
       .dataType match {
