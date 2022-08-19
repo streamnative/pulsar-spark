@@ -81,13 +81,12 @@ private[pulsar] object PulsarSinks extends Logging {
     schema
       .find(_.name == TOPIC_ATTRIBUTE_NAME)
       .getOrElse(
-        if (topic.isEmpty) {
-          throw new AnalysisException(
+        topic match {
+          case Some(topicValue) => Literal(UTF8String.fromString(topicValue), StringType)
+          case None =>throw new AnalysisException(
             s"topic option required when no " +
-              s"'$TOPIC_ATTRIBUTE_NAME' attribute is present. Use the " +
-              s"$TOPIC_SINGLE option for setting a topic.")
-        } else {
-          Literal(UTF8String.fromString(topic.get), StringType)
+              s"'$TopicAttributeName' attribute is present. Use the " +
+              s"$TopicSingle option for setting a topic.")
         }
       )
       .dataType match {
