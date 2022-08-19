@@ -1,8 +1,6 @@
 # pulsar-spark
 
-[![Build Status](https://jenkins.snio.xyz/buildStatus/icon?job=StreamNative%2Fpulsar-spark%2Fmaster)](https://jenkins.snio.xyz/job/StreamNative/job/pulsar-spark/job/master/)
 [![Version](https://img.shields.io/github/release/streamnative/pulsar-spark/all.svg)](https://github.com/streamnative/pulsar-spark/releases)
-[![Bintray](https://img.shields.io/badge/dynamic/json.svg?label=latest&query=name&style=flat-square&url=https%3A%2F%2Fapi.bintray.com%2Fpackages%2Fstreamnative%2Fmaven%2Fio.streamnative.pulsar-spark%2Fversions%2F_latest)](https://dl.bintray.com/streamnative/maven/io/streamnative/connectors/pulsar-spark-connector_2.11/)
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-spark.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-spark?ref=badge_shield)
@@ -26,22 +24,6 @@ For Scala/Java applications using SBT/Maven project definitions, link your appli
     groupId = io.streamnative.connectors
     artifactId = pulsar-spark-connector_{{SCALA_BINARY_VERSION}}
     version = {{PULSAR_SPARK_VERSION}}
-```
-Currently, the artifact is available in [Bintray Maven repository of StreamNative]( https://dl.bintray.com/streamnative/maven).
-For Maven project, you can add the repository to your `pom.xml` as follows:
-```xml
-  <repositories>
-    <repository>
-      <id>central</id>
-      <layout>default</layout>
-      <url>https://repo1.maven.org/maven2</url>
-    </repository>
-    <repository>
-      <id>bintray-streamnative-maven</id>
-      <name>bintray</name>
-      <url>https://dl.bintray.com/streamnative/maven</url>
-    </repository>
-  </repositories>
 ```
 
 ### Deploy
@@ -327,6 +309,31 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
   A batch query always fails if it fails to read any data from the provided offsets due to data loss.</td>
 
 </tr>
+<tr>
+<td>
+`allowDifferentTopicSchemas`
+</td>
+<td>
+Boolean value
+</td>
+<td>
+`false`
+</td>
+<td>
+Streaming query
+</td>
+<td>
+If multiple topics with different schemas are read, 
+using this parameter automatic schema-based topic 
+value deserialization can be turned off. 
+In that way, topics with different schemas can
+be read in the same pipeline - which is then responsible
+for deserializing the raw values based on some
+schema. Since only the raw values are returned when
+this is `true`, Pulsar topic schema(s) are not
+taken into account during operation.
+</td>
+</tr>
 
 </table>
 
@@ -387,10 +394,13 @@ df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
 ```
 
 #### Schema of Pulsar source
-* For topics without schema or with primitive schema in Pulsar, messages' payload
+- For topics without schema or with primitive schema in Pulsar, messages' payload
 is loaded to a `value` column with the corresponding type with Pulsar schema.
-
-* For topics with Avro or JSON schema, their field names and field types are kept in the result rows.
+- For topics with Avro or JSON schema, their field names and field types are kept in the result rows.
+- If the `topicsPattern` matches for topics which have different schemas, then setting
+`allowDifferentTopicSchemas` to `true` will allow the connector to read this content in a
+raw form. In this case it is the responsibility of the pipeline to apply the schema
+on this content, which is loaded to the `value` column. 
 
 Besides, each row in the source has the following metadata fields as well.
 <table class="table">
@@ -415,6 +425,10 @@ Besides, each row in the source has the following metadata fields as well.
   <td>`__eventTime`</td>
   <td>Timestamp</td>
 </tr>
+<tr>
+  <td>`__messageProperties`</td>
+  <td>Map &lt String, String &gt </td>
+</tr>
 </table>
 
 ** Example**
@@ -437,7 +451,9 @@ root
  |-- __topic: string (nullable = true)
  |-- __messageId: binary (nullable = true)
  |-- __publishTime: timestamp (nullable = true)
- |-- __eventTime: timestamp (nullable = true)
+ |-- __messageProperties: map (nullable = true)
+ |    |-- key: string
+ |    |-- value: string (valueContainsNull = true)
  ```
 
  For Pulsar topic with `Schema.DOUBLE`, it's schema as a DataFrame is:
@@ -449,6 +465,9 @@ root
  |-- __messageId: binary (nullable = true)
  |-- __publishTime: timestamp (nullable = true)
  |-- __eventTime: timestamp (nullable = true)
+ |-- __messageProperties: map (nullable = true)
+ |    |-- key: string
+ |    |-- value: string (valueContainsNull = true)
  ```
 
 ### Write data to Pulsar
