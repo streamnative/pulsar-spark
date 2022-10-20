@@ -29,10 +29,192 @@ import java.util
 
 class SchemaInfoSerDeSuite extends SparkFunSuite {
 
-  test("serialized schemaInfo serde") {
+  val schemaJson =
+    """{
+      |  "type": "record",
+      |  "name": "User",
+      |  "namespace": "io.streamnative.connectors.kafka.example",
+      |  "fields": [
+      |    {
+      |      "name": "txtm",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "bkid",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "gw_txtp",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "rgtm",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "first_banding_time",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "isrn",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "issucc",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "first_banding_area",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "commTransType",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "alam",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "chod",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "pdno",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "gw_trtp",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "frid",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "tcid",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "bobj",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "gscd",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "area_code",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "name_real",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "opponent_name",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "ctnm",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "registerIpAreaCode",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "idNoReal",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "chel",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    },
+      |    {
+      |      "name": "idNoRealCipher",
+      |      "type": [
+      |        "string",
+      |        "null"
+      |      ]
+      |    }
+      |  ]
+      |}""".stripMargin
 
-    val s1 = new ASchema.Parser().parse(
-      "{\n    \"type\": \"record\",\n    \"name\": \"User\",\n    \"namespace\": \"io.streamnative.connectors.kafka.example\",\n    \"fields\": [\n      {\n        \"name\": \"txtm\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"bkid\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"gw_txtp\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"rgtm\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"first_banding_time\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"isrn\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"issucc\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"first_banding_area\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"commTransType\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"alam\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"chod\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"pdno\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"gw_trtp\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"frid\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"tcid\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"bobj\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"gscd\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"area_code\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"name_real\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"opponent_name\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"ctnm\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"registerIpAreaCode\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"idNoReal\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"chel\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      },\n      {\n        \"name\": \"idNoRealCipher\",\n        \"type\": [\n          \"string\",\n          \"null\"\n        ]\n      }\n    ]\n  }")
+  test("serialized schemaInfo serde") {
+    val s1 = new ASchema.Parser().parse(schemaJson)
 
     val ps1 = SchemaInfoImpl
       .builder()

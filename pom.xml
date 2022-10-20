@@ -65,25 +65,28 @@
     <scalafmt.skip>true</scalafmt.skip>
 
     <!-- dependencies -->
-    <!-- latest version from apache pulsar master -->
+    <!-- latest version from apache pulsar -->
     <pulsar.version>2.10.2</pulsar.version>
-    <scala.version>2.12.10</scala.version>
+    <scala.version>2.12.17</scala.version>
     <scala.binary.version>2.12</scala.binary.version>
-    <scalatest.version>3.2.2</scalatest.version>
+    <scalatest.version>3.2.14</scalatest.version>
     <spark.version>3.1.1</spark.version>
-    <streamnative-tests.version>2.4.2</streamnative-tests.version>
-    <testcontainers.version>1.10.6</testcontainers.version>
+    <commons-io.version>2.11.0</commons-io.version>
+    <testcontainers.version>1.17.5</testcontainers.version>
+
     <!-- plugin dependencies -->
     <maven.version>3.5.4</maven.version>
-    <license-maven-plugin.version>3.0</license-maven-plugin.version>
-    <maven-compiler-plugin.version>3.8.1</maven-compiler-plugin.version>
-    <maven-dependency-plugin.version>3.2.0</maven-dependency-plugin.version>
-    <maven-shade-plugin.version>3.2.4</maven-shade-plugin.version>
-    <maven-source-plugin.version>3.2.0</maven-source-plugin.version>
+    <mvn-scalafmt.version>1.1.1640084764.9f463a9</mvn-scalafmt.version>
+    <license-maven-plugin.version>4.1</license-maven-plugin.version>
+    <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
+    <maven-dependency-plugin.version>3.3.0</maven-dependency-plugin.version>
+    <maven-shade-plugin.version>3.4.0</maven-shade-plugin.version>
+    <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
     <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
-    <scala-maven-plugin.version>4.4.1</scala-maven-plugin.version>
-    <scalatest-maven-plugin.version>2.0.2</scalatest-maven-plugin.version>
-    <nexus-staging-maven-plugin.version>1.6.8</nexus-staging-maven-plugin.version>
+    <scala-maven-plugin.version>4.7.2</scala-maven-plugin.version>
+    <scalatest-maven-plugin.version>2.2.0</scalatest-maven-plugin.version>
+    <scalastyle-maven-plugin.version>1.0.0</scalastyle-maven-plugin.version>
+    <nexus-staging-maven-plugin.version>1.6.13</nexus-staging-maven-plugin.version>
   </properties>
 
   <!-- dependencies for all modules -->
@@ -132,7 +135,7 @@
     <dependency>
       <groupId>commons-io</groupId>
       <artifactId>commons-io</artifactId>
-      <version>2.7</version>
+      <version>${commons-io.version}</version>
     </dependency>
 
     <!-- spark dependency -->
@@ -401,7 +404,7 @@
       <plugin>
         <groupId>org.scalastyle</groupId>
         <artifactId>scalastyle-maven-plugin</artifactId>
-        <version>1.0.0</version>
+        <version>${scalastyle-maven-plugin.version}</version>
         <configuration>
           <verbose>false</verbose>
           <failOnViolation>true</failOnViolation>
@@ -425,7 +428,7 @@
       <plugin>
         <groupId>org.antipathy</groupId>
         <artifactId>mvn-scalafmt_${scala.binary.version}</artifactId>
-        <version>1.1.1640084764.9f463a9</version>
+        <version>${mvn-scalafmt.version}</version>
         <configuration>
           <validateOnly>${scalafmt.skip}</validateOnly> <!-- (Optional) skip formatting -->
           <skipSources>${scalafmt.skip}</skipSources>
@@ -449,11 +452,6 @@
       <id>central</id>
       <layout>default</layout>
       <url>https://repo1.maven.org/maven2</url>
-    </repository>
-    <repository>
-      <id>bintray-streamnative-maven</id>
-      <name>bintray</name>
-      <url>https://dl.bintray.com/streamnative/maven</url>
     </repository>
   </repositories>
   <distributionManagement>
