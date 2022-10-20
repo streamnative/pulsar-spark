@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -26,7 +26,8 @@ object AdminUtils {
 
     if (clientConf.containsKey(AuthPluginClassName)) {
       builder.authentication(
-        clientConf.get(AuthPluginClassName).toString, clientConf.get(AuthParams).toString)
+        clientConf.get(AuthPluginClassName).toString,
+        clientConf.get(AuthParams).toString)
     }
 
     if (clientConf.containsKey(TlsAllowInsecureConnection)) {

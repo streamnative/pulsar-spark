@@ -61,6 +61,8 @@
     <maven.compiler.target>1.8</maven.compiler.target>
     <redirectTestOutputToFile>true</redirectTestOutputToFile>
     <testRetryCount>2</testRetryCount>
+    <!-- for now, not running scalafmt as part of default verify pipeline -->
+    <scalafmt.skip>true</scalafmt.skip>
 
     <!-- dependencies -->
     <!-- latest version from apache pulsar master -->
@@ -382,6 +384,26 @@
           <execution>
             <goals>
               <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.antipathy</groupId>
+        <artifactId>mvn-scalafmt_${scala.binary.version}</artifactId>
+        <version>1.1.1640084764.9f463a9</version>
+        <configuration>
+          <validateOnly>${scalafmt.skip}</validateOnly> <!-- (Optional) skip formatting -->
+          <skipSources>${scalafmt.skip}</skipSources>
+          <skipTestSources>${scalafmt.skip}</skipTestSources>
+          <configLocation>.scalafmt.conf</configLocation> <!-- (Optional) config location -->
+          <onlyChangedFiles>true</onlyChangedFiles>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>validate</phase>
+            <goals>
+              <goal>format</goal>
             </goals>
           </execution>
         </executions>

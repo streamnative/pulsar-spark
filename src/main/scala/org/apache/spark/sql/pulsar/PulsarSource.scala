@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -49,11 +49,7 @@ private[pulsar] class PulsarSource(
 
   private lazy val initialTopicOffsets: SpecificPulsarOffset = {
     val metadataLog = new PulsarSourceInitialOffsetWriter(sqlContext.sparkSession, metadataPath)
-    metadataLog.getInitialOffset(
-      metadataReader,
-      startingOffsets,
-      pollTimeoutMs,
-      reportDataLoss)
+    metadataLog.getInitialOffset(metadataReader, startingOffsets, pollTimeoutMs, reportDataLoss)
   }
 
   private var currentTopicOffsets: Option[Map[String, MessageId]] = None
@@ -111,10 +107,11 @@ private[pulsar] class PulsarSource(
 
     val offsetRanges = endTopicOffsets.keySet
       .map { tp =>
-        val fromOffset = newFromTopicOffsets.getOrElse(tp, {
-          // This should never happen
-          throw new IllegalStateException(s"$tp doesn't have a from offset")
-        })
+        val fromOffset = newFromTopicOffsets.getOrElse(
+          tp, {
+            // This should never happen
+            throw new IllegalStateException(s"$tp doesn't have a from offset")
+          })
         val untilOffset = endTopicOffsets(tp)
         val preferredLoc = if (numExecutors > 0) {
           // This allows cached PulsarClient in the executors to be re-used to read the same

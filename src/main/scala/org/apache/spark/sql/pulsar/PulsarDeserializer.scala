@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -35,7 +35,13 @@ import org.apache.pulsar.shade.org.apache.avro.util.Utf8
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{SpecificInternalRow, UnsafeArrayData}
 import org.apache.spark.sql.catalyst.json.{CreateJacksonParser, JSONOptionsInRead}
-import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, ArrayData, DateTimeUtils, GenericArrayData, MapData}
+import org.apache.spark.sql.catalyst.util.{
+  ArrayBasedMapData,
+  ArrayData,
+  DateTimeUtils,
+  GenericArrayData,
+  MapData
+}
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 
@@ -60,13 +66,12 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
         val avroSchema =
           new Schema.Parser().parse(new String(schemaInfo.getSchema, StandardCharsets.UTF_8))
         val writer = getRecordWriter(avroSchema, st, Nil)
-        (msg: Message[_]) =>
-          {
-            val value = msg.getValue
-            writer(fieldUpdater, value.asInstanceOf[GenericAvroRecord].getAvroRecord)
-            writeMetadataFields(msg, resultRow)
-            resultRow
-          }
+        (msg: Message[_]) => {
+          val value = msg.getValue
+          writer(fieldUpdater, value.asInstanceOf[GenericAvroRecord].getAvroRecord)
+          writeMetadataFields(msg, resultRow)
+          resultRow
+        }
 
       case SchemaType.JSON =>
         val st = rootDataType.asInstanceOf[StructType]
@@ -78,25 +83,23 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
           (input, record) => rawParser.parse(input, createParser, UTF8String.fromString, record),
           parsedOptions.parseMode,
           st)
-        (msg: Message[_]) =>
-          {
-            val value = msg.getData
-            parser.parse(new String(value, java.nio.charset.StandardCharsets.UTF_8), resultRow)
-            writeMetadataFields(msg, resultRow)
-            resultRow
-          }
+        (msg: Message[_]) => {
+          val value = msg.getData
+          parser.parse(new String(value, java.nio.charset.StandardCharsets.UTF_8), resultRow)
+          writeMetadataFields(msg, resultRow)
+          resultRow
+        }
 
       case _ => // AtomicTypes
         val tmpRow = new SpecificInternalRow(Seq(rootDataType) ++ metaDataFields.map(_.dataType))
         val fieldUpdater = new RowUpdater(tmpRow)
         val writer = newAtomicWriter(rootDataType)
-        (msg: Message[_]) =>
-          {
-            val value = msg.getValue
-            writer(fieldUpdater, 0, value)
-            writeMetadataFields(msg, tmpRow)
-            tmpRow
-          }
+        (msg: Message[_]) => {
+          val value = msg.getValue
+          writer(fieldUpdater, 0, value)
+          writeMetadataFields(msg, tmpRow)
+          tmpRow
+        }
     }
   }
 
@@ -126,11 +129,14 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
     }
     // properties
     if (message.getProperties != null) {
-      row.update(metaStartIdx + 5, createMapData(message.getProperties,
-                                                 SchemaBuilder.builder().stringType(),
-                                                 StringType,
-                                                 valueContainsNull = true,
-                                                 Nil))
+      row.update(
+        metaStartIdx + 5,
+        createMapData(
+          message.getProperties,
+          SchemaBuilder.builder().stringType(),
+          StringType,
+          valueContainsNull = true,
+          Nil))
     } else {
       row.setNullAt(metaStartIdx + 5)
     }
@@ -139,42 +145,37 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
   private def newAtomicWriter(dataType: DataType): (RowUpdater, Int, Any) => Unit =
     dataType match {
       case ByteType =>
-        (updater, ordinal, value) =>
-          updater.setByte(ordinal, value.asInstanceOf[Byte])
+        (updater, ordinal, value) => updater.setByte(ordinal, value.asInstanceOf[Byte])
 
       case BooleanType =>
-        (updater, ordinal, value) =>
-          updater.setBoolean(ordinal, value.asInstanceOf[Boolean])
+        (updater, ordinal, value) => updater.setBoolean(ordinal, value.asInstanceOf[Boolean])
 
       case IntegerType =>
-        (updater, ordinal, value) =>
-          updater.setInt(ordinal, value.asInstanceOf[Int])
+        (updater, ordinal, value) => updater.setInt(ordinal, value.asInstanceOf[Int])
 
       case DateType =>
         (updater, ordinal, value) =>
           updater.setInt(
-            ordinal, DateTimeUtils.microsToDays(value.asInstanceOf[Date].getTime * 1000L,
+            ordinal,
+            DateTimeUtils.microsToDays(
+              value.asInstanceOf[Date].getTime * 1000L,
               parsedOptions.zoneId))
 
       case LongType =>
-        (updater, ordinal, value) =>
-          updater.setLong(ordinal, value.asInstanceOf[Long])
+        (updater, ordinal, value) => updater.setLong(ordinal, value.asInstanceOf[Long])
 
       case TimestampType =>
         (updater, ordinal, value) =>
           updater.setLong(ordinal, DateTimeUtils.fromJavaTimestamp(value.asInstanceOf[Timestamp]))
 
       case FloatType =>
-        (updater, ordinal, value) =>
-          updater.setFloat(ordinal, value.asInstanceOf[Float])
+        (updater, ordinal, value) => updater.setFloat(ordinal, value.asInstanceOf[Float])
 
       case DoubleType =>
-        (updater, ordinal, value) =>
-          updater.setDouble(ordinal, value.asInstanceOf[Double])
+        (updater, ordinal, value) => updater.setDouble(ordinal, value.asInstanceOf[Double])
 
       case ShortType =>
-        (updater, ordinal, value) =>
-          updater.setShort(ordinal, value.asInstanceOf[Short])
+        (updater, ordinal, value) => updater.setShort(ordinal, value.asInstanceOf[Short])
 
       case StringType =>
         (updater, ordinal, value) =>
@@ -203,45 +204,36 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
       path: List[String]): (CatalystDataUpdater, Int, Any) => Unit =
     (avroType.getType, catalystType) match {
       case (NULL, NullType) =>
-        (updater, ordinal, _) =>
-          updater.setNullAt(ordinal)
+        (updater, ordinal, _) => updater.setNullAt(ordinal)
 
       case (BOOLEAN, BooleanType) =>
-        (updater, ordinal, value) =>
-          updater.setBoolean(ordinal, value.asInstanceOf[Boolean])
+        (updater, ordinal, value) => updater.setBoolean(ordinal, value.asInstanceOf[Boolean])
 
       case (INT, IntegerType) =>
-        (updater, ordinal, value) =>
-          updater.setInt(ordinal, value.asInstanceOf[Int])
+        (updater, ordinal, value) => updater.setInt(ordinal, value.asInstanceOf[Int])
 
       case (INT, DateType) =>
-        (updater, ordinal, value) =>
-          updater.setInt(ordinal, value.asInstanceOf[Int])
+        (updater, ordinal, value) => updater.setInt(ordinal, value.asInstanceOf[Int])
 
       case (LONG, LongType) =>
-        (updater, ordinal, value) =>
-          updater.setLong(ordinal, value.asInstanceOf[Long])
+        (updater, ordinal, value) => updater.setLong(ordinal, value.asInstanceOf[Long])
 
       case (LONG, TimestampType) =>
         avroType.getLogicalType match {
           case _: TimestampMillis =>
-            (updater, ordinal, value) =>
-              updater.setLong(ordinal, value.asInstanceOf[Long] * 1000)
+            (updater, ordinal, value) => updater.setLong(ordinal, value.asInstanceOf[Long] * 1000)
           case _: TimestampMicros =>
-            (updater, ordinal, value) =>
-              updater.setLong(ordinal, value.asInstanceOf[Long])
+            (updater, ordinal, value) => updater.setLong(ordinal, value.asInstanceOf[Long])
           case other =>
             throw new IncompatibleSchemaException(
               s"Cannot convert Avro logical type ${other} to Catalyst Timestamp type.")
         }
 
       case (FLOAT, FloatType) =>
-        (updater, ordinal, value) =>
-          updater.setFloat(ordinal, value.asInstanceOf[Float])
+        (updater, ordinal, value) => updater.setFloat(ordinal, value.asInstanceOf[Float])
 
       case (DOUBLE, DoubleType) =>
-        (updater, ordinal, value) =>
-          updater.setDouble(ordinal, value.asInstanceOf[Double])
+        (updater, ordinal, value) => updater.setDouble(ordinal, value.asInstanceOf[Double])
 
       case (STRING, StringType) =>
         (updater, ordinal, value) =>
@@ -255,8 +247,7 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
           updater.set(ordinal, str)
 
       case (ENUM, StringType) =>
-        (updater, ordinal, value) =>
-          updater.set(ordinal, UTF8String.fromString(value.toString))
+        (updater, ordinal, value) => updater.set(ordinal, UTF8String.fromString(value.toString))
 
       case (FIXED, BinaryType) =>
         (updater, ordinal, value) =>
@@ -329,7 +320,7 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
       case (MAP, MapType(keyType, valueType, valueContainsNull)) if keyType == StringType =>
         (updater, ordinal, value) =>
           val mapData =
-              createMapData(value, avroType.getValueType, valueType, valueContainsNull, path)
+            createMapData(value, avroType.getValueType, valueType, valueContainsNull, path)
           updater.set(ordinal, mapData)
 
       case (UNION, _) =>
@@ -361,19 +352,17 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
                   case st: StructType if st.length == nonNullTypes.size =>
                     val fieldWriters = nonNullTypes
                       .zip(st.fields)
-                      .map {
-                        case (schema, field) =>
-                          newWriter(schema, field.dataType, path :+ field.name)
+                      .map { case (schema, field) =>
+                        newWriter(schema, field.dataType, path :+ field.name)
                       }
                       .toArray
-                    (updater, ordinal, value) =>
-                      {
-                        val row = new SpecificInternalRow(st)
-                        val fieldUpdater = new RowUpdater(row)
-                        val i = GenericData.get().resolveUnion(avroType, value)
-                        fieldWriters(i)(fieldUpdater, i, value)
-                        updater.set(ordinal, row)
-                      }
+                    (updater, ordinal, value) => {
+                      val row = new SpecificInternalRow(st)
+                      val fieldUpdater = new RowUpdater(row)
+                      val i = GenericData.get().resolveUnion(avroType, value)
+                      fieldWriters(i)(fieldUpdater, i, value)
+                      updater.set(ordinal, row)
+                    }
 
                   case _ =>
                     throw new IncompatibleSchemaException(
@@ -419,10 +408,9 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
         }
         fieldWriters += fieldWriter
       } else if (!sqlField.nullable) {
-        throw new IncompatibleSchemaException(
-          s"""
+        throw new IncompatibleSchemaException(s"""
              |Cannot find non-nullable field ${path
-               .mkString(".")}.${sqlField.name} in Avro schema.
+                                                  .mkString(".")}.${sqlField.name} in Avro schema.
              |Source Avro schema: $avroType.
              |Target Catalyst type: $sqlType.
            """.stripMargin)
@@ -430,14 +418,13 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
       i += 1
     }
 
-    (fieldUpdater, record) =>
-      {
-        var i = 0
-        while (i < validFieldIndexes.length) {
-          fieldWriters(i)(fieldUpdater, record.get(validFieldIndexes(i)))
-          i += 1
-        }
+    (fieldUpdater, record) => {
+      var i = 0
+      while (i < validFieldIndexes.length) {
+        fieldWriters(i)(fieldUpdater, record.get(validFieldIndexes(i)))
+        i += 1
       }
+    }
   }
 
   private def createDecimal(decimal: BigDecimal, precision: Int, scale: Int): Decimal = {
@@ -450,11 +437,12 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
     }
   }
 
-  private def createMapData(value: Any,
-                            valueSchema: Schema,
-                            valueType: DataType,
-                            valueContainsNull: Boolean,
-                            path: List[String]) : MapData = {
+  private def createMapData(
+      value: Any,
+      valueSchema: Schema,
+      valueType: DataType,
+      valueContainsNull: Boolean,
+      path: List[String]): MapData = {
     val keyWriter = newWriter(SchemaBuilder.builder().stringType(), StringType, path)
     val valueWriter = newWriter(valueSchema, valueType, path)
     val map = value.asInstanceOf[java.util.Map[AnyRef, AnyRef]]

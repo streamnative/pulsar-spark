@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -17,19 +17,26 @@ import java.util.Locale
 
 import reflect.runtime.universe._
 
-import org.apache.pulsar.client.impl.conf.{ClientConfigurationData, ConsumerConfigurationData, ProducerConfigurationData, ReaderConfigurationData}
+import org.apache.pulsar.client.impl.conf.{
+  ClientConfigurationData,
+  ConsumerConfigurationData,
+  ProducerConfigurationData,
+  ReaderConfigurationData
+}
 import org.apache.pulsar.shade.com.fasterxml.jackson.annotation.JsonIgnore
 
 object PulsarConfigurationUtils {
 
   private def nonIgnoredFields[T: TypeTag] = {
     // a field is a Term that is a Var or a Val
-    val fields = typeOf[T].members.collect{ case s: TermSymbol => s }.
-      filter(s => s.isVal || s.isVar)
+    val fields =
+      typeOf[T].members.collect { case s: TermSymbol => s }.filter(s => s.isVal || s.isVar)
 
     // then only keep the ones without a JsonIgnore annotation
-    val ignores = fields.flatMap(f => f.annotations.find(_.tree.tpe =:= typeOf[JsonIgnore]).
-      map((f, _))).map(t => t._1).toList
+    val ignores = fields
+      .flatMap(f => f.annotations.find(_.tree.tpe =:= typeOf[JsonIgnore]).map((f, _)))
+      .map(t => t._1)
+      .toList
 
     fields.filterNot(ignores.contains).map(_.name.toString)
   }

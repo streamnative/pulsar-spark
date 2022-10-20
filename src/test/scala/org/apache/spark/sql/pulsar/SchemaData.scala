@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -58,7 +58,10 @@ object SchemaData {
       @BeanProperty arr: Array[Bar])
 
   val fooSeq: Seq[Foo] =
-    Foo(1, 1.0.toFloat, Bar(true, "a")) :: Foo(2, 2.0.toFloat, Bar(false, "b")) :: Foo(3, 0, null) :: Nil
+    Foo(1, 1.0.toFloat, Bar(true, "a")) :: Foo(2, 2.0.toFloat, Bar(false, "b")) :: Foo(
+      3,
+      0,
+      null) :: Nil
 
   val f1Seq: Seq[F1] =
     F1(
@@ -67,14 +70,14 @@ object SchemaData {
         Double.NaN,
         Map("1" -> Bar(true, "1"), "2" -> Bar(false, "2")).asJava,
         Array(Bar(true, "1"), Bar(true, "2")))) ::
-    F1(
-      Baz(
-        Float.NegativeInfinity,
-        Double.NegativeInfinity,
-        Map("" -> Bar(true, "1")).asJava,
-        null)) ::
-    F1(Baz(Float.PositiveInfinity, Double.PositiveInfinity, null, null)) ::
-    F1(Baz(1.0.toFloat, 2.0, null, null)) :: Nil
+      F1(
+        Baz(
+          Float.NegativeInfinity,
+          Double.NegativeInfinity,
+          Map("" -> Bar(true, "1")).asJava,
+          null)) ::
+      F1(Baz(Float.PositiveInfinity, Double.PositiveInfinity, null, null)) ::
+      F1(Baz(1.0.toFloat, 2.0, null, null)) :: Nil
 
   val f1Results = f1Seq.map(f1 =>
     (f1.baz.f, f1.baz.d, if (f1.baz.mp == null) null else f1.baz.mp.asScala, f1.baz.arr))

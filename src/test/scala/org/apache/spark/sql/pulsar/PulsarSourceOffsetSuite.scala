@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -15,7 +15,12 @@ package org.apache.spark.sql.pulsar
 
 import org.apache.pulsar.client.impl.MessageIdImpl
 
-import org.apache.spark.sql.execution.streaming.{LongOffset, OffsetSeq, OffsetSeqLog, SerializedOffset}
+import org.apache.spark.sql.execution.streaming.{
+  LongOffset,
+  OffsetSeq,
+  OffsetSeqLog,
+  SerializedOffset
+}
 import org.apache.spark.sql.streaming.OffsetSuite
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.execution.streaming.Offset
@@ -34,8 +39,7 @@ class PulsarSourceOffsetSuite extends OffsetSuite with SharedSparkSession {
       ("t1", new MessageIdImpl(1, 1, -1))).asInstanceOf[Offset],
     two = SpecificPulsarOffset(
       ("t", new MessageIdImpl(1, 2, -1)),
-      ("t1", new MessageIdImpl(1, 2, -1))).asInstanceOf[Offset],
-  )
+      ("t1", new MessageIdImpl(1, 2, -1))).asInstanceOf[Offset])
 
   compare(
     one = SpecificPulsarOffset(("t", new MessageIdImpl(1, 1, -1))).asInstanceOf[Offset],

@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -29,7 +29,12 @@ import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.protocol.schema.PostSchemaPayload
 import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
 import org.apache.pulsar.shade.org.apache.avro.{LogicalTypes, Schema => ASchema, SchemaBuilder}
-import org.apache.pulsar.shade.org.apache.avro.LogicalTypes.{Date, Decimal, TimestampMicros, TimestampMillis}
+import org.apache.pulsar.shade.org.apache.avro.LogicalTypes.{
+  Date,
+  Decimal,
+  TimestampMicros,
+  TimestampMillis
+}
 import org.apache.pulsar.shade.org.apache.avro.Schema.Type._
 
 import org.apache.spark.sql.types._
@@ -77,16 +82,17 @@ private[pulsar] object SchemaUtils {
   def uploadPulsarSchema(admin: PulsarAdmin, topic: String, schemaInfo: SchemaInfo): Unit = {
     assert(schemaInfo != null, "schemaInfo shouldn't be null")
 
-    val existingSchema = try {
-      admin.schemas().getSchemaInfo(TopicName.get(topic).toString)
-    } catch {
-      case e: PulsarAdminException if e.getStatusCode == 404 =>
-        null
-      case e: Throwable =>
-        throw new RuntimeException(
-          s"Failed to get schema information for ${TopicName.get(topic).toString}",
-          e)
-    }
+    val existingSchema =
+      try {
+        admin.schemas().getSchemaInfo(TopicName.get(topic).toString)
+      } catch {
+        case e: PulsarAdminException if e.getStatusCode == 404 =>
+          null
+        case e: Throwable =>
+          throw new RuntimeException(
+            s"Failed to get schema information for ${TopicName.get(topic).toString}",
+            e)
+      }
 
     if (existingSchema == null) {
       val pl = new PostSchemaPayload()
@@ -104,7 +110,8 @@ private[pulsar] object SchemaUtils {
             s"Failed to create schema for ${TopicName.get(topic).toString}",
             e)
       }
-    } else if (existingSchema.equals(schemaInfo) || compatibleSchema(existingSchema, schemaInfo)) {
+    } else if (existingSchema
+        .equals(schemaInfo) || compatibleSchema(existingSchema, schemaInfo)) {
       // no need to upload again
     } else {
       throw new RuntimeException("Writing to a topic which have incompatible schema")
@@ -275,11 +282,10 @@ private[pulsar] object SchemaUtils {
             case _ =>
               // Convert complex unions to struct types where field names are member0, member1, etc.
               // This is consistent with the behavior when converting between Avro and Parquet.
-              val fields = avroSchema.getTypes.asScala.zipWithIndex.map {
-                case (s, i) =>
-                  val TypeNullable = avro2SqlType(s, existingRecordNames)
-                  // All fields are nullable because only one of them is set at a time
-                  StructField(s"member$i", TypeNullable.dataType, nullable = true)
+              val fields = avroSchema.getTypes.asScala.zipWithIndex.map { case (s, i) =>
+                val TypeNullable = avro2SqlType(s, existingRecordNames)
+                // All fields are nullable because only one of them is set at a time
+                StructField(s"member$i", TypeNullable.dataType, nullable = true)
               }
 
               TypeNullable(StructType(fields), nullable = false)
@@ -291,10 +297,8 @@ private[pulsar] object SchemaUtils {
 
   def ASchema2PSchema(aschema: ASchema): GenericSchema[GenericRecord] = {
     val schema = aschema.toString.getBytes(StandardCharsets.UTF_8)
-    val si = new SchemaInfoImpl("Avro",
-                                schema,
-                                SchemaType.AVRO,
-                                new java.util.HashMap[String, String]())
+    val si =
+      new SchemaInfoImpl("Avro", schema, SchemaType.AVRO, new java.util.HashMap[String, String]())
     PSchema.generic(si)
   }
 
@@ -387,7 +391,6 @@ private[pulsar] object SchemaUtils {
     StructField(MessageIdName, BinaryType),
     StructField(PublishTimeName, TimestampType),
     StructField(EventTimeName, TimestampType),
-    StructField(MessagePropertiesName, MapType(StringType, StringType, valueContainsNull = true))
-  )
+    StructField(MessagePropertiesName, MapType(StringType, StringType, valueContainsNull = true)))
 
 }

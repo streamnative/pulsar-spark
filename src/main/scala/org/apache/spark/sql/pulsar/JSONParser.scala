@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -67,8 +67,8 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
   }
 
   /**
-   * Create a converter which converts the JSON documents held by the `JsonParser`
-   * to a value according to a desired schema.
+   * Create a converter which converts the JSON documents held by the `JsonParser` to a value
+   * according to a desired schema.
    */
   def makeConverter(dataType: DataType): ValueConverter = dataType match {
     case BooleanType =>
@@ -80,26 +80,26 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
 
     case ByteType =>
       (parser: JsonParser) =>
-        parseJsonToken[java.lang.Byte](parser, dataType) {
-          case VALUE_NUMBER_INT => parser.getByteValue
+        parseJsonToken[java.lang.Byte](parser, dataType) { case VALUE_NUMBER_INT =>
+          parser.getByteValue
         }
 
     case ShortType =>
       (parser: JsonParser) =>
-        parseJsonToken[java.lang.Short](parser, dataType) {
-          case VALUE_NUMBER_INT => parser.getShortValue
+        parseJsonToken[java.lang.Short](parser, dataType) { case VALUE_NUMBER_INT =>
+          parser.getShortValue
         }
 
     case IntegerType =>
       (parser: JsonParser) =>
-        parseJsonToken[java.lang.Integer](parser, dataType) {
-          case VALUE_NUMBER_INT => parser.getIntValue
+        parseJsonToken[java.lang.Integer](parser, dataType) { case VALUE_NUMBER_INT =>
+          parser.getIntValue
         }
 
     case LongType =>
       (parser: JsonParser) =>
-        parseJsonToken[java.lang.Long](parser, dataType) {
-          case VALUE_NUMBER_INT => parser.getLongValue
+        parseJsonToken[java.lang.Long](parser, dataType) { case VALUE_NUMBER_INT =>
+          parser.getLongValue
         }
 
     case FloatType =>
@@ -160,13 +160,15 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
             // This one will lose microseconds parts.
             // See https://issues.apache.org/jira/browse/SPARK-10681.
             Long.box {
-              Try(TimestampFormatter(options.timestampFormat, options.zoneId, true)
-                .parse(stringValue))
+              Try(
+                TimestampFormatter(options.timestampFormat, options.zoneId, true)
+                  .parse(stringValue))
                 .getOrElse {
                   // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
                   // compatibility.
-                  DateTimeUtils.stringToTimestamp(
-                    UTF8String.fromString(stringValue), options.zoneId).get
+                  DateTimeUtils
+                    .stringToTimestamp(UTF8String.fromString(stringValue), options.zoneId)
+                    .get
                 }
             }
 
@@ -176,33 +178,34 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
 
     case DateType =>
       (parser: JsonParser) =>
-        parseJsonToken[java.lang.Long](parser, dataType) {
-          case VALUE_STRING =>
-            val stringValue = parser.getText
-            // This one will lose microseconds parts.
-            // See https://issues.apache.org/jira/browse/SPARK-10681.x
-            Long.box {
-              Try(TimestampFormatter(options.timestampFormat,
-                options.zoneId, true).parse(stringValue))
-                .orElse {
-                  // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
-                  // compatibility.
-                  Try(DateTimeUtils.stringToTimestamp(UTF8String.fromString(stringValue),
-                    options.zoneId).get)
-                }
-                .getOrElse {
-                  // In Spark 1.5.0, we store the data as number of days since epoch in string.
-                  // So, we just convert it to Int.
-                  stringValue.toLong
-                }
-            }
+        parseJsonToken[java.lang.Long](parser, dataType) { case VALUE_STRING =>
+          val stringValue = parser.getText
+          // This one will lose microseconds parts.
+          // See https://issues.apache.org/jira/browse/SPARK-10681.x
+          Long.box {
+            Try(
+              TimestampFormatter(options.timestampFormat, options.zoneId, true).parse(
+                stringValue))
+              .orElse {
+                // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
+                // compatibility.
+                Try(
+                  DateTimeUtils
+                    .stringToTimestamp(UTF8String.fromString(stringValue), options.zoneId)
+                    .get)
+              }
+              .getOrElse {
+                // In Spark 1.5.0, we store the data as number of days since epoch in string.
+                // So, we just convert it to Int.
+                stringValue.toLong
+              }
+          }
         }
 
     case BinaryType =>
       (parser: JsonParser) =>
-
-        parseJsonToken[Array[Byte]](parser, dataType) {
-          case VALUE_STRING => parser.getBinaryValue
+        parseJsonToken[Array[Byte]](parser, dataType) { case VALUE_STRING =>
+          parser.getBinaryValue
         }
 
     case dt: DecimalType =>
@@ -215,24 +218,23 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
     case st: StructType =>
       val fieldConverters = st.map(_.dataType).map(makeConverter).toArray
       (parser: JsonParser) =>
-        parseJsonToken[InternalRow](parser, dataType) {
-          case START_OBJECT =>
-            val record = new GenericInternalRow(st.length)
-            convertObject(parser, st, fieldConverters, record)
+        parseJsonToken[InternalRow](parser, dataType) { case START_OBJECT =>
+          val record = new GenericInternalRow(st.length)
+          convertObject(parser, st, fieldConverters, record)
         }
 
     case at: ArrayType =>
       val elementConverter = makeConverter(at.elementType)
       (parser: JsonParser) =>
-        parseJsonToken[ArrayData](parser, dataType) {
-          case START_ARRAY => convertArray(parser, elementConverter)
+        parseJsonToken[ArrayData](parser, dataType) { case START_ARRAY =>
+          convertArray(parser, elementConverter)
         }
 
     case mt: MapType =>
       val valueConverter = makeConverter(mt.valueType)
       (parser: JsonParser) =>
-        parseJsonToken[MapData](parser, dataType) {
-          case START_OBJECT => convertMap(parser, valueConverter)
+        parseJsonToken[MapData](parser, dataType) { case START_OBJECT =>
+          convertMap(parser, valueConverter)
         }
 
     case udt: UserDefinedType[_] =>
@@ -247,8 +249,8 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
   }
 
   /**
-   * This method skips `FIELD_NAME`s at the beginning, and handles nulls ahead before trying
-   * to parse the JSON token using given function `f`. If the `f` failed to parse and convert the
+   * This method skips `FIELD_NAME`s at the beginning, and handles nulls ahead before trying to
+   * parse the JSON token using given function `f`. If the `f` failed to parse and convert the
    * token, call `failedConversion` to handle the token.
    */
   private def parseJsonToken[R >: Null](parser: JsonParser, dataType: DataType)(
@@ -285,8 +287,8 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
   }
 
   /**
-   * Parse an object from the token stream into a new Row representing the schema.
-   * Fields in the json that are not defined in the requested schema will be dropped.
+   * Parse an object from the token stream into a new Row representing the schema. Fields in the
+   * json that are not defined in the requested schema will be dropped.
    */
   private def convertObject(
       parser: JsonParser,
@@ -339,8 +341,9 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
   /**
    * Parse the JSON input to [[InternalRow]].
    *
-   * @param recordLiteral an optional function that will be used to generate
-   *   the corrupt record text instead of record.toString
+   * @param recordLiteral
+   *   an optional function that will be used to generate the corrupt record text instead of
+   *   record.toString
    */
   def parse[T](
       record: T,

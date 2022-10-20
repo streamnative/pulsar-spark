@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -26,7 +26,13 @@ import org.apache.pulsar.client.api.{ClientBuilder, PulsarClient}
 
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.pulsar.PulsarOptions.{AuthParams, AuthPluginClassName, TlsAllowInsecureConnection, TlsHostnameVerificationEnable, TlsTrustCertsFilePath}
+import org.apache.spark.sql.pulsar.PulsarOptions.{
+  AuthParams,
+  AuthPluginClassName,
+  TlsAllowInsecureConnection,
+  TlsHostnameVerificationEnable,
+  TlsTrustCertsFilePath
+}
 
 private[pulsar] object CachedPulsarClient extends Logging {
 
@@ -66,15 +72,14 @@ private[pulsar] object CachedPulsarClient extends Logging {
       .build[Seq[(String, Object)], Client](cacheLoader)
 
   def createPulsarClient(
-                          pulsarConf: ju.Map[String, Object],
-                          pulsarClientBuilder: ClientBuilder = PulsarClient.builder()): Client = {
+      pulsarConf: ju.Map[String, Object],
+      pulsarClientBuilder: ClientBuilder = PulsarClient.builder()): Client = {
     val pulsarServiceUrl =
       pulsarConf.get(PulsarOptions.ServiceUrlOptionKey).asInstanceOf[String]
     val clientConf = new PulsarConfigUpdater(
       "pulsarClientCache",
       pulsarConf.asScala.toMap,
-      PulsarOptions.FilteredKeys
-    ).rebuild()
+      PulsarOptions.FilteredKeys).rebuild()
     logInfo(s"Client Conf = ${clientConf}")
     try {
       pulsarClientBuilder
@@ -83,7 +88,8 @@ private[pulsar] object CachedPulsarClient extends Logging {
       // Set TLS and authentication parameters if they were given
       if (clientConf.containsKey(AuthPluginClassName)) {
         pulsarClientBuilder.authentication(
-          clientConf.get(AuthPluginClassName).toString, clientConf.get(AuthParams).toString)
+          clientConf.get(AuthPluginClassName).toString,
+          clientConf.get(AuthParams).toString)
       }
       if (clientConf.containsKey(TlsAllowInsecureConnection)) {
         pulsarClientBuilder.allowTlsInsecureConnection(
@@ -94,8 +100,7 @@ private[pulsar] object CachedPulsarClient extends Logging {
           clientConf.get(TlsHostnameVerificationEnable).toString.toBoolean)
       }
       if (clientConf.containsKey(TlsTrustCertsFilePath)) {
-        pulsarClientBuilder.tlsTrustCertsFilePath(
-          clientConf.get(TlsTrustCertsFilePath).toString)
+        pulsarClientBuilder.tlsTrustCertsFilePath(clientConf.get(TlsTrustCertsFilePath).toString)
       }
       val pulsarClient: Client = pulsarClientBuilder.build()
       logDebug(
@@ -114,8 +119,8 @@ private[pulsar] object CachedPulsarClient extends Logging {
 
   /**
    * Get a cached PulsarProducer for a given configuration. If matching PulsarProducer doesn't
-   * exist, a new PulsarProducer will be created. PulsarProducer is thread safe, it is best to keep
-   * one instance per specified pulsarParams.
+   * exist, a new PulsarProducer will be created. PulsarProducer is thread safe, it is best to
+   * keep one instance per specified pulsarParams.
    */
   private[pulsar] def getOrCreate(pulsarParams: ju.Map[String, Object]): Client = {
     val paramsSeq: Seq[(String, Object)] = paramsToSeq(pulsarParams)

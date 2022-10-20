@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -13,26 +13,24 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.{util => ju}
-import java.util.{Optional, UUID}
-import java.util.concurrent.TimeUnit
-
-import scala.collection.JavaConverters._
-
 import org.apache.pulsar.client.api.{Message, MessageId, Schema}
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
 import org.apache.pulsar.common.schema.SchemaInfo
-
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
-import org.apache.spark.sql.connector.read.{InputPartition, PartitionReader, PartitionReaderFactory}
 import org.apache.spark.sql.connector.read.streaming.{MicroBatchStream, Offset}
+import org.apache.spark.sql.connector.read.{
+  InputPartition,
+  PartitionReader,
+  PartitionReaderFactory
+}
 import org.apache.spark.sql.execution.streaming.{Offset => eOffset}
-import org.apache.spark.sql.pulsar.PulsarSourceUtils.messageExists
-import org.apache.spark.sql.types.StructType
 
+import java.util.concurrent.TimeUnit
+import java.{util => ju}
+import scala.collection.JavaConverters._
 
 private[pulsar] class PulsarMicroBatchReader(
     metadataReader: PulsarMetadataReader,
@@ -58,11 +56,7 @@ private[pulsar] class PulsarMicroBatchReader(
   private lazy val initialTopicOffsets: SpecificPulsarOffset = {
     val metadataLog =
       new PulsarSourceInitialOffsetWriter(SparkSession.getActiveSession.get, metadataPath)
-    metadataLog.getInitialOffset(
-      metadataReader,
-      startingOffsets,
-      pollTimeoutMs,
-      reportDataLoss)
+    metadataLog.getInitialOffset(metadataReader, startingOffsets, pollTimeoutMs, reportDataLoss)
   }
 
   override def deserializeOffset(json: String): Offset = {
@@ -85,10 +79,11 @@ private[pulsar] class PulsarMicroBatchReader(
 
     val offsetRanges = endTopicOffsets.keySet
       .map { tp =>
-        val fromOffset = newStartsOffsets.getOrElse(tp, {
-          // this shouldn't happen
-          throw new IllegalStateException(s"$tp doesn't have a start offset")
-        })
+        val fromOffset = newStartsOffsets.getOrElse(
+          tp, {
+            // this shouldn't happen
+            throw new IllegalStateException(s"$tp doesn't have a start offset")
+          })
         val untilOffset = endTopicOffsets(tp)
         val sortedExecutors = getSortedExecutorList()
         val numExecutors = sortedExecutors.length

@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -27,7 +27,7 @@ private[pulsar] case class PulsarConfigUpdater(
     pulsarParams: Map[String, Object],
     blacklistedKeys: Set[String] = Set(),
     keysToHideInLog: Set[String] = Set(PulsarOptions.AuthParams))
-  extends Logging {
+    extends Logging {
 
   private val map = new ju.HashMap[String, Object](pulsarParams.asJava)
 
@@ -40,9 +40,10 @@ private[pulsar] case class PulsarConfigUpdater(
       logInfo(s"$module: Skip '$key'")
     } else {
       map.put(key, value)
-      logInfo(s"$module: Set '$key' to " +
-        s"'${printConfigValue(key, Option(value))}'," +
-        s" earlier value: '${printConfigValue(key, pulsarParams.get(key))}'")
+      logInfo(
+        s"$module: Set '$key' to " +
+          s"'${printConfigValue(key, Option(value))}'," +
+          s" earlier value: '${printConfigValue(key, pulsarParams.get(key))}'")
     }
     this
   }
@@ -57,8 +58,9 @@ private[pulsar] case class PulsarConfigUpdater(
     } else {
       if (!map.containsKey(key)) {
         map.put(key, value)
-        logInfo(s"$module: Set '$key' to " +
-          s"'${printConfigValue(key, pulsarParams.get(key))}'")
+        logInfo(
+          s"$module: Set '$key' to " +
+            s"'${printConfigValue(key, pulsarParams.get(key))}'")
       }
     }
     this
@@ -68,9 +70,8 @@ private[pulsar] case class PulsarConfigUpdater(
 
   def rebuild(): ju.Map[String, Object] = {
     val map = new ju.HashMap[String, Object]()
-    pulsarParams map {
-      case (k, v) =>
-        set(k, v, map)
+    pulsarParams map { case (k, v) =>
+      set(k, v, map)
     }
     map
   }
@@ -78,8 +79,7 @@ private[pulsar] case class PulsarConfigUpdater(
   private val HideCompletelyLimit = 6
   private val ShowFractionOfHiddenValue = 1.0 / 3.0
   private val CompletelyHiddenMessage = "...<completely hidden>..."
-  private def printConfigValue(key: String,
-                               maybeVal: Option[Object]): String = {
+  private def printConfigValue(key: String, maybeVal: Option[Object]): String = {
     val value = maybeVal.map(_.toString).getOrElse("")
     if (keysToHideInLog.contains(key)) {
       if (value.length < HideCompletelyLimit) {

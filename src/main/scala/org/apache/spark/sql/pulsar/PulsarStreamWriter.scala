@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -17,23 +17,32 @@ import java.{util => ju}
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.connector.write.{DataWriter, DataWriterFactory, PhysicalWriteInfo, WriterCommitMessage}
+import org.apache.spark.sql.connector.write.{
+  DataWriter,
+  DataWriterFactory,
+  PhysicalWriteInfo,
+  WriterCommitMessage
+}
 import org.apache.spark.sql.connector.write.streaming.{StreamingDataWriterFactory, StreamingWrite}
 import org.apache.spark.sql.types.StructType
 
 /**
- * Dummy commit message. The DataSourceV2 framework requires a commit message implementation but we
- * don't need to really send one.
+ * Dummy commit message. The DataSourceV2 framework requires a commit message implementation but
+ * we don't need to really send one.
  */
 case object PulsarWriterCommitMessage extends WriterCommitMessage
 
 /**
  * A [[StreamWriter]] for Pulsar writing. Responsible for generating the writer factory.
  *
- * @param schema The schema of the input data.
- * @param clientConf Parameters for Pulsar client in each task.
- * @param producerConf Parameters for Pulsar producers in each task.
- * @param topic The topic this writer is responsible for.
+ * @param schema
+ *   The schema of the input data.
+ * @param clientConf
+ *   Parameters for Pulsar client in each task.
+ * @param producerConf
+ *   Parameters for Pulsar producers in each task.
+ * @param topic
+ *   The topic this writer is responsible for.
  */
 class PulsarStreamWriter(
     schema: StructType,
@@ -53,10 +62,14 @@ class PulsarStreamWriter(
 /**
  * A [[DataWriterFactory]] for Pulsar writing. Will be serialized and sent to executors to
  * generate the per-task data writers.
- * @param schema The schema of the input data.
- * @param clientConf Parameters for Pulsar client.
- * @param producerConf Parameters for Pulsar producers in each task.
- * @param topic The topic that should be written to.
+ * @param schema
+ *   The schema of the input data.
+ * @param clientConf
+ *   Parameters for Pulsar client.
+ * @param producerConf
+ *   Parameters for Pulsar producers in each task.
+ * @param topic
+ *   The topic that should be written to.
  */
 class PulsarStreamWriterFactory(
     schema: StructType,
@@ -78,10 +91,14 @@ class PulsarStreamWriterFactory(
  * A [[DataWriter]] for Pulsar writing. One data writer will be created in each partition to
  * process incoming rows.
  *
- * @param topic The topic that this data writer is targeting.
- * @param clientConf Parameters to use for the Pulsar client.
- * @param producerConf Parameters to use for the Pulsar producer.
- * @param inputSchema The attributes in the input data.
+ * @param topic
+ *   The topic that this data writer is targeting.
+ * @param clientConf
+ *   Parameters to use for the Pulsar client.
+ * @param producerConf
+ *   Parameters to use for the Pulsar producer.
+ * @param inputSchema
+ *   The attributes in the input data.
  */
 class PulsarStreamDataWriter(
     inputSchema: Seq[Attribute],

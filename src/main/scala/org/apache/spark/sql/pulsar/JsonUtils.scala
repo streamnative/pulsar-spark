@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -34,16 +34,14 @@ object JsonUtils {
   }
 
   def topicOffsets(str: String): Map[String, MessageId] = {
-    Serialization.read[Map[String, Array[Byte]]](str).map {
-      case (topic, msgIdBytes) =>
-        (topic, MessageId.fromByteArray(msgIdBytes))
+    Serialization.read[Map[String, Array[Byte]]](str).map { case (topic, msgIdBytes) =>
+      (topic, MessageId.fromByteArray(msgIdBytes))
     }
   }
 
   def topicOffsets(topicOffsets: Map[String, MessageId]): String = {
-    Serialization.write(topicOffsets.map {
-      case (topic, msgId) =>
-        (topic, msgId.toByteArray)
+    Serialization.write(topicOffsets.map { case (topic, msgId) =>
+      (topic, msgId.toByteArray)
     })
   }
 
