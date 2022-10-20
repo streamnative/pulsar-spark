@@ -242,30 +242,36 @@ private[pulsar] case class PulsarMetadataReader(
   def fetchLatestOffsets(): SpecificPulsarOffset = {
     getTopicPartitions()
     SpecificPulsarOffset(topicPartitions.map { tp =>
-      (tp -> PulsarSourceUtils.seekableLatestMid(try {
-        admin.topics().getLastMessageId(tp)
+      (tp -> {
+        val messageId =
+          try {
+            admin.topics().getLastMessageId(tp)
+          } catch {
+            case e: PulsarAdminException if e.getStatusCode == 404 =>
+              MessageId.earliest
+            case e: Throwable =>
+              throw new RuntimeException(
+                s"Failed to get last messageId for ${TopicName.get(tp).toString}",
+                e)
+          }
+        PulsarSourceUtils.seekableLatestMid(messageId)
+      })
+    }.toMap)
+  }
+
+  def fetchLatestOffsetForTopic(topic: String): MessageId = {
+    val messageId =
+      try {
+        admin.topics().getLastMessageId(topic)
       } catch {
         case e: PulsarAdminException if e.getStatusCode == 404 =>
           MessageId.earliest
         case e: Throwable =>
           throw new RuntimeException(
-            s"Failed to get last messageId for ${TopicName.get(tp).toString}",
+            s"Failed to get last messageId for ${TopicName.get(topic).toString}",
             e)
-      }))
-    }.toMap)
-  }
-
-  def fetchLatestOffsetForTopic(topic: String): MessageId = {
-    PulsarSourceUtils.seekableLatestMid(try {
-      admin.topics().getLastMessageId(topic)
-    } catch {
-      case e: PulsarAdminException if e.getStatusCode == 404 =>
-        MessageId.earliest
-      case e: Throwable =>
-        throw new RuntimeException(
-          s"Failed to get last messageId for ${TopicName.get(topic).toString}",
-          e)
-    })
+      }
+    PulsarSourceUtils.seekableLatestMid(messageId)
   }
 
   def fetchEarliestOffsets(topics: Seq[String]): Map[String, MessageId] = {

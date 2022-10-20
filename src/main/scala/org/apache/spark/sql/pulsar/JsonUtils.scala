@@ -13,10 +13,9 @@
  */
 package org.apache.spark.sql.pulsar
 
+import org.apache.pulsar.client.api.MessageId
 import org.json4s.NoTypeHints
 import org.json4s.jackson.Serialization
-
-import org.apache.pulsar.client.api.MessageId
 
 /**
  * Utils for converting pulsar objects to and from json.

@@ -17,7 +17,6 @@ import java.io._
 import java.nio.charset.StandardCharsets
 
 import org.apache.commons.io.IOUtils
-
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl, TopicMessageIdImpl}
 

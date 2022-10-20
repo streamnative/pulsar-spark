@@ -200,7 +200,7 @@ private[pulsar] object SchemaUtils {
           new ASchema.Parser().parse(new String(si.getSchema, StandardCharsets.UTF_8))
         avro2SqlType(avroSchema, Set.empty)
       case si =>
-        throw new NotImplementedError(s"We do not support $si currently.")
+        throw new UnsupportedOperationException(s"We do not support $si currently.")
     }
   }
 

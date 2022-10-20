@@ -15,8 +15,6 @@ package org.apache.spark.sql.pulsar
 
 import java.util.Locale
 
-import reflect.runtime.universe._
-
 import org.apache.pulsar.client.impl.conf.{
   ClientConfigurationData,
   ConsumerConfigurationData,
@@ -24,6 +22,7 @@ import org.apache.pulsar.client.impl.conf.{
   ReaderConfigurationData
 }
 import org.apache.pulsar.shade.com.fasterxml.jackson.annotation.JsonIgnore
+import reflect.runtime.universe._
 
 object PulsarConfigurationUtils {
 

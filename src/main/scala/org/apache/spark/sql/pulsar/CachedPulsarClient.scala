@@ -21,7 +21,6 @@ import scala.util.control.NonFatal
 
 import com.google.common.cache._
 import com.google.common.util.concurrent.{ExecutionError, UncheckedExecutionException}
-
 import org.apache.pulsar.client.api.{ClientBuilder, PulsarClient}
 
 import org.apache.spark.SparkEnv

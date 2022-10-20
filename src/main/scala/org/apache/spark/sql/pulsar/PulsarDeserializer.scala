@@ -195,7 +195,7 @@ class PulsarDeserializer(schemaInfo: SchemaInfo, parsedOptions: JSONOptionsInRea
           updater.set(ordinal, bytes)
 
       case tpe =>
-        throw new NotImplementedError(s"$tpe is not supported for the moment")
+        throw new UnsupportedOperationException(s"$tpe is not supported for the moment")
     }
 
   private def newWriter(
