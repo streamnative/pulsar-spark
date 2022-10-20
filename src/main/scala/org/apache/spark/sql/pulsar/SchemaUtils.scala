@@ -71,7 +71,13 @@ class SchemaInfoSerializable(var si: SchemaInfo) extends Externalizable {
     val properties = in.readObject().asInstanceOf[java.util.Map[String, String]]
     val schemaType = SchemaType.valueOf(in.readInt())
 
-    si = new SchemaInfoImpl(schemaName, schema, schemaType, properties)
+    si = SchemaInfoImpl
+      .builder()
+      .name(schemaName)
+      .schema(schema)
+      .`type`(schemaType)
+      .properties(properties)
+      .build()
   }
 }
 
@@ -297,8 +303,8 @@ private[pulsar] object SchemaUtils {
 
   def ASchema2PSchema(aschema: ASchema): GenericSchema[GenericRecord] = {
     val schema = aschema.toString.getBytes(StandardCharsets.UTF_8)
-    val si =
-      new SchemaInfoImpl("Avro", schema, SchemaType.AVRO, new java.util.HashMap[String, String]())
+    val si = SchemaInfoImpl.builder().name("Avro").schema(schema).`type`(SchemaType.AVRO).build();
+
     PSchema.generic(si)
   }
 
