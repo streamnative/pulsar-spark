@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -17,7 +17,6 @@ import java.io._
 import java.nio.charset.StandardCharsets
 
 import org.apache.commons.io.IOUtils
-
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl, TopicMessageIdImpl}
 
@@ -51,12 +50,13 @@ private[pulsar] object PulsarSourceUtils extends Logging {
   }
 
   private def compare(a: ExecutorCacheTaskLocation, b: ExecutorCacheTaskLocation): Boolean = {
-    if (a.host == b.host) { a.executorId > b.executorId } else { a.host > b.host }
+    if (a.host == b.host) { a.executorId > b.executorId }
+    else { a.host > b.host }
   }
 
   /**
-   * If `failOnDataLoss` is true, this method will throw an `IllegalStateException`.
-   * Otherwise, just log a warning.
+   * If `failOnDataLoss` is true, this method will throw an `IllegalStateException`. Otherwise,
+   * just log a warning.
    */
   def reportDataLossFunc(failOnDataLoss: Boolean): (String) => Unit = { (message: String) =>
     if (failOnDataLoss) {

@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -61,10 +61,11 @@ private[pulsar] class PulsarRelation(
 
     val offsetRanges = endTopicOffsets.keySet
       .map { tp =>
-        val fromOffset = fromTopicOffsets.getOrElse(tp, {
-          // this shouldn't happen since we had checked it
-          throw new IllegalStateException(s"$tp doesn't have a from offset")
-        })
+        val fromOffset = fromTopicOffsets.getOrElse(
+          tp, {
+            // this shouldn't happen since we had checked it
+            throw new IllegalStateException(s"$tp doesn't have a from offset")
+          })
         val untilOffset = endTopicOffsets(tp)
         PulsarOffsetRange(tp, fromOffset, untilOffset, None)
       }
@@ -91,8 +92,7 @@ private[pulsar] class PulsarRelation(
       pollTimeoutMs,
       failOnDataLoss,
       subscriptionNamePrefix,
-      jsonOptions
-    )
+      jsonOptions)
     sqlContext.internalCreateDataFrame(rdd.setName("pulsar"), schema).rdd
   }
 }

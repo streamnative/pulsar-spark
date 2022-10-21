@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -167,8 +167,8 @@ private[pulsar] abstract class PulsarRowWriter(
   }
 
   /**
-   * Send the specified row to the producer, with a callback that will save any exception
-   * to failedWrite. Note that send is asynchronous; subclasses must flush() their producer before
+   * Send the specified row to the producer, with a callback that will save any exception to
+   * failedWrite. Note that send is asynchronous; subclasses must flush() their producer before
    * assuming the row is in Pulsar.
    */
   protected def sendRow(row: InternalRow): Unit = {

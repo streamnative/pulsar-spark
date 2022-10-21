@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -46,9 +46,8 @@ private[pulsar] abstract class PulsarSourceRDDBase(
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
 
   override protected def getPartitions: Array[Partition] = {
-    offsetRanges.zipWithIndex.map {
-      case (o, i) =>
-        new PulsarSourceRDDPartition(i, o)
+    offsetRanges.zipWithIndex.map { case (o, i) =>
+      new PulsarSourceRDDPartition(i, o)
     }.toArray
   }
 
@@ -86,7 +85,9 @@ private[pulsar] abstract class PulsarSourceRDDBase(
           reportDataLoss(s"cannot read data at $startOffset from topic $topic")
         } else {
           currentId = currentMessage.getMessageId
-          if (startOffset != MessageId.earliest && !messageIdRoughEquals(currentId, startOffset)) {
+          if (startOffset != MessageId.earliest && !messageIdRoughEquals(
+              currentId,
+              startOffset)) {
             reportDataLoss(
               s"Potential Data Loss: intended to start at $startOffset, " +
                 s"actually we get $currentId")

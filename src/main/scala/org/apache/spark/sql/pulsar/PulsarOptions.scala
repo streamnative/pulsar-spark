@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -33,11 +33,7 @@ private[pulsar] object PulsarOptions {
 
   val PartitionSuffix: String = TopicName.PARTITIONED_TOPIC_SUFFIX
 
-  val TopicOptionKeys = Set(
-    TopicSingle,
-    TopicMulti,
-    TopicPattern
-  )
+  val TopicOptionKeys = Set(TopicSingle, TopicMulti, TopicPattern)
 
   val ServiceUrlOptionKey = "service.url"
   val AdminUrlOptionKey = "admin.url"
@@ -93,6 +89,5 @@ private[pulsar] object PulsarOptions {
     MessageIdName,
     PublishTimeName,
     EventTimeName,
-    MessagePropertiesName
-  )
+    MessagePropertiesName)
 }

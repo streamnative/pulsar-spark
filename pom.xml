@@ -61,27 +61,32 @@
     <maven.compiler.target>1.8</maven.compiler.target>
     <redirectTestOutputToFile>true</redirectTestOutputToFile>
     <testRetryCount>2</testRetryCount>
+    <!-- for now, not running scalafmt as part of default verify pipeline -->
+    <scalafmt.skip>true</scalafmt.skip>
 
     <!-- dependencies -->
-    <!-- latest version from apache pulsar master -->
-    <pulsar.version>2.9.2</pulsar.version>
-    <scala.version>2.12.10</scala.version>
+    <!-- latest version from apache pulsar -->
+    <pulsar.version>2.10.2</pulsar.version>
+    <scala.version>2.12.17</scala.version>
     <scala.binary.version>2.12</scala.binary.version>
-    <scalatest.version>3.2.2</scalatest.version>
+    <scalatest.version>3.2.14</scalatest.version>
     <spark.version>3.1.1</spark.version>
-    <streamnative-tests.version>2.4.2</streamnative-tests.version>
-    <testcontainers.version>1.10.6</testcontainers.version>
+    <commons-io.version>2.11.0</commons-io.version>
+    <testcontainers.version>1.17.5</testcontainers.version>
+
     <!-- plugin dependencies -->
     <maven.version>3.5.4</maven.version>
-    <license-maven-plugin.version>3.0</license-maven-plugin.version>
-    <maven-compiler-plugin.version>3.8.1</maven-compiler-plugin.version>
-    <maven-dependency-plugin.version>3.2.0</maven-dependency-plugin.version>
-    <maven-shade-plugin.version>3.2.4</maven-shade-plugin.version>
-    <maven-source-plugin.version>3.2.0</maven-source-plugin.version>
+    <mvn-scalafmt.version>1.1.1640084764.9f463a9</mvn-scalafmt.version>
+    <license-maven-plugin.version>4.1</license-maven-plugin.version>
+    <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
+    <maven-dependency-plugin.version>3.3.0</maven-dependency-plugin.version>
+    <maven-shade-plugin.version>3.4.0</maven-shade-plugin.version>
+    <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
     <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
-    <scala-maven-plugin.version>4.4.1</scala-maven-plugin.version>
-    <scalatest-maven-plugin.version>2.0.2</scalatest-maven-plugin.version>
-    <nexus-staging-maven-plugin.version>1.6.8</nexus-staging-maven-plugin.version>
+    <scala-maven-plugin.version>4.7.2</scala-maven-plugin.version>
+    <scalatest-maven-plugin.version>2.2.0</scalatest-maven-plugin.version>
+    <scalastyle-maven-plugin.version>1.0.0</scalastyle-maven-plugin.version>
+    <nexus-staging-maven-plugin.version>1.6.13</nexus-staging-maven-plugin.version>
   </properties>
 
   <!-- dependencies for all modules -->
@@ -91,12 +96,46 @@
       <groupId>org.apache.pulsar</groupId>
       <artifactId>pulsar-client-all</artifactId>
       <version>${pulsar.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>com.sun.activation</groupId>
+          <artifactId>javax.activation</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>jakarta.activation</groupId>
+          <artifactId>jakarta.activation-api</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>jakarta.ws.rs</groupId>
+          <artifactId>jakarta.ws.rs-api</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>jakarta.xml.bind</groupId>
+          <artifactId>jakarta.xml.bind-api</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>javax.validation</groupId>
+          <artifactId>validation-api</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>net.jcip</groupId>
+          <artifactId>jcip-annotations</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.apache.pulsar</groupId>
+          <artifactId>pulsar-package-core</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.beust</groupId>
+          <artifactId>jcommander</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
 
     <dependency>
       <groupId>commons-io</groupId>
       <artifactId>commons-io</artifactId>
-      <version>2.7</version>
+      <version>${commons-io.version}</version>
     </dependency>
 
     <!-- spark dependency -->
@@ -365,7 +404,7 @@
       <plugin>
         <groupId>org.scalastyle</groupId>
         <artifactId>scalastyle-maven-plugin</artifactId>
-        <version>1.0.0</version>
+        <version>${scalastyle-maven-plugin.version}</version>
         <configuration>
           <verbose>false</verbose>
           <failOnViolation>true</failOnViolation>
@@ -386,6 +425,26 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.antipathy</groupId>
+        <artifactId>mvn-scalafmt_${scala.binary.version}</artifactId>
+        <version>${mvn-scalafmt.version}</version>
+        <configuration>
+          <validateOnly>${scalafmt.skip}</validateOnly> <!-- (Optional) skip formatting -->
+          <skipSources>${scalafmt.skip}</skipSources>
+          <skipTestSources>${scalafmt.skip}</skipTestSources>
+          <configLocation>.scalafmt.conf</configLocation> <!-- (Optional) config location -->
+          <onlyChangedFiles>true</onlyChangedFiles>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>validate</phase>
+            <goals>
+              <goal>format</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
   <repositories>
@@ -393,11 +452,6 @@
       <id>central</id>
       <layout>default</layout>
       <url>https://repo1.maven.org/maven2</url>
-    </repository>
-    <repository>
-      <id>bintray-streamnative-maven</id>
-      <name>bintray</name>
-      <url>https://dl.bintray.com/streamnative/maven</url>
     </repository>
   </repositories>
   <distributionManagement>

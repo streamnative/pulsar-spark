@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -24,7 +24,10 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.connector.read.InputPartition
-import org.apache.spark.sql.connector.read.streaming.{ContinuousPartitionReader, ContinuousPartitionReaderFactory}
+import org.apache.spark.sql.connector.read.streaming.{
+  ContinuousPartitionReader,
+  ContinuousPartitionReaderFactory
+}
 import org.apache.spark.sql.connector.read.streaming.{ContinuousStream, Offset, PartitionOffset}
 import org.apache.spark.sql.execution.streaming.{Offset => eOffset}
 import org.apache.spark.sql.pulsar.PulsarSourceUtils.{messageIdRoughEquals, reportDataLossFunc}
@@ -93,49 +96,48 @@ class PulsarContinuousReader(
       oldStartPartitionOffsets.filterKeys(!deletedPartitions.contains(_))
     knownTopics = startOffsets.keySet
 
-    startOffsets.toSeq.map {
-      case (topic, start) =>
-        new PulsarContinuousTopic(
-          topic,
-          metadataReader.adminUrl,
-          new SchemaInfoSerializable(pulsarSchema),
-          start,
-          clientConf,
-          readerConf,
-          pollTimeoutMs,
-          failOnDataLoss,
-          subscriptionNamePrefix,
-          jsonOptions
-        ).asInstanceOf[InputPartition]
-    }.toArray
-  }
-
-  override def createContinuousReaderFactory(): ContinuousPartitionReaderFactory =
-    new ContinuousPartitionReaderFactory {
-    override def createReader(partition: InputPartition): ContinuousPartitionReader[InternalRow] = {
-      val pulsarOffset = offset.asInstanceOf[PulsarPartitionOffset]
-      val pulsarTopic = partition.asInstanceOf[PulsarContinuousTopic]
-      require(
-        pulsarOffset.topic == pulsarTopic.topic,
-        s"Expected topic: $pulsarTopic.topic, but got: ${pulsarOffset.topic}")
-      new PulsarContinuousTopicReader(
-        pulsarTopic.topic,
-        pulsarTopic.adminUrl,
-        pulsarTopic.schemaInfo,
-        pulsarOffset.messageId,
+    startOffsets.toSeq.map { case (topic, start) =>
+      new PulsarContinuousTopic(
+        topic,
+        metadataReader.adminUrl,
+        new SchemaInfoSerializable(pulsarSchema),
+        start,
         clientConf,
         readerConf,
         pollTimeoutMs,
         failOnDataLoss,
         subscriptionNamePrefix,
-        jsonOptions)
-    }
+        jsonOptions).asInstanceOf[InputPartition]
+    }.toArray
   }
+
+  override def createContinuousReaderFactory(): ContinuousPartitionReaderFactory =
+    new ContinuousPartitionReaderFactory {
+      override def createReader(
+          partition: InputPartition): ContinuousPartitionReader[InternalRow] = {
+        val pulsarOffset = offset.asInstanceOf[PulsarPartitionOffset]
+        val pulsarTopic = partition.asInstanceOf[PulsarContinuousTopic]
+        require(
+          pulsarOffset.topic == pulsarTopic.topic,
+          s"Expected topic: $pulsarTopic.topic, but got: ${pulsarOffset.topic}")
+        new PulsarContinuousTopicReader(
+          pulsarTopic.topic,
+          pulsarTopic.adminUrl,
+          pulsarTopic.schemaInfo,
+          pulsarOffset.messageId,
+          clientConf,
+          readerConf,
+          pollTimeoutMs,
+          failOnDataLoss,
+          subscriptionNamePrefix,
+          jsonOptions)
+      }
+    }
 
   override def mergeOffsets(partitionOffsets: Array[PartitionOffset]): Offset = {
     val mergedMap = partitionOffsets
-      .map {
-        case PulsarPartitionOffset(t, o) => Map(t -> o)
+      .map { case PulsarPartitionOffset(t, o) =>
+        Map(t -> o)
       }
       .reduce(_ ++ _)
     SpecificPulsarOffset(mergedMap)
@@ -249,12 +251,12 @@ class PulsarContinuousTopicReader(
   var currentId: MessageId = _
 
   if (!startingOffsets.isInstanceOf[UserProvidedMessageId]
-      && startingOffsets != MessageId.earliest) {
+    && startingOffsets != MessageId.earliest) {
     currentMessage = reader.readNext()
     currentId = currentMessage.getMessageId
     if (startingOffsets != MessageId.earliest && !messageIdRoughEquals(
-          currentId,
-          startingOffsets)) {
+        currentId,
+        startingOffsets)) {
       reportDataLoss(
         s"Potential Data Loss: intended to start at $startingOffsets, " +
           s"actually we get $currentId")
@@ -278,8 +280,7 @@ class PulsarContinuousTopicReader(
     val id = startingOffsets.asInstanceOf[UserProvidedMessageId].mid
     if (id == MessageId.latest) {
       Utils.tryWithResource(AdminUtils.buildAdmin(adminUrl, clientConf)) { admin =>
-        currentId =
-          PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(topic))
+        currentId = PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(topic))
       }
     } else {
       currentId = id

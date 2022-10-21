@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -80,15 +80,14 @@ private[pulsar] object PulsarSinks extends Logging {
   def validateQuery(schema: Seq[Attribute], topic: Option[String]): Unit = {
     schema
       .find(_.name == TopicAttributeName)
-      .getOrElse(
-        topic match {
-          case Some(topicValue) => Literal(UTF8String.fromString(topicValue), StringType)
-          case None =>throw new AnalysisException(
+      .getOrElse(topic match {
+        case Some(topicValue) => Literal(UTF8String.fromString(topicValue), StringType)
+        case None =>
+          throw new AnalysisException(
             s"topic option required when no " +
               s"'$TopicAttributeName' attribute is present. Use the " +
               s"$TopicSingle option for setting a topic.")
-        }
-      )
+      })
       .dataType match {
       case StringType => // good
       case _ =>
@@ -97,9 +96,7 @@ private[pulsar] object PulsarSinks extends Logging {
 
     schema
       .find(_.name == PulsarOptions.KeyAttributeName)
-      .getOrElse(
-        Literal(null, StringType)
-      )
+      .getOrElse(Literal(null, StringType))
       .dataType match {
       case StringType | BinaryType => // good
       case _ =>
@@ -110,9 +107,7 @@ private[pulsar] object PulsarSinks extends Logging {
 
     schema
       .find(_.name == PulsarOptions.EventTimeName)
-      .getOrElse(
-        Literal(null, LongType)
-      )
+      .getOrElse(Literal(null, LongType))
       .dataType match {
       case LongType | TimestampType => // good
       case _ =>
@@ -122,10 +117,9 @@ private[pulsar] object PulsarSinks extends Logging {
     }
 
     schema
-      .find(
-        a =>
-          a.name == PulsarOptions.MessageIdName ||
-            a.name == PulsarOptions.PublishTimeName)
+      .find(a =>
+        a.name == PulsarOptions.MessageIdName ||
+          a.name == PulsarOptions.PublishTimeName)
       .map(a =>
         logWarning(s"${a.name} attribute exists in schema," +
           "it's reserved by Pulsar Source and generated automatically by pulsar for each record." +
