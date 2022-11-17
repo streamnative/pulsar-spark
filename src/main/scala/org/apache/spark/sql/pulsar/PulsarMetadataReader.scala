@@ -434,9 +434,9 @@ private[pulsar] case class PulsarMetadataReader(
   }
 
   def fetchCurrentOffsets(
-                           time: SpecificPulsarTime,
-                           pollTimeoutMs: Int,
-                           reportDataLoss: String => Unit): Map[String, MessageId] = {
+      time: SpecificPulsarTime,
+      pollTimeoutMs: Int,
+      reportDataLoss: String => Unit): Map[String, MessageId] = {
 
     time.topicTimes.map { case (tp, time) =>
       val actualOffset =
