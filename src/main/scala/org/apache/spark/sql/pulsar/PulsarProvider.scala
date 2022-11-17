@@ -99,7 +99,7 @@ private[pulsar] class PulsarProvider
     metadataReader.getAndCheckCompatible(schema)
 
     // start from latest offset if not specified to be consistent with Pulsar source
-    val offset = metadataReader.startingOffsetForEachTopic(caseInsensitiveParams, LatestOffset)
+    val offset = metadataReader.offsetForEachTopic(caseInsensitiveParams, LatestOffset, StartOptionKey)
     metadataReader.setupCursor(offset)
 
     new PulsarSource(
@@ -135,15 +135,19 @@ private[pulsar] class PulsarProvider
         getAllowDifferentTopicSchemas(parameters),
         getPredefinedSubscription(parameters))) { reader =>
       val perTopicStarts =
-        reader.startingOffsetForEachTopic(caseInsensitiveParams, EarliestOffset)
+        reader.offsetForEachTopic(caseInsensitiveParams, EarliestOffset, StartOptionKey)
       val startingOffset = SpecificPulsarOffset(
         reader.actualOffsets(
           perTopicStarts,
           pollTimeoutMs(caseInsensitiveParams),
           reportDataLossFunc(failOnDataLoss(caseInsensitiveParams))))
-
-      val endingOffset =
-        reader.offsetForEachTopic(caseInsensitiveParams, EndingOffsetsOptionKey, LatestOffset)
+      val perTopicEnds =
+        reader.offsetForEachTopic(caseInsensitiveParams, LatestOffset, EndOptionKey)
+      val endingOffset = SpecificPulsarOffset(
+        reader.actualOffsets(
+          perTopicEnds,
+          pollTimeoutMs(caseInsensitiveParams),
+          reportDataLossFunc(failOnDataLoss(caseInsensitiveParams))))
 
       val pulsarSchema = reader.getPulsarSchema()
       val schema = SchemaUtils.pulsarSourceSchema(pulsarSchema)
@@ -279,21 +283,32 @@ private[pulsar] object PulsarProvider extends Logging {
     getAdminParams(parameters).isEmpty == false
   }
 
-  def getPulsarStartingOffset(
+  def getPulsarOffset(
       params: Map[String, String],
-      defaultOffsets: PulsarOffset): PulsarOffset = {
+      defaultOffsets: PulsarOffset,
+      optionKey: String): PulsarOffset = {
 
-    val startingOffsets = params.get(StartingOffsetsOptionKey).map(_.trim)
-    val startingTime = params.get(StartingTime).map(_.trim)
+    val offsets = optionKey match {
+      case StartOptionKey =>
+        params.get(StartingOffsetsOptionKey).map(_.trim)
+      case EndOptionKey =>
+        params.get(EndingOffsetsOptionKey).map(_.trim)
+    }
+    val time = optionKey match {
+      case StartOptionKey =>
+        params.get(StartingTime).map(_.trim)
+      case EndOptionKey =>
+        params.get(EndingTime).map(_.trim)
+    }
 
-    if (startingOffsets.isDefined && startingTime.isDefined) {
+    if (offsets.isDefined && time.isDefined) {
       throw new IllegalArgumentException(
-        "You can only specify starting position through " +
+        s"You can only specify starting $optionKey through " +
           s"either $StartingOffsetsOptionKey or $StartingTime, not both.")
     }
 
-    val result = if (startingOffsets.isDefined) {
-      startingOffsets match {
+    val result = if (offsets.isDefined) {
+      offsets match {
         case Some(offset) if offset.toLowerCase(Locale.ROOT) == "latest" =>
           LatestOffset
         case Some(offset) if offset.toLowerCase(Locale.ROOT) == "earliest" =>
@@ -302,16 +317,16 @@ private[pulsar] object PulsarProvider extends Logging {
           SpecificPulsarOffset(JsonUtils.topicOffsets(json))
         case None => defaultOffsets
       }
-    } else if (startingTime.isDefined) {
-      startingTime match {
+    } else if (time.isDefined) {
+      time match {
         case Some(json) if json.startsWith("{") =>
-          SpecificPulsarStartingTime(JsonUtils.topicTimes(json))
+          SpecificPulsarTime(JsonUtils.topicTimes(json))
         case Some(t) => // try to convert it as long if it's not a map
           try {
             TimeOffset(t.toLong)
           } catch {
             case e: NumberFormatException =>
-              throw new IllegalArgumentException(s"starting time $t cannot be converted to Long")
+              throw new IllegalArgumentException(s"$optionKey time $t cannot be converted to Long")
           }
         case None => defaultOffsets
       }

@@ -61,7 +61,7 @@ private[pulsar] case class PulsarMetadataReader(
   def setupCursor(startingPos: PerTopicOffset): Unit = {
     startingPos match {
       case off: SpecificPulsarOffset => setupCursorByMid(off, predefinedSubscription)
-      case time: SpecificPulsarStartingTime => setupCursorByTime(time, predefinedSubscription)
+      case time: SpecificPulsarTime => setupCursorByTime(time, predefinedSubscription)
       case s =>
         throw new UnsupportedOperationException(s"$s shouldn't appear here, a bug occurs.")
     }
@@ -93,7 +93,7 @@ private[pulsar] case class PulsarMetadataReader(
     }
   }
 
-  def setupCursorByTime(time: SpecificPulsarStartingTime, subscription: Option[String]): Unit = {
+  def setupCursorByTime(time: SpecificPulsarTime, subscription: Option[String]): Unit = {
     time.topicTimes.foreach { case (tp, time) =>
       val msgID = time match {
         case PulsarProvider.EARLIEST_TIME => MessageId.earliest
@@ -336,13 +336,14 @@ private[pulsar] case class PulsarMetadataReader(
       .filter(tp => shortenedTopicsPattern.matcher(tp.split("\\:\\/\\/")(1)).matches())
   }
 
-  def startingOffsetForEachTopic(
+  def offsetForEachTopic(
       params: Map[String, String],
-      defaultOffsets: PulsarOffset): PerTopicOffset = {
+      defaultOffsets: PulsarOffset,
+      optionKey: String): PerTopicOffset = {
     getTopicPartitions()
 
-    val startingOffset = PulsarProvider.getPulsarStartingOffset(params, defaultOffsets)
-    startingOffset match {
+    val offset = PulsarProvider.getPulsarOffset(params, defaultOffsets, optionKey)
+    offset match {
       case LatestOffset =>
         SpecificPulsarOffset(
           topicPartitions.map(tp => (tp, UserProvidedMessageId(MessageId.latest))).toMap)
@@ -369,14 +370,14 @@ private[pulsar] case class PulsarMetadataReader(
         SpecificPulsarOffset(specified ++ nonSpecified)
 
       case TimeOffset(ts) =>
-        SpecificPulsarStartingTime(topicPartitions.map(tp => (tp, ts)).toMap)
-      case st: SpecificPulsarStartingTime =>
+        SpecificPulsarTime(topicPartitions.map(tp => (tp, ts)).toMap)
+      case st: SpecificPulsarTime =>
         val specified: Map[String, Long] = st.topicTimes
         assert(
           specified.keySet.subsetOf(topicPartitions.toSet),
-          s"topics designated in startingTime" +
+          s"topics designated in $optionKey" +
             s" should all appear in $TopicOptionKeys .\n" +
-            s"topics: $topicPartitions, topics in startingTime: ${specified.keySet}")
+            s"topics: $topicPartitions, topics in $optionKey: ${specified.keySet}")
         val nonSpecifiedTopics = topicPartitions.toSet -- specified.keySet
         val nonSpecified: Map[String, Long] = nonSpecifiedTopics.map { tp =>
           defaultOffsets match {
@@ -385,7 +386,7 @@ private[pulsar] case class PulsarMetadataReader(
             case _ => throw new IllegalArgumentException("Defaults should be latest or earliest")
           }
         }.toMap
-        SpecificPulsarStartingTime(specified ++ nonSpecified)
+        SpecificPulsarTime(specified ++ nonSpecified)
     }
   }
 
@@ -427,16 +428,15 @@ private[pulsar] case class PulsarMetadataReader(
 
     offset match {
       case so: SpecificPulsarOffset => fetchCurrentOffsets(so, pollTimeoutMs, reportDataLoss)
-      case st: SpecificPulsarStartingTime =>
-        fetchCurrentOffsets(st, pollTimeoutMs, reportDataLoss)
+      case st: SpecificPulsarTime => fetchCurrentOffsets(st, pollTimeoutMs, reportDataLoss)
       case t => throw new IllegalArgumentException(s"not supported offset type: $t")
     }
   }
 
   def fetchCurrentOffsets(
-      time: SpecificPulsarStartingTime,
-      pollTimeoutMs: Int,
-      reportDataLoss: String => Unit): Map[String, MessageId] = {
+                           time: SpecificPulsarTime,
+                           pollTimeoutMs: Int,
+                           reportDataLoss: String => Unit): Map[String, MessageId] = {
 
     time.topicTimes.map { case (tp, time) =>
       val actualOffset =

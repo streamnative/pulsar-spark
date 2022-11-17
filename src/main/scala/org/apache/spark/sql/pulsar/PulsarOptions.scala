@@ -39,7 +39,10 @@ private[pulsar] object PulsarOptions {
   val AdminUrlOptionKey = "admin.url"
   val StartingOffsetsOptionKey = "startingoffsets"
   val StartingTime = "startingtime"
+  val EndingTime = "endingtime"
   val EndingOffsetsOptionKey = "endingoffsets"
+  val StartOptionKey = "startOptionKey"
+  val EndOptionKey = "endOptionKey"
   val SubscriptionPrefix = "subscriptionprefix"
   val PredefinedSubscription = "predefinedsubscription"
 
