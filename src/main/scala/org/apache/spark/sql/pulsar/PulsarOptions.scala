@@ -13,6 +13,8 @@
  */
 package org.apache.spark.sql.pulsar
 
+import java.util.Locale
+
 import org.apache.pulsar.common.naming.TopicName
 
 // All options should be lowercase to simplify parameter matching
@@ -29,7 +31,7 @@ private[pulsar] object PulsarOptions {
 
   val TopicSingle: String = "topic"
   val TopicMulti: String = "topics"
-  val TopicPattern: String = "topicsPattern".toLowerCase
+  val TopicPattern: String = "topicsPattern".toLowerCase(Locale.ROOT)
 
   val PartitionSuffix: String = TopicName.PARTITIONED_TOPIC_SUFFIX
 
@@ -37,17 +39,17 @@ private[pulsar] object PulsarOptions {
 
   val ServiceUrlOptionKey: String = "service.url"
   val AdminUrlOptionKey: String = "admin.url"
-  val StartingOffsetsOptionKey: String = "startingOffsets".toLowerCase
-  val StartingTime: String = "startingTime".toLowerCase
-  val EndingTime: String = "endingTime".toLowerCase
-  val EndingOffsetsOptionKey: String = "endingOffsets".toLowerCase
-  val StartOptionKey = "startOptionKey".toLowerCase
-  val EndOptionKey = "endOptionKey".toLowerCase
-  val SubscriptionPrefix: String = "subscriptionPrefix".toLowerCase
-  val PredefinedSubscription: String = "predefinedSubscription".toLowerCase
+  val StartingOffsetsOptionKey: String = "startingOffsets".toLowerCase(Locale.ROOT)
+  val StartingTime: String = "startingTime".toLowerCase(Locale.ROOT)
+  val EndingTime: String = "endingTime".toLowerCase(Locale.ROOT)
+  val EndingOffsetsOptionKey: String = "endingOffsets".toLowerCase(Locale.ROOT)
+  val StartOptionKey = "startOptionKey".toLowerCase(Locale.ROOT)
+  val EndOptionKey = "endOptionKey".toLowerCase(Locale.ROOT)
+  val SubscriptionPrefix: String = "subscriptionPrefix".toLowerCase(Locale.ROOT)
+  val PredefinedSubscription: String = "predefinedSubscription".toLowerCase(Locale.ROOT)
 
-  val PollTimeoutMS: String = "pollTimeoutMs".toLowerCase
-  val FailOnDataLossOptionKey: String = "failOnDataLoss".toLowerCase
+  val PollTimeoutMS: String = "pollTimeoutMs".toLowerCase(Locale.ROOT)
+  val FailOnDataLossOptionKey: String = "failOnDataLoss".toLowerCase(Locale.ROOT)
 
   val AuthPluginClassName: String = "authPluginClassName"
   val AuthParams: String = "authParams"
@@ -55,7 +57,7 @@ private[pulsar] object PulsarOptions {
   val TlsAllowInsecureConnection: String = "tlsAllowInsecureConnection"
   val TlsHostnameVerificationEnable: String = "tlsHostnameVerificationEnable"
 
-  val AllowDifferentTopicSchemas: String = "allowDifferentTopicSchemas".toLowerCase
+  val AllowDifferentTopicSchemas: String = "allowDifferentTopicSchemas".toLowerCase(Locale.ROOT)
 
   val InstructionForFailOnDataLossFalse: String =
     """

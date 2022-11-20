@@ -99,7 +99,8 @@ private[pulsar] class PulsarProvider
     metadataReader.getAndCheckCompatible(schema)
 
     // start from latest offset if not specified to be consistent with Pulsar source
-    val offset = metadataReader.offsetForEachTopic(caseInsensitiveParams, LatestOffset, StartOptionKey)
+    val offset =
+      metadataReader.offsetForEachTopic(caseInsensitiveParams, LatestOffset, StartOptionKey)
     metadataReader.setupCursor(offset)
 
     new PulsarSource(
@@ -326,7 +327,8 @@ private[pulsar] object PulsarProvider extends Logging {
             TimeOffset(t.toLong)
           } catch {
             case e: NumberFormatException =>
-              throw new IllegalArgumentException(s"$optionKey time $t cannot be converted to Long")
+              throw new IllegalArgumentException(
+                s"$optionKey time $t cannot be converted to Long")
           }
         case None => defaultOffsets
       }

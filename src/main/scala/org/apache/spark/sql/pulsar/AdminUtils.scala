@@ -15,10 +15,11 @@ package org.apache.spark.sql.pulsar
 
 import java.{util => ju}
 
-import org.apache.pulsar.client.admin.PulsarAdmin
-import org.apache.spark.sql.pulsar.PulsarOptions.{AuthParams, AuthPluginClassName}
-
 import scala.collection.JavaConverters._
+
+import org.apache.pulsar.client.admin.PulsarAdmin
+
+import org.apache.spark.sql.pulsar.PulsarOptions.{AuthParams, AuthPluginClassName}
 
 object AdminUtils {
 

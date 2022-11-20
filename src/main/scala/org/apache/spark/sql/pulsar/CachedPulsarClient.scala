@@ -13,8 +13,8 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.util.concurrent.{ExecutionException, TimeUnit}
 import java.{util => ju}
+import java.util.concurrent.{ExecutionException, TimeUnit}
 
 import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
@@ -22,6 +22,7 @@ import scala.util.control.NonFatal
 import com.google.common.cache._
 import com.google.common.util.concurrent.{ExecutionError, UncheckedExecutionException}
 import org.apache.pulsar.client.api.PulsarClient
+
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.pulsar.PulsarOptions._

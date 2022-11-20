@@ -14,6 +14,9 @@
 package org.apache.spark.sql.pulsar
 
 import java.lang.reflect.Modifier
+import java.util.Locale
+
+import scala.reflect._
 
 import org.apache.pulsar.client.impl.conf.{
   ClientConfigurationData,
@@ -21,8 +24,6 @@ import org.apache.pulsar.client.impl.conf.{
   ReaderConfigurationData
 }
 import org.apache.pulsar.shade.com.fasterxml.jackson.annotation.JsonIgnore
-
-import scala.reflect._
 
 object PulsarConfigurationUtils {
 
@@ -34,7 +35,7 @@ object PulsarConfigurationUtils {
   }
 
   private def insensitive2Sensitive[T: ClassTag]: Map[String, String] = {
-    nonIgnoredFields[T].map(s => s.toLowerCase -> s).toMap
+    nonIgnoredFields[T].map(s => s.toLowerCase(Locale.ROOT) -> s).toMap
   }
 
   val clientConfKeys: Map[String, String] = insensitive2Sensitive[ClientConfigurationData]
