@@ -38,7 +38,6 @@ Example
 ```
 $ ./bin/spark-submit 
   --packages io.streamnative.connectors:pulsar-spark-connector_{{SCALA_BINARY_VERSION}}:{{PULSAR_SPARK_VERSION}}
-  --repositories https://dl.bintray.com/streamnative/maven
   ...
 ```
 
@@ -50,7 +49,6 @@ Example
 ```
 $ ./bin/spark-shell 
   --packages io.streamnative.connectors:pulsar-spark-connector_{{SCALA_BINARY_VERSION}}:{{PULSAR_SPARK_VERSION}}
-  --repositories https://dl.bintray.com/streamnative/maven
   ...
 ```
 
