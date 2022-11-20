@@ -59,7 +59,7 @@ class PulsarContinuousReader(
 
   lazy val pulsarSchema: SchemaInfo = metadataReader.getPulsarSchema()
 
-  val reportDataLoss = reportDataLossFunc(failOnDataLoss)
+  private val reportDataLoss = reportDataLossFunc(failOnDataLoss)
 
   private var offset: Offset = _
 
@@ -81,7 +81,6 @@ class PulsarContinuousReader(
   }
 
   override def planInputPartitions(start: Offset): Array[InputPartition] = {
-
     val oldStartPartitionOffsets =
       SpecificPulsarOffset.getTopicOffsets(offset.asInstanceOf[eOffset])
     val currentPartitionSet = metadataReader.fetchLatestOffsets().topicOffsets.keySet

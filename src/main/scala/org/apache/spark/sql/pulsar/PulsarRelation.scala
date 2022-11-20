@@ -44,7 +44,7 @@ private[pulsar] class PulsarRelation(
 
   import PulsarSourceUtils._
 
-  val reportDataLoss = reportDataLossFunc(failOnDataLoss)
+  private val reportDataLoss = reportDataLossFunc(failOnDataLoss)
 
   override def buildScan(): RDD[Row] = {
     val fromTopicOffsets = startingOffset.topicOffsets

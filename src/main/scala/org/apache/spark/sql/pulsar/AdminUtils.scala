@@ -15,36 +15,29 @@ package org.apache.spark.sql.pulsar
 
 import java.{util => ju}
 
+import scala.collection.JavaConverters._
+
 import org.apache.pulsar.client.admin.PulsarAdmin
+
+import org.apache.spark.sql.pulsar.PulsarOptions.{AuthParams, AuthPluginClassName}
 
 object AdminUtils {
 
-  import PulsarOptions._
+  def buildAdmin(adminUrl: String, config: ju.Map[String, Object]): PulsarAdmin = {
+    val clientConf =
+      PulsarConfigUpdater("pulsarClientCache", config.asScala.toMap, PulsarOptions.FilteredKeys)
+        .rebuild()
 
-  def buildAdmin(adminUrl: String, clientConf: ju.Map[String, Object]): PulsarAdmin = {
-    val builder = PulsarAdmin.builder().serviceHttpUrl(adminUrl)
+    val builder = PulsarAdmin
+      .builder()
+      .loadConf(clientConf)
+      .serviceHttpUrl(adminUrl)
 
-    if (clientConf.containsKey(AuthPluginClassName)) {
-      builder.authentication(
-        clientConf.get(AuthPluginClassName).toString,
-        clientConf.get(AuthParams).toString)
-    }
-
-    if (clientConf.containsKey(TlsAllowInsecureConnection)) {
-      builder.allowTlsInsecureConnection(
-        clientConf.get(TlsAllowInsecureConnection).toString.toBoolean)
-    }
-
-    if (clientConf.containsKey(TlsHostnameVerificationEnable)) {
-      builder.enableTlsHostnameVerification(
-        clientConf.get(TlsHostnameVerificationEnable).toString.toBoolean)
-    }
-
-    if (clientConf.containsKey(TlsTrustCertsFilePath)) {
-      builder.tlsTrustCertsFilePath(clientConf.get(TlsTrustCertsFilePath).toString)
-    }
+    // Set Pulsar authentication. This couldn't be load by the loadConf directly.
+    Option(clientConf.get(AuthPluginClassName)).foreach(pluginClasName => {
+      builder.authentication(pluginClasName.toString, clientConf.get(AuthParams).toString)
+    })
 
     builder.build()
   }
-
 }

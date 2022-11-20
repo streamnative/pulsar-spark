@@ -48,7 +48,7 @@ class SchemaInfoSerializable(var si: SchemaInfo) extends Externalizable {
 
   override def writeExternal(out: ObjectOutput): Unit = {
     val schema = si.getSchema
-    if (schema.length == 0) {
+    if (schema.isEmpty) {
       out.writeInt(0)
     } else {
       out.writeInt(schema.length)

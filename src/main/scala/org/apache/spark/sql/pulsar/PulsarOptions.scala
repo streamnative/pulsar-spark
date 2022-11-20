@@ -13,50 +13,51 @@
  */
 package org.apache.spark.sql.pulsar
 
+import java.util.Locale
+
 import org.apache.pulsar.common.naming.TopicName
 
 // All options should be lowercase to simplify parameter matching
 private[pulsar] object PulsarOptions {
 
   // option key prefix for different modules
-  val PulsarAdminOptionKeyPrefix = "pulsar.admin."
-  val PulsarClientOptionKeyPrefix = "pulsar.client."
-  val PulsarProducerOptionKeyPrefix = "pulsar.producer."
-  val PulsarConsumerOptionKeyPrefix = "pulsar.consumer."
-  val PulsarReaderOptionKeyPrefix = "pulsar.reader."
+
+  val PulsarAdminOptionKeyPrefix: String = "pulsar.admin."
+  val PulsarClientOptionKeyPrefix: String = "pulsar.client."
+  val PulsarProducerOptionKeyPrefix: String = "pulsar.producer."
+  val PulsarReaderOptionKeyPrefix: String = "pulsar.reader."
 
   // options
 
-  val TopicSingle = "topic"
-  val TopicMulti = "topics"
-  val TopicPattern = "topicspattern"
+  val TopicSingle: String = "topic"
+  val TopicMulti: String = "topics"
+  val TopicPattern: String = "topicsPattern".toLowerCase(Locale.ROOT)
 
   val PartitionSuffix: String = TopicName.PARTITIONED_TOPIC_SUFFIX
 
-  val TopicOptionKeys = Set(TopicSingle, TopicMulti, TopicPattern)
+  val TopicOptionKeys: Set[String] = Set(TopicSingle, TopicMulti, TopicPattern)
 
-  val ServiceUrlOptionKey = "service.url"
-  val AdminUrlOptionKey = "admin.url"
-  val StartingOffsetsOptionKey = "startingoffsets"
-  val StartingTime = "startingtime"
-  val EndingTime = "endingtime"
-  val EndingOffsetsOptionKey = "endingoffsets"
-  val StartOptionKey = "startOptionKey"
-  val EndOptionKey = "endOptionKey"
-  val SubscriptionPrefix = "subscriptionprefix"
-  val PredefinedSubscription = "predefinedsubscription"
+  val ServiceUrlOptionKey: String = "service.url"
+  val AdminUrlOptionKey: String = "admin.url"
+  val StartingOffsetsOptionKey: String = "startingOffsets".toLowerCase(Locale.ROOT)
+  val StartingTime: String = "startingTime".toLowerCase(Locale.ROOT)
+  val EndingTime: String = "endingTime".toLowerCase(Locale.ROOT)
+  val EndingOffsetsOptionKey: String = "endingOffsets".toLowerCase(Locale.ROOT)
+  val StartOptionKey = "startOptionKey".toLowerCase(Locale.ROOT)
+  val EndOptionKey = "endOptionKey".toLowerCase(Locale.ROOT)
+  val SubscriptionPrefix: String = "subscriptionPrefix".toLowerCase(Locale.ROOT)
+  val PredefinedSubscription: String = "predefinedSubscription".toLowerCase(Locale.ROOT)
 
-  val PollTimeoutMS = "polltimeoutms"
-  val FailOnDataLossOptionKey = "failondataloss"
+  val PollTimeoutMS: String = "pollTimeoutMs".toLowerCase(Locale.ROOT)
+  val FailOnDataLossOptionKey: String = "failOnDataLoss".toLowerCase(Locale.ROOT)
 
-  val AuthPluginClassName = "authPluginClassName"
-  val AuthParams = "authParams"
-  val TlsTrustCertsFilePath = "tlsTrustCertsFilePath"
-  val TlsAllowInsecureConnection = "tlsAllowInsecureConnection"
-  val UseTls = "useTls"
-  val TlsHostnameVerificationEnable = "tlsHostnameVerificationEnable"
+  val AuthPluginClassName: String = "authPluginClassName"
+  val AuthParams: String = "authParams"
+  val TlsTrustCertsFilePath: String = "tlsTrustCertsFilePath"
+  val TlsAllowInsecureConnection: String = "tlsAllowInsecureConnection"
+  val TlsHostnameVerificationEnable: String = "tlsHostnameVerificationEnable"
 
-  val AllowDifferentTopicSchemas = "allowdifferenttopicschemas"
+  val AllowDifferentTopicSchemas: String = "allowDifferentTopicSchemas".toLowerCase(Locale.ROOT)
 
   val InstructionForFailOnDataLossFalse: String =
     """
@@ -74,10 +75,9 @@ private[pulsar] object PulsarOptions {
       | source option "failOnDataLoss" to "false".
     """.stripMargin
 
-  val TopicSchemaClassOptionKey = "topic.schema.class"
+  val TopicSchemaClassOptionKey: String = "topic.schema.class"
 
-  val FilteredKeys: Set[String] =
-    Set(TopicSingle, ServiceUrlOptionKey, TopicSchemaClassOptionKey)
+  val FilteredKeys: Set[String] = Set(TopicSingle, ServiceUrlOptionKey, TopicSchemaClassOptionKey)
 
   val TopicAttributeName: String = "__topic"
   val KeyAttributeName: String = "__key"
@@ -86,7 +86,7 @@ private[pulsar] object PulsarOptions {
   val EventTimeName: String = "__eventTime"
   val MessagePropertiesName: String = "__messageProperties"
 
-  val MetaFieldNames = Set(
+  val MetaFieldNames: Set[String] = Set(
     TopicAttributeName,
     KeyAttributeName,
     MessageIdName,
