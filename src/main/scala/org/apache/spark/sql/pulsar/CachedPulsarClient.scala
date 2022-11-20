@@ -13,29 +13,20 @@
  */
 package org.apache.spark.sql.pulsar
 
+import java.util.concurrent.{ExecutionException, TimeUnit}
 import java.{util => ju}
-import java.util.concurrent.{ConcurrentMap, ExecutionException, TimeUnit}
 
 import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
 
 import com.google.common.cache._
 import com.google.common.util.concurrent.{ExecutionError, UncheckedExecutionException}
-import org.apache.pulsar.client.api.{ClientBuilder, PulsarClient}
-
+import org.apache.pulsar.client.api.PulsarClient
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.pulsar.PulsarOptions.{
-  AuthParams,
-  AuthPluginClassName,
-  TlsAllowInsecureConnection,
-  TlsHostnameVerificationEnable,
-  TlsTrustCertsFilePath
-}
+import org.apache.spark.sql.pulsar.PulsarOptions._
 
 private[pulsar] object CachedPulsarClient extends Logging {
-
-  private type Client = org.apache.pulsar.client.api.PulsarClient
 
   private val defaultCacheExpireTimeout = TimeUnit.MINUTES.toMillis(10)
 
@@ -45,86 +36,77 @@ private[pulsar] object CachedPulsarClient extends Logging {
         .getTimeAsMs("spark.pulsar.client.cache.timeout", s"${defaultCacheExpireTimeout}ms"))
       .getOrElse(defaultCacheExpireTimeout)
 
-  private val cacheLoader = new CacheLoader[Seq[(String, Object)], Client] {
-    override def load(config: Seq[(String, Object)]): Client = {
-      val configMap = config.map(x => x._1 -> x._2).toMap.asJava
-      createPulsarClient(configMap)
+  private val cacheLoader = new CacheLoader[ju.Map[String, Object], PulsarClient]() {
+    override def load(config: ju.Map[String, Object]): PulsarClient = {
+      val pulsarServiceUrl = config.get(PulsarOptions.ServiceUrlOptionKey).toString
+      val clientConf =
+        PulsarConfigUpdater("pulsarClientCache", config.asScala.toMap, PulsarOptions.FilteredKeys)
+          .rebuild()
+      logInfo(s"Client Conf = ${clientConf}")
+
+      val builder = PulsarClient.builder()
+      try {
+        builder
+          .loadConf(clientConf)
+          .serviceUrl(pulsarServiceUrl)
+
+        // Set authentication parameters.
+        if (clientConf.containsKey(AuthPluginClassName)) {
+          builder.authentication(
+            clientConf.get(AuthPluginClassName).toString,
+            clientConf.get(AuthParams).toString)
+        }
+
+        val pulsarClient: PulsarClient = builder.build()
+        logDebug(
+          s"Created a new instance of PulsarClient for serviceUrl = $pulsarServiceUrl,"
+            + s" clientConf = $clientConf.")
+
+        pulsarClient
+      } catch {
+        case e: Throwable =>
+          logError(
+            s"Failed to create PulsarClient to serviceUrl ${pulsarServiceUrl}"
+              + s" using client conf ${clientConf}",
+            e)
+          throw e
+      }
     }
   }
 
-  private val removalListener = new RemovalListener[Seq[(String, Object)], Client]() {
+  private val removalListener = new RemovalListener[ju.Map[String, Object], PulsarClient]() {
     override def onRemoval(
-        notification: RemovalNotification[Seq[(String, Object)], Client]): Unit = {
-      val paramsSeq: Seq[(String, Object)] = notification.getKey
-      val client: Client = notification.getValue
+        notification: RemovalNotification[ju.Map[String, Object], PulsarClient]): Unit = {
+      val params: ju.Map[String, Object] = notification.getKey
+      val client: PulsarClient = notification.getValue
       logDebug(
-        s"Evicting pulsar producer $client params: $paramsSeq, due to ${notification.getCause}")
-      close(paramsSeq, client)
+        s"Evicting pulsar producer $client params: $params, due to ${notification.getCause}")
+
+      // Close client on cache evict.
+      try {
+        logInfo(s"Closing the Pulsar Client with params: $params.")
+        client.close()
+      } catch {
+        case NonFatal(e) => logWarning("Error while closing pulsar producer.", e)
+      }
     }
   }
 
-  private lazy val guavaCache: LoadingCache[Seq[(String, Object)], Client] =
+  private lazy val guavaCache: LoadingCache[ju.Map[String, Object], PulsarClient] =
     CacheBuilder
       .newBuilder()
       .expireAfterAccess(cacheExpireTimeout, TimeUnit.MILLISECONDS)
       .removalListener(removalListener)
-      .build[Seq[(String, Object)], Client](cacheLoader)
-
-  def createPulsarClient(
-      pulsarConf: ju.Map[String, Object],
-      pulsarClientBuilder: ClientBuilder = PulsarClient.builder()): Client = {
-    val pulsarServiceUrl =
-      pulsarConf.get(PulsarOptions.ServiceUrlOptionKey).asInstanceOf[String]
-    val clientConf = new PulsarConfigUpdater(
-      "pulsarClientCache",
-      pulsarConf.asScala.toMap,
-      PulsarOptions.FilteredKeys).rebuild()
-    logInfo(s"Client Conf = ${clientConf}")
-    try {
-      pulsarClientBuilder
-        .serviceUrl(pulsarServiceUrl)
-        .loadConf(clientConf)
-      // Set TLS and authentication parameters if they were given
-      if (clientConf.containsKey(AuthPluginClassName)) {
-        pulsarClientBuilder.authentication(
-          clientConf.get(AuthPluginClassName).toString,
-          clientConf.get(AuthParams).toString)
-      }
-      if (clientConf.containsKey(TlsAllowInsecureConnection)) {
-        pulsarClientBuilder.allowTlsInsecureConnection(
-          clientConf.get(TlsAllowInsecureConnection).toString.toBoolean)
-      }
-      if (clientConf.containsKey(TlsHostnameVerificationEnable)) {
-        pulsarClientBuilder.enableTlsHostnameVerification(
-          clientConf.get(TlsHostnameVerificationEnable).toString.toBoolean)
-      }
-      if (clientConf.containsKey(TlsTrustCertsFilePath)) {
-        pulsarClientBuilder.tlsTrustCertsFilePath(clientConf.get(TlsTrustCertsFilePath).toString)
-      }
-      val pulsarClient: Client = pulsarClientBuilder.build()
-      logDebug(
-        s"Created a new instance of PulsarClient for serviceUrl = $pulsarServiceUrl,"
-          + s" clientConf = $clientConf.")
-      pulsarClient
-    } catch {
-      case e: Throwable =>
-        logError(
-          s"Failed to create PulsarClient to serviceUrl ${pulsarServiceUrl}"
-            + s" using client conf ${clientConf}",
-          e)
-        throw e
-    }
-  }
+      .build[ju.Map[String, Object], PulsarClient](cacheLoader)
 
   /**
    * Get a cached PulsarProducer for a given configuration. If matching PulsarProducer doesn't
    * exist, a new PulsarProducer will be created. PulsarProducer is thread safe, it is best to
    * keep one instance per specified pulsarParams.
    */
-  private[pulsar] def getOrCreate(pulsarParams: ju.Map[String, Object]): Client = {
-    val paramsSeq: Seq[(String, Object)] = paramsToSeq(pulsarParams)
+  private[pulsar] def getOrCreate(params: ju.Map[String, Object]): PulsarClient = {
     try {
-      guavaCache.get(paramsSeq)
+      guavaCache.get(params)
     } catch {
       case e @ (_: ExecutionException | _: UncheckedExecutionException | _: ExecutionError)
           if e.getCause != null =>
@@ -132,32 +114,13 @@ private[pulsar] object CachedPulsarClient extends Logging {
     }
   }
 
-  private def paramsToSeq(pulsarParams: ju.Map[String, Object]): Seq[(String, Object)] = {
-    val paramsSeq: Seq[(String, Object)] = pulsarParams.asScala.toSeq.sortBy(x => x._1)
-    paramsSeq
-  }
-
   /** For explicitly closing pulsar producer */
-  private[pulsar] def close(pulsarParams: ju.Map[String, Object]): Unit = {
-    val paramsSeq = paramsToSeq(pulsarParams)
-    guavaCache.invalidate(paramsSeq)
-  }
-
-  /** Auto close on cache evict */
-  private def close(paramsSeq: Seq[(String, Object)], client: Client): Unit = {
-    try {
-      logInfo(s"Closing the Pulsar Client with params: ${paramsSeq.mkString("\n")}.")
-      client.close()
-    } catch {
-      case NonFatal(e) => logWarning("Error while closing pulsar producer.", e)
-    }
+  private[pulsar] def close(params: ju.Map[String, Object]): Unit = {
+    guavaCache.invalidate(params)
   }
 
   private[pulsar] def clear(): Unit = {
     logInfo("Cleaning up guava cache.")
     guavaCache.invalidateAll()
   }
-
-  // Intended for testing purpose only.
-  private def getAsMap: ConcurrentMap[Seq[(String, Object)], Client] = guavaCache.asMap()
 }

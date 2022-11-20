@@ -14,7 +14,7 @@
 package org.apache.spark.sql.pulsar
 
 import org.apache.pulsar.client.api.MessageId
-import org.json4s.NoTypeHints
+import org.json4s.{Formats, NoTypeHints}
 import org.json4s.jackson.Serialization
 
 /**
@@ -22,7 +22,7 @@ import org.json4s.jackson.Serialization
  */
 object JsonUtils {
 
-  private implicit val formats = Serialization.formats(NoTypeHints)
+  private implicit val formats: AnyRef with Formats = Serialization.formats(NoTypeHints)
 
   def topics(str: String): Array[String] = {
     Serialization.read[Array[String]](str)

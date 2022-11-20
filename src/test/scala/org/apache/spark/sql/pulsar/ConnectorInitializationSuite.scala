@@ -30,13 +30,14 @@ class ConnectorInitializationSuite extends SparkFunSuite {
     try {
       val dataframe = spark.readStream
         .format("pulsar")
-        .option("service.url", "testurl") // value not important, but must be set
-        .option("admin.url", "testurl") // value not important, but must be set
+        .option("service.url", "pulsar://testurl") // value not important, but must be set
+        .option("admin.url", "http://testurl") // value not important, but must be set
         .option("topic", "testtopic") // value not important, but must be set
         .load
     } catch {
       case e: java.lang.ExceptionInInitializerError =>
         fail(e.getException + " was thrown during connector initialization")
+      case e: java.lang.Throwable => logInfo(e.getMessage)
     } finally {
       spark.stop()
     }
