@@ -167,7 +167,6 @@ private[pulsar] class PulsarProvider
       pollTimeoutMs(caseInsensitiveParams),
       failOnDataLoss(caseInsensitiveParams),
       subscriptionNamePrefix,
-      getPredefinedSubscription(parameters),
       jsonOptions)
   }
 
