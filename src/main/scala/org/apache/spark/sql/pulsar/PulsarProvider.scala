@@ -167,6 +167,7 @@ private[pulsar] class PulsarProvider
       pollTimeoutMs(caseInsensitiveParams),
       failOnDataLoss(caseInsensitiveParams),
       subscriptionNamePrefix,
+      getPredefinedSubscription(parameters),
       jsonOptions)
   }
 
@@ -361,7 +362,7 @@ private[pulsar] object PulsarProvider extends Logging {
   private def getSubscriptionPrefix(
       parameters: Map[String, String],
       isBatch: Boolean = false): String = {
-    val defaultPrefix = if (isBatch) "spark-pulsar-batch" else "spar-pulsar"
+    val defaultPrefix = if (isBatch) "spark-pulsar-batch" else "spark-pulsar"
     parameters.getOrElse(SubscriptionPrefix, s"$defaultPrefix-${UUID.randomUUID}")
   }
 

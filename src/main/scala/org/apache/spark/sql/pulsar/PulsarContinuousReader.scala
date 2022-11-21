@@ -240,6 +240,7 @@ class PulsarContinuousTopicReader(
   private val reader = CachedPulsarClient
     .getOrCreate(clientConf)
     .newReader(schema)
+    .subscriptionRolePrefix(subscriptionNamePrefix)
     .topic(topic)
     .startMessageId(startingOffsets)
     .startMessageIdInclusive()

@@ -63,6 +63,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
     lazy val reader = CachedPulsarClient
       .getOrCreate(clientConf)
       .newReader(schema)
+      .subscriptionRolePrefix(subscriptionNamePrefix)
       .topic(topic)
       .startMessageId(startOffset)
       .startMessageIdInclusive()

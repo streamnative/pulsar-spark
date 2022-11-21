@@ -210,6 +210,7 @@ case class PulsarMicroBatchInputPartitionReader(
   val reader = CachedPulsarClient
     .getOrCreate(clientConf)
     .newReader(schema)
+    .subscriptionRolePrefix(subscriptionNamePrefix)
     .startMessageId(start)
     .startMessageIdInclusive()
     .topic(tp)
