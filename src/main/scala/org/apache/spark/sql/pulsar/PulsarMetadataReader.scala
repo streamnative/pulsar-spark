@@ -449,6 +449,7 @@ private[pulsar] case class PulsarMetadataReader(
           assert(time > 0, s"time less than 0: $time")
           val reader = client
             .newReader()
+            .subscriptionRolePrefix(driverGroupIdPrefix)
             .topic(tp)
             .startMessageId(MessageId.earliest)
             .startMessageIdInclusive()
@@ -464,6 +465,7 @@ private[pulsar] case class PulsarMetadataReader(
             reader.seek(time)
             var msg: Message[Array[Byte]] = null
             msg = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
+            reader.close()
             if (msg == null) {
               UserProvidedMessageId(MessageId.earliest)
             } else {
@@ -512,6 +514,7 @@ private[pulsar] case class PulsarMetadataReader(
       case _ =>
         val reader = client
           .newReader()
+          .subscriptionRolePrefix(driverGroupIdPrefix)
           .startMessageId(off)
           .startMessageIdInclusive()
           .topic(tp)

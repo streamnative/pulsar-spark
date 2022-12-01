@@ -43,8 +43,8 @@ private[pulsar] object PulsarOptions {
   val StartingTime: String = "startingTime".toLowerCase(Locale.ROOT)
   val EndingTime: String = "endingTime".toLowerCase(Locale.ROOT)
   val EndingOffsetsOptionKey: String = "endingOffsets".toLowerCase(Locale.ROOT)
-  val StartOptionKey = "startOptionKey".toLowerCase(Locale.ROOT)
-  val EndOptionKey = "endOptionKey".toLowerCase(Locale.ROOT)
+  val StartOptionKey: String = "startOptionKey".toLowerCase(Locale.ROOT)
+  val EndOptionKey: String = "endOptionKey".toLowerCase(Locale.ROOT)
   val SubscriptionPrefix: String = "subscriptionPrefix".toLowerCase(Locale.ROOT)
   val PredefinedSubscription: String = "predefinedSubscription".toLowerCase(Locale.ROOT)
 
