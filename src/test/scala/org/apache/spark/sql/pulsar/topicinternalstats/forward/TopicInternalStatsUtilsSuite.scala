@@ -19,6 +19,15 @@ import org.apache.spark.SparkFunSuite
 
 class TopicInternalStatsUtilsSuite extends SparkFunSuite {
 
+  test("forward a single entry") {
+    val fakeStats = createPersistentTopicInternalStat(createLedgerInfo(1000, 500))
+    val (nextLedgerId, nextEntryId) =
+      TopicInternalStatsUtils.forwardMessageId(fakeStats, 0, 0, 1)
+
+    assert(nextLedgerId == 1000)
+    assert(nextEntryId == 1)
+  }
+
   test("forward empty ledger") {
     val fakeStats = createPersistentTopicInternalStat()
     val (nextLedgerId, nextEntryId) =
@@ -84,7 +93,7 @@ class TopicInternalStatsUtilsSuite extends SparkFunSuite {
       TopicInternalStatsUtils.forwardMessageId(fakeStats, 1000, 25, 600)
 
     assert(nextLedgerId == 1000)
-    assert(nextEntryId == 50)
+    assert(nextEntryId == 49)
   }
 
   test("forward to the end of the topic if too many entries need " +
@@ -98,7 +107,7 @@ class TopicInternalStatsUtilsSuite extends SparkFunSuite {
       TopicInternalStatsUtils.forwardMessageId(fakeStats, 1000, 25, 600)
 
     assert(nextLedgerId == 3000)
-    assert(nextEntryId == 50)
+    assert(nextEntryId == 49)
   }
 
   test("forward with zero elements shall give you back what was given") {
@@ -150,7 +159,7 @@ class TopicInternalStatsUtilsSuite extends SparkFunSuite {
       TopicInternalStatsUtils.forwardMessageId(fakeStats, 1000, 250, 25)
 
     assert(nextLedgerId == 2000)
-    assert(nextEntryId == 25)
+    assert(nextEntryId == 24)
   }
 
   test("forwarded entry id shall never be less than current entry id") {

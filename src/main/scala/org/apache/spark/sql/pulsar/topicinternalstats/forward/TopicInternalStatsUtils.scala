@@ -15,7 +15,9 @@ package org.apache.spark.sql.pulsar.topicinternalstats.forward
 
 import scala.collection.JavaConverters.asScalaBufferConverter
 
-import org.apache.pulsar.common.policies.data.PersistentTopicInternalStats
+import org.apache.pulsar.common.policies.data.{ManagedLedgerInternalStats, PersistentTopicInternalStats}
+
+import org.apache.spark.sql.pulsar.topicinternalstats.forward.TopicInternalStatsUtils._
 
 object TopicInternalStatsUtils {
 
@@ -24,44 +26,32 @@ object TopicInternalStatsUtils {
                        startEntryId: Long,
                        forwardByEntryCount: Long): (Long, Long) = {
     val ledgers = fixLastLedgerInInternalStat(stats).ledgers.asScala.toList
-    if (ledgers.isEmpty) {
-      // If there are no ledger info, stay at current ID
+    if (stats.ledgers.isEmpty || (forwardByEntryCount < 1)) {
+      // If there is no ledger info, or there is nothing to forward, stay at current ID
       (startLedgerId, startEntryId)
     } else {
-      // Find the start ledger and entry ID
-      var actualLedgerIndex = if (ledgers.exists(_.ledgerId == startLedgerId)) {
-        ledgers.indexWhere(_.ledgerId == startLedgerId)
-      } else if (startLedgerId == -1) {
-        0
-      } else {
-        ledgers.size - 1
+      // Find the start index in the list by its ledger ID
+      val startLedgerIndex: Int = stats.ledgers.asScala.find(_.ledgerId == startLedgerId) match {
+        // If found, start from there
+        case Some(index) => ledgers.indexWhere(_.ledgerId == startLedgerId)
+        // If it is not, but the value is -1, start from the beginning
+        case None if startLedgerId == -1 => 0
+        // In any other case, start from the end
+        case _ => ledgers.size - 1
       }
 
-      var actualEntryId = Math.min(Math.max(startEntryId, 0), ledgers(actualLedgerIndex).entries)
-      var entriesToSkip = forwardByEntryCount
+      // Clip the start entry ID withing th start ledger if needed
+      val startEntryIndex = Math.min(Math.max(startEntryId, 0), ledgers(startLedgerIndex).entries)
 
-      while (entriesToSkip > 0) {
-        val currentLedger = ledgers(actualLedgerIndex)
-        val remainingElementsInCurrentLedger = currentLedger.entries - actualEntryId
+      // Create an iterator over the ledgers list
+      val statsIterator =
+        new PersistentTopicInternalStatsIterator(stats, startLedgerIndex, startEntryIndex)
 
-        if (entriesToSkip <= remainingElementsInCurrentLedger) {
-          actualEntryId += entriesToSkip
-          entriesToSkip = 0
-        } else if ((remainingElementsInCurrentLedger < entriesToSkip)
-          && (actualLedgerIndex < (ledgers.size-1))) {
-          // Moving onto the next ledger
-          entriesToSkip -= remainingElementsInCurrentLedger
-          actualLedgerIndex += 1
-          actualEntryId = 0
-        } else {
-          // This is the last ledger
-          val entriesInLastLedger = ledgers(actualLedgerIndex).entries
-          actualEntryId = Math.min(entriesToSkip + actualEntryId, entriesInLastLedger)
-          entriesToSkip = 0
-        }
-      }
+      // Advance it forward with the amount of forward steps needed
+      val (forwardedLedgerId, forwardedEntryId) = (1L to forwardByEntryCount)
+        .map(_ => {statsIterator.next()}).last
 
-      (ledgers(actualLedgerIndex).ledgerId, actualEntryId)
+      (forwardedLedgerId, forwardedEntryId)
     }
   }
 
@@ -75,12 +65,12 @@ object TopicInternalStatsUtils {
       val ledgersBeforeStartLedger = fixLastLedgerInInternalStat(stats).ledgers
         .asScala
         .filter(_.ledgerId < ledgerId)
-      val boundedEntryId = if (ledgersBeforeStartLedger.isEmpty) {
+      val entriesInLastLedger = if (ledgersBeforeStartLedger.isEmpty) {
         Math.max(entryId, 0)
       } else {
         Math.min(Math.max(entryId, 0), ledgersBeforeStartLedger.last.entries)
       }
-      boundedEntryId + ledgersBeforeStartLedger.map(_.entries).sum
+      entriesInLastLedger + ledgersBeforeStartLedger.map(_.entries).sum
     }
   }
 
@@ -94,16 +84,16 @@ object TopicInternalStatsUtils {
       val entryCountIncludingCurrentLedger = fixLastLedgerInInternalStat(stats).ledgers
         .asScala
         .filter(_.ledgerId >= ledgerId)
-      val boundedEntryId = if (entryCountIncludingCurrentLedger.isEmpty) {
+      val entriesInFirstLedger = if (entryCountIncludingCurrentLedger.isEmpty) {
         Math.max(entryId, 0)
       } else {
         Math.min(Math.max(entryId, 0), entryCountIncludingCurrentLedger.last.entries)
       }
-      entryCountIncludingCurrentLedger.map(_.entries).sum - boundedEntryId
+      entryCountIncludingCurrentLedger.map(_.entries).sum - entriesInFirstLedger
     }
   }
 
-  private def fixLastLedgerInInternalStat(
+  def fixLastLedgerInInternalStat(
                 stats: PersistentTopicInternalStats): PersistentTopicInternalStats = {
     if (stats.ledgers.isEmpty) {
       stats
@@ -115,4 +105,33 @@ object TopicInternalStatsUtils {
     }
   }
 
+}
+
+class PersistentTopicInternalStatsIterator(stats: PersistentTopicInternalStats,
+                                           startLedgerIndex: Int,
+                                           startEntryIndex: Long)
+  extends Iterator[(Long, Long)] {
+  val ledgers = fixLastLedgerInInternalStat(stats).ledgers.asScala.toList
+  private var currentLedgerIndex = startLedgerIndex
+  private var currentEntryIndex = startEntryIndex
+
+  override def hasNext: Boolean = !isLast
+  // If we are pointing to the last element
+  private def isLast: Boolean = currentLedgerIndex.equals(ledgers.size - 1) &&
+    currentEntryIndex.equals(ledgers.last.entries - 1)
+
+  override def next(): (Long, Long) = {
+    // Do not move past last element
+    if (hasNext) {
+      if (currentEntryIndex < (ledgers(currentLedgerIndex).entries - 1)) {
+        // Staying in the current ledger
+        currentEntryIndex += 1
+      } else {
+        // Advancing to the next ledger
+        currentLedgerIndex += 1
+        currentEntryIndex = 0
+      }
+    }
+    (ledgers(currentLedgerIndex).ledgerId, currentEntryIndex)
+  }
 }
