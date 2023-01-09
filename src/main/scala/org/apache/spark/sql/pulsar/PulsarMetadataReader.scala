@@ -38,6 +38,7 @@ private[pulsar] case class PulsarMetadataReader(
     serviceUrl: String,
     adminUrl: String,
     clientConf: ju.Map[String, Object],
+    readerConfig: ju.Map[String, Object],
     adminClientConf: ju.Map[String, Object],
     driverGroupIdPrefix: String,
     caseInsensitiveParameters: Map[String, String],
@@ -453,6 +454,7 @@ private[pulsar] case class PulsarMetadataReader(
             .topic(tp)
             .startMessageId(MessageId.earliest)
             .startMessageIdInclusive()
+            .loadConf(readerConfig)
             .create()
 
           var earliestMessage: Message[Array[Byte]] = null
@@ -518,6 +520,7 @@ private[pulsar] case class PulsarMetadataReader(
           .startMessageId(off)
           .startMessageIdInclusive()
           .topic(tp)
+          .loadConf(readerConfig)
           .create()
         var msg: Message[Array[Byte]] = null
         msg = reader.readNext(poolTimeoutMs, TimeUnit.MILLISECONDS)

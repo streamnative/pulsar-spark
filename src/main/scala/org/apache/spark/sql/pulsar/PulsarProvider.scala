@@ -56,7 +56,7 @@ private[pulsar] class PulsarProvider
       parameters: Map[String, String]): (String, StructType) = {
 
     val caseInsensitiveParams = validateStreamOptions(parameters)
-    val (clientConfig, _, adminClientConfig, serviceUrlConfig, adminUrlConfig) =
+    val (clientConfig, readerConfig, adminClientConfig, serviceUrlConfig, adminUrlConfig) =
       prepareConfForReader(parameters)
 
     val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}"
@@ -65,6 +65,7 @@ private[pulsar] class PulsarProvider
         serviceUrlConfig,
         adminUrlConfig,
         clientConfig,
+        readerConfig,
         adminClientConfig,
         subscriptionNamePrefix,
         caseInsensitiveParams,
@@ -90,6 +91,7 @@ private[pulsar] class PulsarProvider
       serviceUrl,
       adminUrl,
       clientConfig,
+      readerConfig,
       adminClientConfig,
       subscriptionNamePrefix,
       caseInsensitiveParams,
@@ -130,6 +132,7 @@ private[pulsar] class PulsarProvider
         serviceUrl,
         adminUrl,
         clientConfig,
+        readerConfig,
         adminClientConfig,
         subscriptionNamePrefix,
         caseInsensitiveParams,
