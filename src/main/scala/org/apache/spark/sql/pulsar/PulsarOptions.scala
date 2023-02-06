@@ -58,6 +58,7 @@ private[pulsar] object PulsarOptions {
   val TlsHostnameVerificationEnable: String = "tlsHostnameVerificationEnable"
 
   val AllowDifferentTopicSchemas: String = "allowDifferentTopicSchemas".toLowerCase(Locale.ROOT)
+  val WaitingForNonExistedTopic: String = "waitingForNonExistedTopic".toLowerCase(Locale.ROOT)
 
   val InstructionForFailOnDataLossFalse: String =
     """

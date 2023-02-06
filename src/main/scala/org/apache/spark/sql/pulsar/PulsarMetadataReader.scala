@@ -19,11 +19,16 @@ import java.util.Optional
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
+import scala.annotation.tailrec
+import scala.collection.mutable
+import scala.language.postfixOps
+
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.{Message, MessageId, PulsarClient}
 import org.apache.pulsar.client.impl.schema.BytesSchema
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
+import org.apache.pulsar.shade.com.google.common.util.concurrent.Uninterruptibles
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.pulsar.PulsarOptions._
@@ -295,6 +300,8 @@ private[pulsar] case class PulsarMetadataReader(
       case None =>
         throw new RuntimeException("Failed to get topics from configurations")
     }
+
+    waitForTopicIfNeeded()
   }
 
   private def getTopicPartitions(): Seq[String] = {
@@ -334,6 +341,25 @@ private[pulsar] case class PulsarMetadataReader(
     allTopics.asScala
       .map(TopicName.get(_).toString)
       .filter(tp => shortenedTopicsPattern.matcher(tp.split("\\:\\/\\/")(1)).matches())
+  }
+
+  private def waitForTopicIfNeeded(): Unit = {
+    if (caseInsensitiveParameters.getOrElse(WaitingForNonExistedTopic, "false").toBoolean) {
+      // This method will wait the desired topics until it's created.
+
+      val waitList = mutable.ListBuffer(topics: _*)
+      while (waitList.nonEmpty) {
+        val topic = waitList.head
+        try {
+          admin.topics().getPartitionedTopicMetadata(topic)
+          waitList -= topic
+        } catch {
+          case _: PulsarAdminException =>
+            logInfo(s"The desired $topic doesn't existed, wait for 5 seconds.")
+            Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS)
+        }
+      }
+    }
   }
 
   def offsetForEachTopic(
@@ -494,6 +520,7 @@ private[pulsar] case class PulsarMetadataReader(
     }
   }
 
+  @tailrec
   private def fetchOffsetForTopic(
       poolTimeoutMs: Int,
       reportDataLoss: String => Unit,
