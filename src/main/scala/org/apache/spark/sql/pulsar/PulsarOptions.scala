@@ -37,6 +37,8 @@ private[pulsar] object PulsarOptions {
 
   val TopicOptionKeys: Set[String] = Set(TopicSingle, TopicMulti, TopicPattern)
 
+  val MaxEntriesPerTrigger = "maxentriespertrigger"
+
   val ServiceUrlOptionKey: String = "service.url"
   val AdminUrlOptionKey: String = "admin.url"
   val StartingOffsetsOptionKey: String = "startingOffsets".toLowerCase(Locale.ROOT)

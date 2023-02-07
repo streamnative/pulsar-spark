@@ -26,12 +26,14 @@ import scala.language.postfixOps
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.{Message, MessageId, PulsarClient}
 import org.apache.pulsar.client.impl.schema.BytesSchema
+import org.apache.pulsar.client.internal.DefaultImplementation
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
 import org.apache.pulsar.shade.com.google.common.util.concurrent.Uninterruptibles
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.pulsar.PulsarOptions._
+import org.apache.spark.sql.pulsar.topicinternalstats.forward._
 import org.apache.spark.sql.types.StructType
 
 /**
@@ -261,6 +263,68 @@ private[pulsar] case class PulsarMetadataReader(
           }
         PulsarSourceUtils.seekableLatestMid(messageId)
       })
+    }.toMap)
+  }
+
+  def fetchNextOffsetWithMaxEntries(actualOffset: Map[String, MessageId],
+                                    numberOfEntries: Long): SpecificPulsarOffset = {
+    getTopicPartitions()
+
+    // Collect internal stats for all topics
+    val topicStats = topicPartitions.map( topic => {
+      topic -> admin.topics().getInternalStats(topic)
+    } ).toMap.asJava
+
+    SpecificPulsarOffset(topicPartitions.map { topic =>
+      topic -> PulsarSourceUtils.seekableLatestMid {
+        // Fetch actual offset for topic
+        val topicActualMessageId = actualOffset.getOrElse(topic, MessageId.earliest)
+        try {
+          // Get the actual ledger
+          val actualLedgerId = PulsarSourceUtils.getLedgerId(topicActualMessageId)
+          // Get the actual entry ID
+          val actualEntryId = PulsarSourceUtils.getEntryId(topicActualMessageId)
+          // Get the partition index
+          val partitionIndex = PulsarSourceUtils.getPartitionIndex(topicActualMessageId)
+          // Cache topic internal stats
+          val internalStats = topicStats.get(topic)
+          // Calculate the amount of messages we will pull in
+          val numberOfEntriesPerTopic = numberOfEntries / topics.size
+          // Get a next message ID which respects
+          // the maximum number of messages
+          val (nextLedgerId, nextEntryId) = TopicInternalStatsUtils.forwardMessageId(
+            internalStats,
+            actualLedgerId,
+            actualEntryId,
+            numberOfEntriesPerTopic)
+          // Build the next message ID
+          val nextMessageId =
+            DefaultImplementation
+              .getDefaultImplementation
+              .newMessageId(nextLedgerId, nextEntryId, partitionIndex)
+          // Log state
+          val entryCountUntilNextMessageId = TopicInternalStatsUtils.numOfEntriesUntil(
+            internalStats, nextLedgerId, nextEntryId)
+          val entryCount = internalStats.numberOfEntries
+          val progress = f"${entryCountUntilNextMessageId.toFloat / entryCount.toFloat}%1.3f"
+          val logMessage = s"Pulsar Connector offset step forward. " +
+            s"[$numberOfEntriesPerTopic/$numberOfEntries]" +
+            s"${topic.reverse.take(30).reverse} $topicActualMessageId -> " +
+            s"$nextMessageId ($entryCountUntilNextMessageId/$entryCount) [$progress]"
+          log.debug(logMessage)
+          // Return the message ID
+          nextMessageId
+        } catch {
+          case e: PulsarAdminException if e.getStatusCode == 404 =>
+            MessageId.earliest
+          case e: Throwable =>
+            throw new RuntimeException(
+              s"Failed to get forwarded messageId for ${TopicName.get(topic).toString} " +
+                s"(tried to forward ${numberOfEntries} messages " +
+                s"starting from `$topicActualMessageId`)", e)
+        }
+
+      }
     }.toMap)
   }
 

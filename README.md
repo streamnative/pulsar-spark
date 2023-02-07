@@ -305,8 +305,28 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
   This may cause a false alarm. You can set it to `false` when it doesn't work as you expected. <br>
 
   A batch query always fails if it fails to read any data from the provided offsets due to data loss.</td>
-
 </tr>
+<tr>
+<td>
+`maxEntriesPerTrigger`
+</td>
+<td>
+Number of entries to include in a single micro-batch during
+streaming.
+</td>
+<td>-1</td>
+<td>Streaming query</td>
+<td>This parameter controls how many Pulsar entries are read by
+the connector from the topic backlog at once. If the topic
+backlog is considerably high, users can use this parameter
+to limit the size of the micro-batch. If multiple topics are read,
+this parameter controls the complete number of entries fetched from
+all of them.
+
+*Note:* Entries might contain multiple messages. The default value of `-1` means that the
+complete backlog is read at once.</td>
+</tr>
+
 <tr>
 <td>
 `allowDifferentTopicSchemas`

@@ -113,7 +113,9 @@ private[pulsar] class PulsarProvider
       pollTimeoutMs(caseInsensitiveParams),
       failOnDataLoss(caseInsensitiveParams),
       subscriptionNamePrefix,
-      jsonOptions)
+      jsonOptions,
+      maxEntriesPerTrigger(caseInsensitiveParams)
+    )
   }
 
   override def createRelation(
@@ -394,6 +396,9 @@ private[pulsar] object PulsarProvider extends Logging {
         PulsarOptions.PollTimeoutMS,
         (SparkEnv.get.conf.getTimeAsSeconds("spark.network.timeout", "120s") * 1000).toString)
       .toInt
+
+  private def maxEntriesPerTrigger(caseInsensitiveParams: Map[String, String]): Long =
+    caseInsensitiveParams.getOrElse(MaxEntriesPerTrigger, "-1").toLong
 
   private def validateGeneralOptions(
       caseInsensitiveParams: Map[String, String]): Map[String, String] = {
