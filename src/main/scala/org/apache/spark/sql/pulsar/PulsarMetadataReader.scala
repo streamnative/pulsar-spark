@@ -520,6 +520,11 @@ private[pulsar] case class PulsarMetadataReader(
     }
   }
 
+  def getMetrics(): PulsarMetrics = {
+    getTopics()
+    new PulsarMetrics(admin, topics, driverGroupIdPrefix)
+  }
+
   @tailrec
   private def fetchOffsetForTopic(
       poolTimeoutMs: Int,

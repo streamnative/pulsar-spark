@@ -477,13 +477,16 @@ If you want to build a Spark-Pulsar connector reading data from Pulsar and writi
    $ git clone https://github.com/streamnative/pulsar-spark.git
    $ cd pulsar-spark
    ```
+
 2. Install Docker. Pulsar-spark connector is using [Testcontainers](https://www.testcontainers.org/) for
    integration tests. In order to run the integration tests, make sure you
    have installed [Docker](https://docs.docker.com/docker-for-mac/install/).
+
 3. Set a Scala version. Change `scala.version` and `scala.binary.version` in `pom.xml`.
    > **Note**
    >
    > Scala version should be consistent with the Scala version of Spark you use.
+
 4. Build the project.
    ```bash
    $ mvn clean install -DskipTests
@@ -493,6 +496,7 @@ If you want to build a Spark-Pulsar connector reading data from Pulsar and writi
    [ERROR] [Error] : Source option 6 is no longer supported. Use 7 or later.
    [ERROR] [Error] : Target option 6 is no longer supported. Use 7 or later.
    ```
+
 5. Run the tests.
    ```bash
    $ mvn clean install
@@ -505,7 +509,6 @@ If you want to build a Spark-Pulsar connector reading data from Pulsar and writi
    This might be handy if test execution is slower, or you get a `java.io.IOException: Too many open files` exception during full suite run.
 
    Once the installation is finished, there is a fat jar generated under both local maven repo and `target` directory.
-
 
 ## License
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-spark.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-spark?ref=badge_large)
