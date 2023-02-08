@@ -19,6 +19,7 @@ import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.MessageIdImpl
 import org.apache.pulsar.common.schema.SchemaInfo
 
+import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.sql.catalyst.InternalRow
@@ -44,7 +45,7 @@ private[pulsar] class PulsarSource(
 
   private val sc = sqlContext.sparkContext
 
-  val reportDataLoss = reportDataLossFunc(failOnDataLoss)
+  private val reportDataLoss = reportDataLossFunc(failOnDataLoss)
   private var stopped = false
 
   private lazy val initialTopicOffsets: SpecificPulsarOffset = {
@@ -54,7 +55,7 @@ private[pulsar] class PulsarSource(
 
   private var currentTopicOffsets: Option[Map[String, MessageId]] = None
 
-  lazy val pulsarSchema: SchemaInfo = metadataReader.getPulsarSchema()
+  private lazy val pulsarSchema: SchemaInfo = metadataReader.getPulsarSchema()
 
   override def schema(): StructType = SchemaUtils.pulsarSourceSchema(pulsarSchema)
 
@@ -81,7 +82,7 @@ private[pulsar] class PulsarSource(
     if (start.isDefined && start.get == end) {
       return sqlContext.internalCreateDataFrame(
         sqlContext.sparkContext.emptyRDD[InternalRow].setName("empty"),
-        schema,
+        schema(),
         isStreaming = true)
     }
 
@@ -152,7 +153,14 @@ private[pulsar] class PulsarSource(
       "GetBatch generating RDD of offset range: " +
         offsetRanges.sortBy(_.topic).mkString(", "))
 
-    sqlContext.internalCreateDataFrame(rdd.setName("pulsar"), schema, isStreaming = true)
+    // Register the monitor metrics here.
+    val env = SparkEnv.get
+    if (env != null) {
+      val metrics = metadataReader.getMetrics()
+      env.metricsSystem.registerSource(metrics)
+    }
+
+    sqlContext.internalCreateDataFrame(rdd.setName("pulsar"), schema(), isStreaming = true)
   }
 
   override def commit(end: Offset): Unit = {
@@ -166,6 +174,5 @@ private[pulsar] class PulsarSource(
       metadataReader.close()
       stopped = true
     }
-
   }
 }

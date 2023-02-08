@@ -206,28 +206,28 @@ private[pulsar] case class PulsarMetadataReader(
 
   def getPulsarSchema(): SchemaInfo = {
     getTopics()
-    allowDifferentTopicSchemas match {
-      case false =>
-        if (topics.size > 0) {
-          val schemas = topics.map { tp =>
-            getPulsarSchema(tp)
-          }
-          val sset = schemas.toSet
-          if (sset.size != 1) {
-            throw new IllegalArgumentException(
-              "Topics to read must share identical schema. Consider setting " +
-                s"'$AllowDifferentTopicSchemas' to 'false' to read topics with empty " +
-                s"schemas instead. We got ${sset.size} distinct " +
-                s"schemas:[${sset.mkString(", ")}]")
-          } else {
-            sset.head
-          }
-        } else {
-          // if no topic exists, and we are getting schema,
-          // then auto created topic has schema of None
-          SchemaUtils.emptySchemaInfo()
+    if (allowDifferentTopicSchemas) {
+      SchemaUtils.emptySchemaInfo()
+    } else {
+      if (topics.nonEmpty) {
+        val schemas = topics.map { tp =>
+          getPulsarSchema(tp)
         }
-      case true => SchemaUtils.emptySchemaInfo()
+        val sset = schemas.toSet
+        if (sset.size != 1) {
+          throw new IllegalArgumentException(
+            "Topics to read must share identical schema. Consider setting " +
+              s"'$AllowDifferentTopicSchemas' to 'false' to read topics with empty " +
+              s"schemas instead. We got ${sset.size} distinct " +
+              s"schemas:[${sset.mkString(", ")}]")
+        } else {
+          sset.head
+        }
+      } else {
+        // if no topic exists, and we are getting schema,
+        // then auto created topic has schema of None
+        SchemaUtils.emptySchemaInfo()
+      }
     }
   }
 
@@ -518,6 +518,11 @@ private[pulsar] case class PulsarMetadataReader(
       val actualOffset = fetchOffsetForTopic(poolTimeoutMs, reportDataLoss, tp, off)
       (tp, actualOffset)
     }
+  }
+
+  def getMetrics(): PulsarMetrics = {
+    getTopics()
+    new PulsarMetrics(admin, topics, driverGroupIdPrefix)
   }
 
   @tailrec

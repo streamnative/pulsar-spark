@@ -25,6 +25,7 @@ import org.apache.spark.sql.{AnalysisException, DataFrame, SaveMode, SparkSessio
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.execution.streaming.{Sink, Source}
+import org.apache.spark.sql.pulsar.PulsarConfigurationUtils._
 import org.apache.spark.sql.pulsar.PulsarSourceUtils.reportDataLossFunc
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.streaming.OutputMode
@@ -61,7 +62,7 @@ private[pulsar] class PulsarProvider
 
     val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}"
     val inferredSchema = Utils.tryWithResource(
-      new PulsarMetadataReader(
+      PulsarMetadataReader(
         serviceUrlConfig,
         adminUrlConfig,
         clientConfig,
@@ -86,7 +87,7 @@ private[pulsar] class PulsarProvider
       prepareConfForReader(parameters)
 
     val subscriptionNamePrefix = getSubscriptionPrefix(parameters)
-    val metadataReader = new PulsarMetadataReader(
+    val metadataReader = PulsarMetadataReader(
       serviceUrl,
       adminUrl,
       clientConfig,
@@ -126,7 +127,7 @@ private[pulsar] class PulsarProvider
     val (clientConfig, readerConfig, adminClientConfig, serviceUrl, adminUrl) =
       prepareConfForReader(parameters)
     val (start, end, schema, pSchema) = Utils.tryWithResource(
-      new PulsarMetadataReader(
+      PulsarMetadataReader(
         serviceUrl,
         adminUrl,
         clientConfig,
@@ -203,10 +204,14 @@ private[pulsar] class PulsarProvider
      */
     new BaseRelation {
       override def sqlContext: SQLContext = unsupportedException
+
       // FIXME: integration with pulsar schema
       override def schema: StructType = unsupportedException
+
       override def needConversion: Boolean = unsupportedException
+
       override def sizeInBytes: Long = unsupportedException
+
       override def unhandledFilters(filters: Array[Filter]): Array[Filter] = unsupportedException
 
       private def unsupportedException =
@@ -231,7 +236,7 @@ private[pulsar] class PulsarProvider
 }
 
 private[pulsar] object PulsarProvider extends Logging {
-  import PulsarConfigurationUtils._
+
   import PulsarOptions._
 
   val LATEST_TIME = -2L
@@ -240,9 +245,7 @@ private[pulsar] object PulsarProvider extends Logging {
   private def getClientParams(parameters: Map[String, String]): Map[String, String] = {
     val lowercaseKeyMap = parameters.keySet
       .filter(_.startsWith(PulsarClientOptionKeyPrefix))
-      .map { k =>
-        k.drop(PulsarClientOptionKeyPrefix.length).toString -> parameters(k)
-      }
+      .map { k => k.drop(PulsarClientOptionKeyPrefix.length) -> parameters(k) }
       .toMap
     lowercaseKeyMap.map { case (k, v) =>
       clientConfKeys.getOrElse(
@@ -281,7 +284,7 @@ private[pulsar] object PulsarProvider extends Logging {
   }
 
   private def hasAdminParams(parameters: Map[String, String]): Boolean = {
-    getAdminParams(parameters).isEmpty == false
+    getAdminParams(parameters).nonEmpty
   }
 
   def getPulsarOffset(
