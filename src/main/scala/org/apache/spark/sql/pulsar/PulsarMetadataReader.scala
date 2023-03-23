@@ -478,9 +478,9 @@ private[pulsar] case class PulsarMetadataReader(
             .newReader()
             .subscriptionRolePrefix(driverGroupIdPrefix)
             .topic(tp)
+            .loadConf(readerConfig)
             .startMessageId(MessageId.earliest)
             .startMessageIdInclusive()
-            .loadConf(readerConfig)
             .create()
 
           var earliestMessage: Message[Array[Byte]] = null
@@ -549,10 +549,10 @@ private[pulsar] case class PulsarMetadataReader(
         val reader = client
           .newReader()
           .subscriptionRolePrefix(driverGroupIdPrefix)
-          .startMessageId(off)
-          .startMessageIdInclusive()
           .topic(tp)
           .loadConf(readerConfig)
+          .startMessageId(off)
+          .startMessageIdInclusive()
           .create()
         var msg: Message[Array[Byte]] = null
         msg = reader.readNext(poolTimeoutMs, TimeUnit.MILLISECONDS)
