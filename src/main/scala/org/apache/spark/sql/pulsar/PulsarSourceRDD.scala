@@ -89,8 +89,8 @@ private[pulsar] abstract class PulsarSourceRDDBase(
           } else {
             currentId = currentMessage.getMessageId
             if (startOffset != MessageId.earliest && !messageIdRoughEquals(
-              currentId,
-              startOffset)) {
+                currentId,
+                startOffset)) {
               reportDataLoss(
                 s"Potential Data Loss: intended to start at $startOffset, " +
                   s"actually we get $currentId")
