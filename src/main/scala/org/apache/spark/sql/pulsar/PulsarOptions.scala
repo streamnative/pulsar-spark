@@ -53,11 +53,9 @@ private[pulsar] object PulsarOptions {
 
   val AuthPluginClassName: String = "authPluginClassName"
   val AuthParams: String = "authParams"
-  val TlsTrustCertsFilePath: String = "tlsTrustCertsFilePath"
-  val TlsAllowInsecureConnection: String = "tlsAllowInsecureConnection"
-  val TlsHostnameVerificationEnable: String = "tlsHostnameVerificationEnable"
 
   val AllowDifferentTopicSchemas: String = "allowDifferentTopicSchemas".toLowerCase(Locale.ROOT)
+  val WaitingForNonExistedTopic: String = "waitingForNonExistedTopic".toLowerCase(Locale.ROOT)
 
   val InstructionForFailOnDataLossFalse: String =
     """

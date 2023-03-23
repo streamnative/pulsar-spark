@@ -19,11 +19,16 @@ import java.util.Optional
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
+import scala.annotation.tailrec
+import scala.collection.mutable
+import scala.language.postfixOps
+
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.{Message, MessageId, PulsarClient}
 import org.apache.pulsar.client.impl.schema.BytesSchema
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
+import org.apache.pulsar.shade.com.google.common.util.concurrent.Uninterruptibles
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.pulsar.PulsarOptions._
@@ -202,28 +207,28 @@ private[pulsar] case class PulsarMetadataReader(
 
   def getPulsarSchema(): SchemaInfo = {
     getTopics()
-    allowDifferentTopicSchemas match {
-      case false =>
-        if (topics.size > 0) {
-          val schemas = topics.map { tp =>
-            getPulsarSchema(tp)
-          }
-          val sset = schemas.toSet
-          if (sset.size != 1) {
-            throw new IllegalArgumentException(
-              "Topics to read must share identical schema. Consider setting " +
-                s"'$AllowDifferentTopicSchemas' to 'false' to read topics with empty " +
-                s"schemas instead. We got ${sset.size} distinct " +
-                s"schemas:[${sset.mkString(", ")}]")
-          } else {
-            sset.head
-          }
-        } else {
-          // if no topic exists, and we are getting schema,
-          // then auto created topic has schema of None
-          SchemaUtils.emptySchemaInfo()
+    if (allowDifferentTopicSchemas) {
+      SchemaUtils.emptySchemaInfo()
+    } else {
+      if (topics.nonEmpty) {
+        val schemas = topics.map { tp =>
+          getPulsarSchema(tp)
         }
-      case true => SchemaUtils.emptySchemaInfo()
+        val sset = schemas.toSet
+        if (sset.size != 1) {
+          throw new IllegalArgumentException(
+            "Topics to read must share identical schema. Consider setting " +
+              s"'$AllowDifferentTopicSchemas' to 'false' to read topics with empty " +
+              s"schemas instead. We got ${sset.size} distinct " +
+              s"schemas:[${sset.mkString(", ")}]")
+        } else {
+          sset.head
+        }
+      } else {
+        // if no topic exists, and we are getting schema,
+        // then auto created topic has schema of None
+        SchemaUtils.emptySchemaInfo()
+      }
     }
   }
 
@@ -296,6 +301,8 @@ private[pulsar] case class PulsarMetadataReader(
       case None =>
         throw new RuntimeException("Failed to get topics from configurations")
     }
+
+    waitForTopicIfNeeded()
   }
 
   private def getTopicPartitions(): Seq[String] = {
@@ -335,6 +342,25 @@ private[pulsar] case class PulsarMetadataReader(
     allTopics.asScala
       .map(TopicName.get(_).toString)
       .filter(tp => shortenedTopicsPattern.matcher(tp.split("\\:\\/\\/")(1)).matches())
+  }
+
+  private def waitForTopicIfNeeded(): Unit = {
+    if (caseInsensitiveParameters.getOrElse(WaitingForNonExistedTopic, "false").toBoolean) {
+      // This method will wait the desired topics until it's created.
+
+      val waitList = mutable.ListBuffer(topics: _*)
+      while (waitList.nonEmpty) {
+        val topic = waitList.head
+        try {
+          admin.topics().getPartitionedTopicMetadata(topic)
+          waitList -= topic
+        } catch {
+          case _: PulsarAdminException =>
+            logInfo(s"The desired $topic doesn't existed, wait for 5 seconds.")
+            Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS)
+        }
+      }
+    }
   }
 
   def offsetForEachTopic(
@@ -496,6 +522,12 @@ private[pulsar] case class PulsarMetadataReader(
     }
   }
 
+  def getMetrics(): PulsarMetrics = {
+    getTopics()
+    new PulsarMetrics(admin, topics, driverGroupIdPrefix)
+  }
+
+  @tailrec
   private def fetchOffsetForTopic(
       poolTimeoutMs: Int,
       reportDataLoss: String => Unit,
