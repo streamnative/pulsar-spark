@@ -70,8 +70,8 @@ private[pulsar] class PulsarProvider
         subscriptionNamePrefix,
         caseInsensitiveParams,
         getAllowDifferentTopicSchemas(parameters),
-        getPredefinedSubscription(parameters))) { reader =>
-      reader.getAndCheckCompatible(schema)
+        getPredefinedSubscription(parameters))) { pulsarHelper =>
+      pulsarHelper.getAndCheckCompatible(schema)
     }
     (shortName(), inferredSchema)
   }
@@ -135,23 +135,23 @@ private[pulsar] class PulsarProvider
         subscriptionNamePrefix,
         caseInsensitiveParams,
         getAllowDifferentTopicSchemas(parameters),
-        getPredefinedSubscription(parameters))) { reader =>
+        getPredefinedSubscription(parameters))) { pulsarHelper =>
       val perTopicStarts =
-        reader.offsetForEachTopic(caseInsensitiveParams, EarliestOffset, StartOptionKey)
+        pulsarHelper.offsetForEachTopic(caseInsensitiveParams, EarliestOffset, StartOptionKey)
       val startingOffset = SpecificPulsarOffset(
-        reader.actualOffsets(
+        pulsarHelper.actualOffsets(
           perTopicStarts,
           pollTimeoutMs(caseInsensitiveParams),
           reportDataLossFunc(failOnDataLoss(caseInsensitiveParams))))
       val perTopicEnds =
-        reader.offsetForEachTopic(caseInsensitiveParams, LatestOffset, EndOptionKey)
+        pulsarHelper.offsetForEachTopic(caseInsensitiveParams, LatestOffset, EndOptionKey)
       val endingOffset = SpecificPulsarOffset(
-        reader.actualOffsets(
+        pulsarHelper.actualOffsets(
           perTopicEnds,
           pollTimeoutMs(caseInsensitiveParams),
           reportDataLossFunc(failOnDataLoss(caseInsensitiveParams))))
 
-      val pulsarSchema = reader.getPulsarSchema()
+      val pulsarSchema = pulsarHelper.getPulsarSchema()
       val schema = SchemaUtils.pulsarSourceSchema(pulsarSchema)
       (startingOffset, endingOffset, schema, pulsarSchema)
     }
