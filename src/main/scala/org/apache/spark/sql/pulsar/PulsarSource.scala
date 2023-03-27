@@ -28,16 +28,16 @@ import org.apache.spark.sql.execution.streaming.{Offset, Source}
 import org.apache.spark.sql.types.StructType
 
 private[pulsar] class PulsarSource(
-    sqlContext: SQLContext,
-    metadataReader: PulsarMetadataReader,
-    clientConf: ju.Map[String, Object],
-    readerConf: ju.Map[String, Object],
-    metadataPath: String,
-    startingOffsets: PerTopicOffset,
-    pollTimeoutMs: Int,
-    failOnDataLoss: Boolean,
-    subscriptionNamePrefix: String,
-    jsonOptions: JSONOptionsInRead)
+                                    sqlContext: SQLContext,
+                                    pulsarHelper: PulsarHelper,
+                                    clientConf: ju.Map[String, Object],
+                                    readerConf: ju.Map[String, Object],
+                                    metadataPath: String,
+                                    startingOffsets: PerTopicOffset,
+                                    pollTimeoutMs: Int,
+                                    failOnDataLoss: Boolean,
+                                    subscriptionNamePrefix: String,
+                                    jsonOptions: JSONOptionsInRead)
     extends Source
     with Logging {
 
@@ -50,19 +50,19 @@ private[pulsar] class PulsarSource(
 
   private lazy val initialTopicOffsets: SpecificPulsarOffset = {
     val metadataLog = new PulsarSourceInitialOffsetWriter(sqlContext.sparkSession, metadataPath)
-    metadataLog.getInitialOffset(metadataReader, startingOffsets, pollTimeoutMs, reportDataLoss)
+    metadataLog.getInitialOffset(pulsarHelper, startingOffsets, pollTimeoutMs, reportDataLoss)
   }
 
   private var currentTopicOffsets: Option[Map[String, MessageId]] = None
 
-  private lazy val pulsarSchema: SchemaInfo = metadataReader.getPulsarSchema()
+  private lazy val pulsarSchema: SchemaInfo = pulsarHelper.getPulsarSchema()
 
   override def schema(): StructType = SchemaUtils.pulsarSourceSchema(pulsarSchema)
 
   override def getOffset: Option[Offset] = {
     // Make sure initialTopicOffsets is initialized
     initialTopicOffsets
-    val latest = metadataReader.fetchLatestOffsets()
+    val latest = pulsarHelper.fetchLatestOffsets()
     currentTopicOffsets = Some(latest.topicOffsets)
     logDebug(s"GetOffset: ${latest.topicOffsets.toSeq.map(_.toString).sorted}")
     Some(latest.asInstanceOf[Offset])
@@ -97,7 +97,7 @@ private[pulsar] class PulsarSource(
     val numExecutors = sortedExecutors.length
 
     val newTopics = endTopicOffsets.keySet.diff(fromTopicOffsets.keySet)
-    val newTopicOffsets = metadataReader.fetchEarliestOffsets(newTopics.toSeq)
+    val newTopicOffsets = pulsarHelper.fetchEarliestOffsets(newTopics.toSeq)
 
     val deletedPartitions = fromTopicOffsets.keySet.diff(endTopicOffsets.keySet)
     if (deletedPartitions.nonEmpty) {
@@ -156,7 +156,7 @@ private[pulsar] class PulsarSource(
     // Register the monitor metrics here.
     val env = SparkEnv.get
     if (env != null) {
-      val metrics = metadataReader.getMetrics()
+      val metrics = pulsarHelper.getMetrics()
       env.metricsSystem.registerSource(metrics)
     }
 
@@ -165,13 +165,13 @@ private[pulsar] class PulsarSource(
 
   override def commit(end: Offset): Unit = {
     val off = SpecificPulsarOffset.getTopicOffsets(end)
-    metadataReader.commitCursorToOffset(off)
+    pulsarHelper.commitCursorToOffset(off)
   }
 
   override def stop(): Unit = synchronized {
     if (!stopped) {
-      metadataReader.removeCursor()
-      metadataReader.close()
+      pulsarHelper.removeCursor()
+      pulsarHelper.close()
       stopped = true
     }
   }

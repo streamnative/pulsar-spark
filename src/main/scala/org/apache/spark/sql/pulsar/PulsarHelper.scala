@@ -35,11 +35,11 @@ import org.apache.spark.sql.pulsar.PulsarOptions._
 import org.apache.spark.sql.types.StructType
 
 /**
- * A Helper class that responsible for:
- *   - getEarliest / Latest / Specific MessageIds
- *   - guarantee message existence using subscription by setup, move and remove
+ * A Helper class that is responsible for interacting with Pulsar to conduct
+ * subscription management, cursor management, schema and topic metadata lookup etc.
+ *
  */
-private[pulsar] case class PulsarMetadataReader(
+private[pulsar] case class PulsarHelper(
     serviceUrl: String,
     adminUrl: String,
     clientConf: ju.Map[String, Object],
