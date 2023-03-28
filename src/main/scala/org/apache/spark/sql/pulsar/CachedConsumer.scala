@@ -12,7 +12,7 @@ import org.apache.spark.internal.Logging
 
 private[pulsar] object CachedConsumer extends Logging {
 
-  private val client: PulsarClient = PulsarClient.builder().serviceUrl("pulssar://localhost:6650").build()
+  private var client: Option[PulsarClient] = None
 
   private val defaultCacheExpireTimeout = TimeUnit.MINUTES.toMillis(10)
 
@@ -26,7 +26,8 @@ private[pulsar] object CachedConsumer extends Logging {
     override def load(k: (String, String)): Consumer[GenericRecord] = {
       val (topic, subscription) = (k._1, k._2)
       try {
-        val consumer = client.newConsumer(new AutoConsumeSchema())
+        val consumer = client.get
+          .newConsumer(new AutoConsumeSchema())
           .topic(topic)
           .subscriptionName(subscription)
           .subscribe()
@@ -35,20 +36,19 @@ private[pulsar] object CachedConsumer extends Logging {
       } catch {
         case e: Throwable =>
           logError(
-            s"Failed to create consumer to topic ${topic} with subscription ${subscription}"
-          )
+            s"Failed to create consumer to topic ${topic} with subscription ${subscription}")
           throw e
       }
     }
   }
 
   private val removalListener = new RemovalListener[(String, String), Consumer[GenericRecord]]() {
-    override def onRemoval(notification: RemovalNotification[(String, String), Consumer[GenericRecord]]): Unit = {
+    override def onRemoval(
+        notification: RemovalNotification[(String, String), Consumer[GenericRecord]]): Unit = {
       val (topic, subscription) = (notification.getKey._1, notification.getKey._2)
       val consumer = notification.getValue
 
       try {
-        // TODO: check if need to call consumer.unscriber()
         consumer.close()
       } catch {
         case NonFatal(e) => logWarning("Error while closing consumer.", e)
@@ -63,12 +63,16 @@ private[pulsar] object CachedConsumer extends Logging {
       .removalListener(removalListener)
       .build[(String, String), Consumer[GenericRecord]](cacheLoader)
 
-  private[pulsar] def getOrCreate(topic: String, subscription: String) : Consumer[GenericRecord] = {
+  private[pulsar] def getOrCreate(
+      topic: String,
+      subscription: String,
+      client: PulsarClient): Consumer[GenericRecord] = {
     try {
+      this.client = Some(client)
       guavaCache.get((topic, subscription))
     } catch {
       case e @ (_: ExecutionException | _: UncheckedExecutionException | _: ExecutionError)
-        if e.getCause != null =>
+          if e.getCause != null =>
         throw e.getCause
     }
   }
@@ -83,4 +87,3 @@ private[pulsar] object CachedConsumer extends Logging {
   }
 
 }
-

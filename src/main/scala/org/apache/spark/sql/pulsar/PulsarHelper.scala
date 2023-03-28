@@ -20,8 +20,9 @@ import java.util.regex.Pattern
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.language.postfixOps
-import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
+import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.{Message, MessageId}
+import org.apache.pulsar.client.impl.PulsarClientImpl
 import org.apache.pulsar.client.impl.schema.BytesSchema
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
@@ -29,12 +30,10 @@ import org.apache.pulsar.shade.com.google.common.util.concurrent.Uninterruptible
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.pulsar.PulsarOptions._
 import org.apache.spark.sql.types.StructType
-import org.apache.pulsar.client.impl.PulsarClientImpl
 
 /**
- * A Helper class that is responsible for interacting with Pulsar to conduct
- * subscription management, cursor management, schema and topic metadata lookup etc.
- *
+ * A Helper class that is responsible for interacting with Pulsar to conduct subscription
+ * management, cursor management, schema and topic metadata lookup etc.
  */
 private[pulsar] case class PulsarHelper(
     serviceUrl: String,
@@ -69,13 +68,15 @@ private[pulsar] case class PulsarHelper(
     }
   }
 
-  private def setupCursorByMid(offset: SpecificPulsarOffset, subscription: Option[String]): Unit = {
+  private def setupCursorByMid(
+      offset: SpecificPulsarOffset,
+      subscription: Option[String]): Unit = {
     offset.topicOffsets.foreach { case (tp, mid) =>
       val umid = mid.asInstanceOf[UserProvidedMessageId]
       val (subscriptionName, _) = extractSubscription(subscription, tp)
 
       // establish connection and setup the subscription if needed
-      val consumer = CachedConsumer.getOrCreate(tp, subscriptionName)
+      val consumer = CachedConsumer.getOrCreate(tp, subscriptionName, client)
 
       // reset cursor position
       log.info(s"Resetting cursor for $subscriptionName to given offset")
@@ -95,7 +96,7 @@ private[pulsar] case class PulsarHelper(
       val (subscriptionNames, _) = extractSubscription(subscription, tp)
 
       // establish connection and setup the subscription if needed
-      val consumer = CachedConsumer.getOrCreate(tp, subscriptionNames)
+      val consumer = CachedConsumer.getOrCreate(tp, subscriptionNames, client)
 
       // reset cursor position
       log.info(s"Resetting cursor for $subscriptionNames to given timestamp")
@@ -121,7 +122,7 @@ private[pulsar] case class PulsarHelper(
     offset.foreach { case (tp, mid) =>
       try {
         val (subscription, _) = extractSubscription(predefinedSubscription, tp)
-        CachedConsumer.getOrCreate(tp, subscription).seek(mid)
+        CachedConsumer.getOrCreate(tp, subscription, client).seek(mid)
       } catch {
         case e: Throwable =>
           throw new RuntimeException(
@@ -140,7 +141,7 @@ private[pulsar] case class PulsarHelper(
       // Only delete a subscription if it's not predefined and created by us
       if (!subscriptionPredefined) {
         try {
-          CachedConsumer.getOrCreate(tp, subscriptionName).unsubscribe()
+          CachedConsumer.getOrCreate(tp, subscriptionName, client).unsubscribe()
         } catch {
           case e: Throwable =>
             throw new RuntimeException(
@@ -162,28 +163,28 @@ private[pulsar] case class PulsarHelper(
 
   def getPulsarSchema(): SchemaInfo = {
     getTopics()
-    if (allowDifferentTopicSchemas) {
-      SchemaUtils.emptySchemaInfo()
-    } else {
-      if (topics.nonEmpty) {
-        val schemas = topics.map { tp =>
-          getPulsarSchema(tp)
-        }
-        val sset = schemas.toSet
-        if (sset.size != 1) {
-          throw new IllegalArgumentException(
-            "Topics to read must share identical schema. Consider setting " +
-              s"'$AllowDifferentTopicSchemas' to 'false' to read topics with empty " +
-              s"schemas instead. We got ${sset.size} distinct " +
-              s"schemas:[${sset.mkString(", ")}]")
+    allowDifferentTopicSchemas match {
+      case false =>
+        if (topics.size > 0) {
+          val schemas = topics.map { tp =>
+            getPulsarSchema(tp)
+          }
+          val sset = schemas.toSet
+          if (sset.size != 1) {
+            throw new IllegalArgumentException(
+              "Topics to read must share identical schema. Consider setting " +
+                s"'$AllowDifferentTopicSchemas' to 'false' to read topics with empty " +
+                s"schemas instead. We got ${sset.size} distinct " +
+                s"schemas:[${sset.mkString(", ")}]")
+          } else {
+            sset.head
+          }
         } else {
-          sset.head
+          // if no topic exists, and we are getting schema,
+          // then auto created topic has schema of None
+          SchemaUtils.emptySchemaInfo()
         }
-      } else {
-        // if no topic exists, and we are getting schema,
-        // then auto created topic has schema of None
-        SchemaUtils.emptySchemaInfo()
-      }
+      case true => SchemaUtils.emptySchemaInfo()
     }
   }
 
@@ -260,7 +261,8 @@ private[pulsar] case class PulsarHelper(
   private def getTopics(topicsPattern: String): Seq[String] = {
     val dest = TopicName.get(topicsPattern)
     val allNonPartitionedTopics: ju.List[String] =
-      admin.topics()
+      admin
+        .topics()
         .getList(dest.getNamespace)
         .asScala
         .filter(t => !TopicName.get(t).isPartitioned)
@@ -293,7 +295,7 @@ private[pulsar] case class PulsarHelper(
           client.getPartitionedTopicMetadata(topic).get()
           waitList -= topic
         } catch {
-          case _: PulsarAdminException =>
+          case _: Throwable =>
             logInfo(s"The desired $topic doesn't existed, wait for 5 seconds.")
             Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS)
         }
@@ -408,8 +410,7 @@ private[pulsar] case class PulsarHelper(
         if (time == PulsarProvider.EARLIEST_TIME) {
           UserProvidedMessageId(MessageId.earliest)
         } else if (time == PulsarProvider.LATEST_TIME) {
-          UserProvidedMessageId(
-            PulsarSourceUtils.seekableLatestMid(getLastMessageId(tp)))
+          UserProvidedMessageId(PulsarSourceUtils.seekableLatestMid(getLastMessageId(tp)))
         } else {
           assert(time > 0, s"time less than 0: $time")
           val reader = client
@@ -480,8 +481,7 @@ private[pulsar] case class PulsarHelper(
       case MessageId.earliest =>
         UserProvidedMessageId(off)
       case MessageId.latest =>
-        UserProvidedMessageId(
-          PulsarSourceUtils.seekableLatestMid(getLastMessageId(tp)))
+        UserProvidedMessageId(PulsarSourceUtils.seekableLatestMid(getLastMessageId(tp)))
       case _ =>
         val reader = client
           .newReader()
@@ -502,7 +502,8 @@ private[pulsar] case class PulsarHelper(
     }
   }
 
-  private def getLastMessageId(topic: String) : MessageId = {
-   CachedConsumer.getOrCreate(topic, "NengNengNeng").getLastMessageId
+  private def getLastMessageId(topic: String): MessageId = {
+    val (subscriptionName, _) = extractSubscription(predefinedSubscription, topic)
+    CachedConsumer.getOrCreate(topic, subscriptionName, client).getLastMessageId
   }
 }
