@@ -15,14 +15,12 @@ package org.apache.spark.sql.pulsar
 
 import java.{util => ju}
 import java.util.concurrent.{ExecutionException, TimeUnit}
-
 import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
-
 import com.google.common.cache._
 import com.google.common.util.concurrent.{ExecutionError, UncheckedExecutionException}
 import org.apache.pulsar.client.api.PulsarClient
-
+import org.apache.pulsar.client.impl.PulsarClientImpl
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.pulsar.PulsarOptions._
@@ -37,8 +35,8 @@ private[pulsar] object CachedPulsarClient extends Logging {
         .getTimeAsMs("spark.pulsar.client.cache.timeout", s"${defaultCacheExpireTimeout}ms"))
       .getOrElse(defaultCacheExpireTimeout)
 
-  private val cacheLoader = new CacheLoader[ju.Map[String, Object], PulsarClient]() {
-    override def load(config: ju.Map[String, Object]): PulsarClient = {
+  private val cacheLoader = new CacheLoader[ju.Map[String, Object], PulsarClientImpl]() {
+    override def load(config: ju.Map[String, Object]): PulsarClientImpl = {
       val pulsarServiceUrl = config.get(PulsarOptions.ServiceUrlOptionKey).toString
       val clientConf =
         PulsarConfigUpdater("pulsarClientCache", config.asScala.toMap, PulsarOptions.FilteredKeys)
@@ -63,7 +61,7 @@ private[pulsar] object CachedPulsarClient extends Logging {
           s"Created a new instance of PulsarClient for serviceUrl = $pulsarServiceUrl,"
             + s" clientConf = $clientConf.")
 
-        pulsarClient
+        pulsarClient.asInstanceOf[PulsarClientImpl]
       } catch {
         case e: Throwable =>
           logError(
@@ -75,9 +73,9 @@ private[pulsar] object CachedPulsarClient extends Logging {
     }
   }
 
-  private val removalListener = new RemovalListener[ju.Map[String, Object], PulsarClient]() {
+  private val removalListener = new RemovalListener[ju.Map[String, Object], PulsarClientImpl]() {
     override def onRemoval(
-        notification: RemovalNotification[ju.Map[String, Object], PulsarClient]): Unit = {
+        notification: RemovalNotification[ju.Map[String, Object], PulsarClientImpl]): Unit = {
       val params: ju.Map[String, Object] = notification.getKey
       val client: PulsarClient = notification.getValue
       logDebug(
@@ -93,19 +91,19 @@ private[pulsar] object CachedPulsarClient extends Logging {
     }
   }
 
-  private lazy val guavaCache: LoadingCache[ju.Map[String, Object], PulsarClient] =
+  private lazy val guavaCache: LoadingCache[ju.Map[String, Object], PulsarClientImpl] =
     CacheBuilder
       .newBuilder()
       .expireAfterAccess(cacheExpireTimeout, TimeUnit.MILLISECONDS)
       .removalListener(removalListener)
-      .build[ju.Map[String, Object], PulsarClient](cacheLoader)
+      .build[ju.Map[String, Object], PulsarClientImpl](cacheLoader)
 
   /**
-   * Get a cached PulsarProducer for a given configuration. If matching PulsarProducer doesn't
-   * exist, a new PulsarProducer will be created. PulsarProducer is thread safe, it is best to
+   * Get a cached PulsarClient for a given configuration. If matching PulsarClient doesn't
+   * exist, a new PulsarClient will be created. PulsarClient is thread safe, it is best to
    * keep one instance per specified pulsarParams.
    */
-  private[pulsar] def getOrCreate(params: ju.Map[String, Object]): PulsarClient = {
+  private[pulsar] def getOrCreate(params: ju.Map[String, Object]): PulsarClientImpl = {
     try {
       guavaCache.get(params)
     } catch {
@@ -115,13 +113,13 @@ private[pulsar] object CachedPulsarClient extends Logging {
     }
   }
 
-  /** For explicitly closing pulsar producer */
+  /** For explicitly closing pulsar client */
   private[pulsar] def close(params: ju.Map[String, Object]): Unit = {
     guavaCache.invalidate(params)
   }
 
   private[pulsar] def clear(): Unit = {
-    logInfo("Cleaning up guava cache.")
+    logInfo("Cleaning up PulsarClient cache.")
     guavaCache.invalidateAll()
   }
 }
