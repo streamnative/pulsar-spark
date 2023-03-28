@@ -35,11 +35,11 @@ import org.apache.spark.sql.pulsar.PulsarOptions._
 import org.apache.spark.sql.types.StructType
 
 /**
- * A Helper class that responsible for:
- *   - getEarliest / Latest / Specific MessageIds
- *   - guarantee message existence using subscription by setup, move and remove
+ * A Helper class that is responsible for interacting with Pulsar to conduct
+ * subscription management, cursor management, schema and topic metadata lookup etc.
+ *
  */
-private[pulsar] case class PulsarMetadataReader(
+private[pulsar] case class PulsarHelper(
     serviceUrl: String,
     adminUrl: String,
     clientConf: ju.Map[String, Object],
@@ -72,7 +72,7 @@ private[pulsar] case class PulsarMetadataReader(
     }
   }
 
-  def setupCursorByMid(offset: SpecificPulsarOffset, subscription: Option[String]): Unit = {
+  private def setupCursorByMid(offset: SpecificPulsarOffset, subscription: Option[String]): Unit = {
     offset.topicOffsets.foreach { case (tp, mid) =>
       val umid = mid.asInstanceOf[UserProvidedMessageId]
       val (subscriptionName, subscriptionPredefined) = extractSubscription(subscription, tp)
@@ -98,7 +98,7 @@ private[pulsar] case class PulsarMetadataReader(
     }
   }
 
-  def setupCursorByTime(time: SpecificPulsarTime, subscription: Option[String]): Unit = {
+  private def setupCursorByTime(time: SpecificPulsarTime, subscription: Option[String]): Unit = {
     time.topicTimes.foreach { case (tp, time) =>
       val msgID = time match {
         case PulsarProvider.EARLIEST_TIME => MessageId.earliest
@@ -184,24 +184,12 @@ private[pulsar] case class PulsarMetadataReader(
   }
 
   def getAndCheckCompatible(schema: Option[StructType]): StructType = {
-    val inferredSchema = getSchema()
+    val si = getPulsarSchema()
+    val inferredSchema = SchemaUtils.pulsarSourceSchema(si)
     require(
       schema.isEmpty || inferredSchema == schema.get,
       "The Schema of Pulsar source and provided doesn't match")
     inferredSchema
-  }
-
-  def getAndCheckCompatible(schema: Optional[StructType]): StructType = {
-    val inferredSchema = getSchema()
-    require(
-      !schema.isPresent || inferredSchema == schema.get,
-      "The Schema of Pulsar source and provided doesn't match")
-    inferredSchema
-  }
-
-  def getSchema(): StructType = {
-    val si = getPulsarSchema()
-    SchemaUtils.pulsarSourceSchema(si)
   }
 
   def getPulsarSchema(): SchemaInfo = {
@@ -231,7 +219,7 @@ private[pulsar] case class PulsarMetadataReader(
     }
   }
 
-  def getPulsarSchema(topic: String): SchemaInfo = {
+  private def getPulsarSchema(topic: String): SchemaInfo = {
     try {
       admin.schemas().getSchemaInfo(TopicName.get(topic).toString)
     } catch {
@@ -459,7 +447,7 @@ private[pulsar] case class PulsarMetadataReader(
     }
   }
 
-  def fetchCurrentOffsets(
+  private def fetchCurrentOffsets(
       time: SpecificPulsarTime,
       pollTimeoutMs: Int,
       reportDataLoss: String => Unit): Map[String, MessageId] = {
@@ -509,7 +497,7 @@ private[pulsar] case class PulsarMetadataReader(
     }
   }
 
-  def fetchCurrentOffsets(
+  private def fetchCurrentOffsets(
       offset: SpecificPulsarOffset,
       poolTimeoutMs: Int,
       reportDataLoss: String => Unit): Map[String, MessageId] = {

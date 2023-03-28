@@ -62,7 +62,7 @@ private[pulsar] class PulsarProvider
 
     val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}"
     val inferredSchema = Utils.tryWithResource(
-      PulsarMetadataReader(
+      PulsarHelper(
         serviceUrlConfig,
         adminUrlConfig,
         clientConfig,
@@ -70,8 +70,8 @@ private[pulsar] class PulsarProvider
         subscriptionNamePrefix,
         caseInsensitiveParams,
         getAllowDifferentTopicSchemas(parameters),
-        getPredefinedSubscription(parameters))) { reader =>
-      reader.getAndCheckCompatible(schema)
+        getPredefinedSubscription(parameters))) { pulsarHelper =>
+      pulsarHelper.getAndCheckCompatible(schema)
     }
     (shortName(), inferredSchema)
   }
@@ -87,7 +87,7 @@ private[pulsar] class PulsarProvider
       prepareConfForReader(parameters)
 
     val subscriptionNamePrefix = getSubscriptionPrefix(parameters)
-    val metadataReader = PulsarMetadataReader(
+    val pulsarHelper = PulsarHelper(
       serviceUrl,
       adminUrl,
       clientConfig,
@@ -97,16 +97,16 @@ private[pulsar] class PulsarProvider
       getAllowDifferentTopicSchemas(parameters),
       getPredefinedSubscription(parameters))
 
-    metadataReader.getAndCheckCompatible(schema)
+    pulsarHelper.getAndCheckCompatible(schema)
 
     // start from latest offset if not specified to be consistent with Pulsar source
     val offset =
-      metadataReader.offsetForEachTopic(caseInsensitiveParams, LatestOffset, StartOptionKey)
-    metadataReader.setupCursor(offset)
+      pulsarHelper.offsetForEachTopic(caseInsensitiveParams, LatestOffset, StartOptionKey)
+    pulsarHelper.setupCursor(offset)
 
     new PulsarSource(
       sqlContext,
-      metadataReader,
+      pulsarHelper,
       clientConfig,
       readerConfig,
       metadataPath,
@@ -127,7 +127,7 @@ private[pulsar] class PulsarProvider
     val (clientConfig, readerConfig, adminClientConfig, serviceUrl, adminUrl) =
       prepareConfForReader(parameters)
     val (start, end, schema, pSchema) = Utils.tryWithResource(
-      PulsarMetadataReader(
+      PulsarHelper(
         serviceUrl,
         adminUrl,
         clientConfig,
@@ -135,23 +135,23 @@ private[pulsar] class PulsarProvider
         subscriptionNamePrefix,
         caseInsensitiveParams,
         getAllowDifferentTopicSchemas(parameters),
-        getPredefinedSubscription(parameters))) { reader =>
+        getPredefinedSubscription(parameters))) { pulsarHelper =>
       val perTopicStarts =
-        reader.offsetForEachTopic(caseInsensitiveParams, EarliestOffset, StartOptionKey)
+        pulsarHelper.offsetForEachTopic(caseInsensitiveParams, EarliestOffset, StartOptionKey)
       val startingOffset = SpecificPulsarOffset(
-        reader.actualOffsets(
+        pulsarHelper.actualOffsets(
           perTopicStarts,
           pollTimeoutMs(caseInsensitiveParams),
           reportDataLossFunc(failOnDataLoss(caseInsensitiveParams))))
       val perTopicEnds =
-        reader.offsetForEachTopic(caseInsensitiveParams, LatestOffset, EndOptionKey)
+        pulsarHelper.offsetForEachTopic(caseInsensitiveParams, LatestOffset, EndOptionKey)
       val endingOffset = SpecificPulsarOffset(
-        reader.actualOffsets(
+        pulsarHelper.actualOffsets(
           perTopicEnds,
           pollTimeoutMs(caseInsensitiveParams),
           reportDataLossFunc(failOnDataLoss(caseInsensitiveParams))))
 
-      val pulsarSchema = reader.getPulsarSchema()
+      val pulsarSchema = pulsarHelper.getPulsarSchema()
       val schema = SchemaUtils.pulsarSourceSchema(pulsarSchema)
       (startingOffset, endingOffset, schema, pulsarSchema)
     }
