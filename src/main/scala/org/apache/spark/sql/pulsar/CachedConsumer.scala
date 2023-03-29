@@ -1,18 +1,36 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.spark.sql.pulsar
 
-import java.util.concurrent.{ExecutionException, TimeUnit}
+import java.util.concurrent.TimeUnit
+
 import scala.util.control.NonFatal
+
 import com.google.common.cache._
-import com.google.common.util.concurrent.{ExecutionError, UncheckedExecutionException}
+
 import org.apache.pulsar.client.api.{Consumer, PulsarClient}
-import org.apache.pulsar.client.impl.schema.AutoConsumeSchema
 import org.apache.pulsar.client.api.schema.GenericRecord
+import org.apache.pulsar.client.impl.schema.AutoConsumeSchema
+
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 
+import scala.util.{Failure, Success, Try}
+
 private[pulsar] object CachedConsumer extends Logging {
 
-  private var client: Option[PulsarClient] = None
+  private var client: PulsarClient = null
 
   private val defaultCacheExpireTimeout = TimeUnit.MINUTES.toMillis(10)
 
@@ -24,20 +42,19 @@ private[pulsar] object CachedConsumer extends Logging {
 
   private val cacheLoader = new CacheLoader[(String, String), Consumer[GenericRecord]]() {
     override def load(k: (String, String)): Consumer[GenericRecord] = {
-      val (topic, subscription) = (k._1, k._2)
-      try {
-        val consumer = client.get
+      val (topic, subscription) = k
+      Try(
+        client
           .newConsumer(new AutoConsumeSchema())
           .topic(topic)
           .subscriptionName(subscription)
-          .subscribe()
-
-        consumer
-      } catch {
-        case e: Throwable =>
+          .subscribe()) match {
+        case Success(consumer) => consumer
+        case Failure(exception) => {
           logError(
             s"Failed to create consumer to topic ${topic} with subscription ${subscription}")
-          throw e
+          throw exception
+        }
       }
     }
   }
@@ -45,11 +62,8 @@ private[pulsar] object CachedConsumer extends Logging {
   private val removalListener = new RemovalListener[(String, String), Consumer[GenericRecord]]() {
     override def onRemoval(
         notification: RemovalNotification[(String, String), Consumer[GenericRecord]]): Unit = {
-      val (topic, subscription) = (notification.getKey._1, notification.getKey._2)
-      val consumer = notification.getValue
-
       try {
-        consumer.close()
+        notification.getValue.close()
       } catch {
         case NonFatal(e) => logWarning("Error while closing consumer.", e)
       }
@@ -68,11 +82,10 @@ private[pulsar] object CachedConsumer extends Logging {
       subscription: String,
       client: PulsarClient): Consumer[GenericRecord] = {
     try {
-      this.client = Some(client)
+      this.client = client
       guavaCache.get((topic, subscription))
     } catch {
-      case e @ (_: ExecutionException | _: UncheckedExecutionException | _: ExecutionError)
-          if e.getCause != null =>
+      case NonFatal(e) if e.getCause != null =>
         throw e.getCause
     }
   }

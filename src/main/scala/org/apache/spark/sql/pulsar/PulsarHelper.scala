@@ -31,6 +31,8 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.sql.pulsar.PulsarOptions._
 import org.apache.spark.sql.types.StructType
 
+import scala.util.control.NonFatal
+
 /**
  * A Helper class that is responsible for interacting with Pulsar to conduct subscription
  * management, cursor management, schema and topic metadata lookup etc.
@@ -295,7 +297,7 @@ private[pulsar] case class PulsarHelper(
           client.getPartitionedTopicMetadata(topic).get()
           waitList -= topic
         } catch {
-          case _: Throwable =>
+          case NonFatal(_) =>
             logInfo(s"The desired $topic doesn't existed, wait for 5 seconds.")
             Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS)
         }
