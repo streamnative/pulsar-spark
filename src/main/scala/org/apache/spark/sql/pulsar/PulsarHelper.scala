@@ -16,8 +16,8 @@ package org.apache.spark.sql.pulsar
 import java.{util => ju}
 import java.io.Closeable
 import java.util.concurrent.TimeUnit
-
 import java.util.regex.Pattern
+
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.language.postfixOps
