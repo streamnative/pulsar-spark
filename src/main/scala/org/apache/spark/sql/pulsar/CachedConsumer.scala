@@ -15,14 +15,13 @@ package org.apache.spark.sql.pulsar
 
 import java.util.concurrent.TimeUnit
 
-import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
 
 import com.google.common.cache._
-
 import org.apache.pulsar.client.api.{Consumer, PulsarClient}
 import org.apache.pulsar.client.api.schema.GenericRecord
 import org.apache.pulsar.client.impl.schema.AutoConsumeSchema
+
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 
@@ -83,12 +82,12 @@ private[pulsar] object CachedConsumer extends Logging {
       topic: String,
       subscription: String,
       client: PulsarClient): Consumer[GenericRecord] = {
-    try {
-      this.client = client
-      guavaCache.get((topic, subscription))
-    } catch {
-      case NonFatal(e) if e.getCause != null =>
-        throw e.getCause
+    this.client = client
+    Try(guavaCache.get((topic, subscription))) match {
+      case Success(consumer) => consumer
+      case Failure(exception) =>
+        logError(s"Failed to create consumer to topic ${topic} with subscription ${subscription}")
+        throw exception
     }
   }
 
