@@ -16,17 +16,17 @@ package org.apache.spark.sql.pulsar
 import java.{util => ju}
 import java.io.Closeable
 import java.util.concurrent.TimeUnit
-import java.util.regex.Pattern
 
+import java.util.regex.Pattern
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.language.postfixOps
 import scala.util.control.NonFatal
 
-import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.{Message, MessageId}
 import org.apache.pulsar.client.impl.PulsarClientImpl
 import org.apache.pulsar.client.impl.schema.BytesSchema
+import org.apache.pulsar.common.api.proto.CommandGetTopicsOfNamespace
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
 import org.apache.pulsar.shade.com.google.common.util.concurrent.Uninterruptibles
@@ -52,14 +52,14 @@ private[pulsar] case class PulsarHelper(
 
   import scala.collection.JavaConverters._
 
-  protected val admin: PulsarAdmin = AdminUtils.buildAdmin(adminUrl, adminClientConf)
   protected var client: PulsarClientImpl = CachedPulsarClient.getOrCreate(clientConf)
 
   private var topics: Seq[String] = _
   private var topicPartitions: Seq[String] = _
 
   override def close(): Unit = {
-    admin.close()
+    CachedPulsarClient.clear()
+    CachedConsumer.clear()
   }
 
   def setupCursor(startingPos: PerTopicOffset): Unit = {
@@ -156,7 +156,7 @@ private[pulsar] case class PulsarHelper(
   }
 
   def getAndCheckCompatible(schema: Option[StructType]): StructType = {
-    val si = getPulsarSchema()
+    val si = getPulsarSchema
     val inferredSchema = SchemaUtils.pulsarSourceSchema(si)
     require(
       schema.isEmpty || inferredSchema == schema.get,
@@ -164,7 +164,7 @@ private[pulsar] case class PulsarHelper(
     inferredSchema
   }
 
-  def getPulsarSchema(): SchemaInfo = {
+  def getPulsarSchema: SchemaInfo = {
     getTopics()
     allowDifferentTopicSchemas match {
       case false =>
@@ -204,7 +204,7 @@ private[pulsar] case class PulsarHelper(
   }
 
   def fetchLatestOffsets(): SpecificPulsarOffset = {
-    getTopicPartitions()
+    getTopicPartitions
     SpecificPulsarOffset(topicPartitions.map { tp =>
       (tp -> fetchLatestOffsetForTopic(tp))
     }.toMap)
@@ -248,33 +248,33 @@ private[pulsar] case class PulsarHelper(
     waitForTopicIfNeeded()
   }
 
-  private def getTopicPartitions(): Seq[String] = {
+  private def getTopicPartitions: Seq[String] = {
     getTopics()
     topicPartitions = topics.flatMap { tp =>
-      val partNum = client.getPartitionedTopicMetadata(tp).get().partitions
-      if (partNum == 0) {
-        tp :: Nil
-      } else {
-        (0 until partNum).map(tp + PulsarOptions.PartitionSuffix + _)
-      }
+      client.getPartitionsForTopic(tp).get().asScala.map(_.toString)
     }
     topicPartitions
   }
 
   private def getTopics(topicsPattern: String): Seq[String] = {
     val dest = TopicName.get(topicsPattern)
-    val allNonPartitionedTopics: ju.List[String] =
-      admin
-        .topics()
-        .getList(dest.getNamespace)
-        .asScala
-        .filter(t => !TopicName.get(t).isPartitioned)
-        .asJava
+    val allTopics: ju.List[String] = client.getLookup
+      .getTopicsUnderNamespace(dest.getNamespaceObject, CommandGetTopicsOfNamespace.Mode.ALL)
+      .get()
+
+    val allNonPartitionedTopics: ju.List[String] = allTopics.asScala
+      .filter(t => !TopicName.get(t).isPartitioned)
+      .asJava
     val nonPartitionedMatch = topicsPatternFilter(allNonPartitionedTopics, dest.toString)
 
-    val allPartitionedTopics: ju.List[String] =
-      admin.topics().getPartitionedTopicList(dest.getNamespace)
+    val allPartitionedTopics: ju.List[String] = allTopics.asScala
+      .filter(t => TopicName.get(t).isPartitioned)
+      .map(TopicName.get(_).getPartitionedTopicName) // trim partition suffix
+      .toSet // deduplicate topics
+      .toSeq
+      .asJava
     val partitionedMatch = topicsPatternFilter(allPartitionedTopics, dest.toString)
+
     nonPartitionedMatch ++ partitionedMatch
   }
 
@@ -310,7 +310,7 @@ private[pulsar] case class PulsarHelper(
       params: Map[String, String],
       defaultOffsets: PulsarOffset,
       optionKey: String): PerTopicOffset = {
-    getTopicPartitions()
+    getTopicPartitions
 
     val offset = PulsarProvider.getPulsarOffset(params, defaultOffsets, optionKey)
     offset match {
@@ -365,7 +365,7 @@ private[pulsar] case class PulsarHelper(
       offsetOptionKey: String,
       defaultOffsets: PulsarOffset): SpecificPulsarOffset = {
 
-    getTopicPartitions()
+    getTopicPartitions
     val offset = PulsarProvider.getPulsarOffset(params, offsetOptionKey, defaultOffsets)
     offset match {
       case LatestOffset =>
@@ -461,11 +461,6 @@ private[pulsar] case class PulsarHelper(
       val actualOffset = fetchOffsetForTopic(poolTimeoutMs, reportDataLoss, tp, off)
       (tp, actualOffset)
     }
-  }
-
-  def getMetrics(): PulsarMetrics = {
-    getTopics()
-    new PulsarMetrics(admin, topics, driverGroupIdPrefix)
   }
 
   @tailrec
