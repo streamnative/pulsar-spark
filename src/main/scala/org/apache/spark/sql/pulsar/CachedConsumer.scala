@@ -16,17 +16,15 @@ package org.apache.spark.sql.pulsar
 import java.util.concurrent.TimeUnit
 
 import scala.util.control.NonFatal
+import scala.util.{Failure, Success, Try}
 
 import com.google.common.cache._
 
 import org.apache.pulsar.client.api.{Consumer, PulsarClient}
 import org.apache.pulsar.client.api.schema.GenericRecord
 import org.apache.pulsar.client.impl.schema.AutoConsumeSchema
-
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
-
-import scala.util.{Failure, Success, Try}
 
 private[pulsar] object CachedConsumer extends Logging {
 
@@ -36,9 +34,14 @@ private[pulsar] object CachedConsumer extends Logging {
 
   private lazy val cacheExpireTimeout: Long =
     Option(SparkEnv.get)
-      .map(_.conf
-        .getTimeAsMs("spark.pulsar.client.cache.timeout", s"${defaultCacheExpireTimeout}ms"))
-      .getOrElse(defaultCacheExpireTimeout)
+      .map(
+        _.conf
+          .getTimeAsMs(
+            "spark.pulsar.client.cache.timeout",
+            s"${defaultCacheExpireTimeout}ms")) match {
+      case Some(timeout) => timeout
+      case None => defaultCacheExpireTimeout
+    }
 
   private val cacheLoader = new CacheLoader[(String, String), Consumer[GenericRecord]]() {
     override def load(k: (String, String)): Consumer[GenericRecord] = {
@@ -50,11 +53,10 @@ private[pulsar] object CachedConsumer extends Logging {
           .subscriptionName(subscription)
           .subscribe()) match {
         case Success(consumer) => consumer
-        case Failure(exception) => {
+        case Failure(exception) =>
           logError(
             s"Failed to create consumer to topic ${topic} with subscription ${subscription}")
           throw exception
-        }
       }
     }
   }
@@ -62,10 +64,10 @@ private[pulsar] object CachedConsumer extends Logging {
   private val removalListener = new RemovalListener[(String, String), Consumer[GenericRecord]]() {
     override def onRemoval(
         notification: RemovalNotification[(String, String), Consumer[GenericRecord]]): Unit = {
-      try {
-        notification.getValue.close()
-      } catch {
-        case NonFatal(e) => logWarning("Error while closing consumer.", e)
+      Try(notification.getValue.close()) match {
+        case Success(_) => logInfo(s"Closed consumer for ${notification.getKey}")
+        case Failure(exception) =>
+          logWarning(s"Failed to close consumer for ${notification.getKey}", exception)
       }
     }
   }

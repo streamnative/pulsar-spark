@@ -17,9 +17,12 @@ import java.{util => ju}
 import java.io.Closeable
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
+
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.language.postfixOps
+import scala.util.control.NonFatal
+
 import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.{Message, MessageId}
 import org.apache.pulsar.client.impl.PulsarClientImpl
@@ -30,8 +33,6 @@ import org.apache.pulsar.shade.com.google.common.util.concurrent.Uninterruptible
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.pulsar.PulsarOptions._
 import org.apache.spark.sql.types.StructType
-
-import scala.util.control.NonFatal
 
 /**
  * A Helper class that is responsible for interacting with Pulsar to conduct subscription
