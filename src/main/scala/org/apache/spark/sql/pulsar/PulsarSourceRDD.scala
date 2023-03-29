@@ -18,7 +18,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import org.apache.pulsar.client.admin.PulsarAdmin
-import org.apache.pulsar.client.api.{Message, MessageId, Schema, SubscriptionType}
+import org.apache.pulsar.client.api.{Message, MessageId, PulsarClientException, Schema, SubscriptionType}
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
 
 import org.apache.spark.{Partition, SparkContext, TaskContext}
@@ -79,59 +79,78 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       var currentMessage: Message[_] = _
       var currentId: MessageId = _
 
-      if (!startOffset.isInstanceOf[UserProvidedMessageId] && startOffset != MessageId.earliest) {
-        currentMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
-        if (currentMessage == null) {
-          isLast = true
-          reportDataLoss(s"cannot read data at $startOffset from topic $topic")
-        } else {
-          currentId = currentMessage.getMessageId
-          if (startOffset != MessageId.earliest && !messageIdRoughEquals(
-              currentId,
-              startOffset)) {
-            reportDataLoss(
-              s"Potential Data Loss: intended to start at $startOffset, " +
-                s"actually we get $currentId")
-          }
+      try {
+        if (!startOffset.isInstanceOf[UserProvidedMessageId] && startOffset != MessageId.earliest) {
+          reader.seek(startOffset)
+          currentMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
+          if (currentMessage == null) {
+            isLast = true
+            reportDataLoss(s"cannot read data at $startOffset from topic $topic")
+          } else {
+            currentId = currentMessage.getMessageId
+            if (startOffset != MessageId.earliest && !messageIdRoughEquals(
+                currentId,
+                startOffset)) {
+              reportDataLoss(
+                s"Potential Data Loss: intended to start at $startOffset, " +
+                  s"actually we get $currentId")
+            }
 
-          (startOffset, currentId) match {
-            case (_: BatchMessageIdImpl, _: BatchMessageIdImpl) =>
-            // we seek using a batch message id, we can read next directly in `getNext()`
-            case (_: MessageIdImpl, cbmid: BatchMessageIdImpl) =>
-              // we seek using a message id, this is supposed to be read by previous task since it's
-              // inclusive for the last batch (start, end], so we skip this batch
-              val newStart = new MessageIdImpl(
-                cbmid.getLedgerId,
-                cbmid.getEntryId + 1,
-                cbmid.getPartitionIndex)
-              reader.seek(newStart)
-            case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
-            // current entry is a non-batch entry, we can read next directly in `getNext()`
+            (startOffset, currentId) match {
+              case (_: BatchMessageIdImpl, _: BatchMessageIdImpl) =>
+              // we seek using a batch message id, we can read next directly in `getNext()`
+              case (_: MessageIdImpl, cbmid: BatchMessageIdImpl) =>
+                // we seek using a message id, this is supposed to be read by previous task since it's
+                // inclusive for the last batch (start, end], so we skip this batch
+                val newStart = new MessageIdImpl(
+                  cbmid.getLedgerId,
+                  cbmid.getEntryId + 1,
+                  cbmid.getPartitionIndex)
+                reader.seek(newStart)
+              case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
+              // current entry is a non-batch entry, we can read next directly in `getNext()`
+            }
           }
         }
+      } catch {
+        case e: PulsarClientException =>
+          logError(s"PulsarClient failed to read message from topic $topic", e)
+          close()
+          throw e
+        case e: Throwable =>
+          throw e
       }
 
       override protected def getNext(): InternalRow = {
-        if (isLast) {
-          finished = true
-          return null
-        }
-        currentMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
-        if (currentMessage == null) {
-          reportDataLoss(
-            s"We didn't get enough message as promised from topic $topic, data loss occurs")
-          finished = true
-          return null
-        }
+        try {
+          if (isLast) {
+            finished = true
+            return null
+          }
+          currentMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
+          if (currentMessage == null) {
+            reportDataLoss(
+              s"We didn't get enough message as promised from topic $topic, data loss occurs")
+            finished = true
+            return null
+          }
 
-        currentId = currentMessage.getMessageId
+          currentId = currentMessage.getMessageId
 
-        finished = false
-        inEnd = enterEndFunc(currentId)
-        if (inEnd) {
-          isLast = isLastMessage(currentId)
+          finished = false
+          inEnd = enterEndFunc(currentId)
+          if (inEnd) {
+            isLast = isLastMessage(currentId)
+          }
+          deserializer.deserialize(currentMessage)
+        } catch {
+          case e: PulsarClientException =>
+            logError(s"PulsarClient failed to read message from topic $topic", e)
+            close()
+            throw e
+          case e: Throwable =>
+            throw e
         }
-        deserializer.deserialize(currentMessage)
       }
 
       override protected def close(): Unit = {
