@@ -19,7 +19,6 @@ import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.MessageIdImpl
 import org.apache.pulsar.common.schema.SchemaInfo
 
-import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.sql.catalyst.InternalRow
@@ -28,16 +27,16 @@ import org.apache.spark.sql.execution.streaming.{Offset, Source}
 import org.apache.spark.sql.types.StructType
 
 private[pulsar] class PulsarSource(
-                                    sqlContext: SQLContext,
-                                    pulsarHelper: PulsarHelper,
-                                    clientConf: ju.Map[String, Object],
-                                    readerConf: ju.Map[String, Object],
-                                    metadataPath: String,
-                                    startingOffsets: PerTopicOffset,
-                                    pollTimeoutMs: Int,
-                                    failOnDataLoss: Boolean,
-                                    subscriptionNamePrefix: String,
-                                    jsonOptions: JSONOptionsInRead)
+    sqlContext: SQLContext,
+    pulsarHelper: PulsarHelper,
+    clientConf: ju.Map[String, Object],
+    readerConf: ju.Map[String, Object],
+    metadataPath: String,
+    startingOffsets: PerTopicOffset,
+    pollTimeoutMs: Int,
+    failOnDataLoss: Boolean,
+    subscriptionNamePrefix: String,
+    jsonOptions: JSONOptionsInRead)
     extends Source
     with Logging {
 
@@ -45,7 +44,7 @@ private[pulsar] class PulsarSource(
 
   private val sc = sqlContext.sparkContext
 
-  private val reportDataLoss = reportDataLossFunc(failOnDataLoss)
+  val reportDataLoss = reportDataLossFunc(failOnDataLoss)
   private var stopped = false
 
   private lazy val initialTopicOffsets: SpecificPulsarOffset = {
@@ -82,7 +81,7 @@ private[pulsar] class PulsarSource(
     if (start.isDefined && start.get == end) {
       return sqlContext.internalCreateDataFrame(
         sqlContext.sparkContext.emptyRDD[InternalRow].setName("empty"),
-        schema(),
+        schema,
         isStreaming = true)
     }
 
@@ -153,14 +152,7 @@ private[pulsar] class PulsarSource(
       "GetBatch generating RDD of offset range: " +
         offsetRanges.sortBy(_.topic).mkString(", "))
 
-    // Register the monitor metrics here.
-    val env = SparkEnv.get
-    if (env != null) {
-      val metrics = pulsarHelper.getMetrics()
-      env.metricsSystem.registerSource(metrics)
-    }
-
-    sqlContext.internalCreateDataFrame(rdd.setName("pulsar"), schema(), isStreaming = true)
+    sqlContext.internalCreateDataFrame(rdd.setName("pulsar"), schema, isStreaming = true)
   }
 
   override def commit(end: Offset): Unit = {
@@ -174,5 +166,6 @@ private[pulsar] class PulsarSource(
       pulsarHelper.close()
       stopped = true
     }
+
   }
 }

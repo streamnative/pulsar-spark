@@ -194,28 +194,28 @@ private[pulsar] case class PulsarHelper(
 
   def getPulsarSchema(): SchemaInfo = {
     getTopics()
-    if (allowDifferentTopicSchemas) {
-      SchemaUtils.emptySchemaInfo()
-    } else {
-      if (topics.nonEmpty) {
-        val schemas = topics.map { tp =>
-          getPulsarSchema(tp)
-        }
-        val sset = schemas.toSet
-        if (sset.size != 1) {
-          throw new IllegalArgumentException(
-            "Topics to read must share identical schema. Consider setting " +
-              s"'$AllowDifferentTopicSchemas' to 'false' to read topics with empty " +
-              s"schemas instead. We got ${sset.size} distinct " +
-              s"schemas:[${sset.mkString(", ")}]")
+    allowDifferentTopicSchemas match {
+      case false =>
+        if (topics.size > 0) {
+          val schemas = topics.map { tp =>
+            getPulsarSchema(tp)
+          }
+          val sset = schemas.toSet
+          if (sset.size != 1) {
+            throw new IllegalArgumentException(
+              "Topics to read must share identical schema. Consider setting " +
+                s"'$AllowDifferentTopicSchemas' to 'false' to read topics with empty " +
+                s"schemas instead. We got ${sset.size} distinct " +
+                s"schemas:[${sset.mkString(", ")}]")
+          } else {
+            sset.head
+          }
         } else {
-          sset.head
+          // if no topic exists, and we are getting schema,
+          // then auto created topic has schema of None
+          SchemaUtils.emptySchemaInfo()
         }
-      } else {
-        // if no topic exists, and we are getting schema,
-        // then auto created topic has schema of None
-        SchemaUtils.emptySchemaInfo()
-      }
+      case true => SchemaUtils.emptySchemaInfo()
     }
   }
 
@@ -506,11 +506,6 @@ private[pulsar] case class PulsarHelper(
       val actualOffset = fetchOffsetForTopic(poolTimeoutMs, reportDataLoss, tp, off)
       (tp, actualOffset)
     }
-  }
-
-  def getMetrics(): PulsarMetrics = {
-    getTopics()
-    new PulsarMetrics(admin, topics, driverGroupIdPrefix)
   }
 
   @tailrec

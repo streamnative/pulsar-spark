@@ -16,9 +16,9 @@ package org.apache.spark.sql.pulsar
 import java.io._
 import java.nio.charset.StandardCharsets
 
+import org.apache.commons.io.IOUtils
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl, TopicMessageIdImpl}
-import org.apache.pulsar.shade.org.apache.commons.io.IOUtils
 
 import org.apache.spark.{SparkContext, SparkEnv}
 import org.apache.spark.internal.Logging
