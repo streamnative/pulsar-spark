@@ -57,22 +57,22 @@ private[pulsar] class PulsarProvider
       parameters: Map[String, String]): (String, StructType) = {
 
     val caseInsensitiveParams = validateStreamOptions(parameters)
-    val (clientConfig, _, adminClientConfig, serviceUrlConfig, adminUrlConfig) =
-      prepareConfForReader(parameters)
+    val (clientConfig, _, serviceUrlConfig) = prepareConfForReader(parameters)
 
     val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}"
     val inferredSchema = Utils.tryWithResource(
       PulsarHelper(
         serviceUrlConfig,
-        adminUrlConfig,
         clientConfig,
-        adminClientConfig,
         subscriptionNamePrefix,
         caseInsensitiveParams,
         getAllowDifferentTopicSchemas(parameters),
         getPredefinedSubscription(parameters))) { pulsarHelper =>
       pulsarHelper.getAndCheckCompatible(schema)
     }
+
+    logInfo(s"Schema of Pulsar source: $inferredSchema")
+
     (shortName(), inferredSchema)
   }
 
@@ -82,22 +82,24 @@ private[pulsar] class PulsarProvider
       schema: Option[StructType],
       providerName: String,
       parameters: Map[String, String]): Source = {
+    logDebug(s"Creating Pulsar source: $parameters")
+
     val caseInsensitiveParams = validateStreamOptions(parameters)
-    val (clientConfig, readerConfig, adminClientConfig, serviceUrl, adminUrl) =
-      prepareConfForReader(parameters)
+    val (clientConfig, readerConfig, serviceUrl) = prepareConfForReader(parameters)
+    logDebug(
+      s"Client config: $clientConfig; Reader config: $readerConfig; Service URL: $serviceUrl")
 
     val subscriptionNamePrefix = getSubscriptionPrefix(parameters)
     val pulsarHelper = PulsarHelper(
       serviceUrl,
-      adminUrl,
       clientConfig,
-      adminClientConfig,
       subscriptionNamePrefix,
       caseInsensitiveParams,
       getAllowDifferentTopicSchemas(parameters),
       getPredefinedSubscription(parameters))
 
-    pulsarHelper.getAndCheckCompatible(schema)
+    val pSchema = pulsarHelper.getAndCheckCompatible(schema)
+    logDebug(s"Schema from Spark: $schema; Schema from Pulsar: ${pSchema}")
 
     // start from latest offset if not specified to be consistent with Pulsar source
     val offset =
@@ -124,14 +126,11 @@ private[pulsar] class PulsarProvider
 
     val subscriptionNamePrefix = getSubscriptionPrefix(parameters, isBatch = true)
 
-    val (clientConfig, readerConfig, adminClientConfig, serviceUrl, adminUrl) =
-      prepareConfForReader(parameters)
+    val (clientConfig, readerConfig, serviceUrl) = prepareConfForReader(parameters)
     val (start, end, schema, pSchema) = Utils.tryWithResource(
       PulsarHelper(
         serviceUrl,
-        adminUrl,
         clientConfig,
-        adminClientConfig,
         subscriptionNamePrefix,
         caseInsensitiveParams,
         getAllowDifferentTopicSchemas(parameters),
@@ -160,7 +159,6 @@ private[pulsar] class PulsarProvider
       sqlContext,
       schema,
       new SchemaInfoSerializable(pSchema),
-      adminUrl,
       clientConfig,
       readerConfig,
       start,
@@ -262,10 +260,6 @@ private[pulsar] object PulsarProvider extends Logging {
     getModuleParams(parameters, PulsarReaderOptionKeyPrefix, readerConfKeys)
   }
 
-  private def getAdminParams(parameters: Map[String, String]): Map[String, String] = {
-    getModuleParams(parameters, PulsarAdminOptionKeyPrefix, clientConfKeys)
-  }
-
   private def getModuleParams(
       connectorConfiguration: Map[String, String],
       modulePrefix: String,
@@ -281,10 +275,6 @@ private[pulsar] object PulsarProvider extends Logging {
         k,
         throw new IllegalArgumentException(s"$k not supported by pulsar")) -> v
     }
-  }
-
-  private def hasAdminParams(parameters: Map[String, String]): Boolean = {
-    getAdminParams(parameters).nonEmpty
   }
 
   def getPulsarOffset(
@@ -404,10 +394,6 @@ private[pulsar] object PulsarProvider extends Logging {
       throw new IllegalArgumentException(s"$ServiceUrlOptionKey must be specified")
     }
 
-    if (!caseInsensitiveParams.contains(AdminUrlOptionKey)) {
-      throw new IllegalArgumentException(s"$AdminUrlOptionKey must be specified")
-    }
-
     // validate topic options
     val topicOptions = caseInsensitiveParams.filter { case (k, _) =>
       TopicOptionKeys.contains(k)
@@ -511,29 +497,18 @@ private[pulsar] object PulsarProvider extends Logging {
     caseInsensitiveParams
   }
 
-  private def prepareConfForReader(parameters: Map[String, String]): (
-      ju.Map[String, Object],
-      ju.Map[String, Object],
-      ju.Map[String, Object],
-      String,
-      String) = {
+  private def prepareConfForReader(parameters: Map[String, String])
+      : (ju.Map[String, Object], ju.Map[String, Object], String) = {
 
     val serviceUrl = getServiceUrl(parameters)
-    val adminUrl = getAdminUrl(parameters)
-
     var clientParams = getClientParams(parameters)
     clientParams += (ServiceUrlOptionKey -> serviceUrl)
     val readerParams = getReaderParams(parameters)
-    val adminParams = Option(getAdminParams(parameters))
-      .filter(_.nonEmpty)
-      .getOrElse(clientParams)
 
     (
       paramsToPulsarConf("pulsar.client", clientParams),
       paramsToPulsarConf("pulsar.reader", readerParams),
-      paramsToPulsarConf("pulsar.admin", adminParams),
-      serviceUrl,
-      adminUrl)
+      serviceUrl)
   }
 
   private def prepareConfForProducer(parameters: Map[String, String])
