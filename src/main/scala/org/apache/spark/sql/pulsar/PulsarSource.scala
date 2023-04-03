@@ -54,7 +54,7 @@ private[pulsar] class PulsarSource(
 
   private var currentTopicOffsets: Option[Map[String, MessageId]] = None
 
-  private lazy val pulsarSchema: SchemaInfo = pulsarHelper.getPulsarSchema()
+  private lazy val pulsarSchema: SchemaInfo = pulsarHelper.getPulsarSchema
 
   override def schema(): StructType = SchemaUtils.pulsarSourceSchema(pulsarSchema)
 

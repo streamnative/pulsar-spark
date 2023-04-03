@@ -18,9 +18,7 @@ import java.util.function.BiConsumer
 
 import scala.collection.mutable
 
-import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.{MessageId, Producer}
-
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Cast, Literal, UnsafeProjection}
 import org.apache.spark.sql.types._
@@ -137,7 +135,6 @@ private[pulsar] abstract class PulsarRowWriter(
   // reuse producer through the executor
   protected lazy val singleProducer =
     if (topic.isDefined) {
-      SchemaUtils.uploadPulsarSchema(admin, topic.get, pulsarSchema.getSchemaInfo)
       PulsarSinks.createProducer(clientConf, producerConf, topic.get, pulsarSchema)
     } else null
   protected val topic2Producer: mutable.Map[String, Producer[_]] = mutable.Map.empty
@@ -150,7 +147,6 @@ private[pulsar] abstract class PulsarRowWriter(
     if (topic2Producer.contains(tp)) {
       topic2Producer(tp).asInstanceOf[Producer[T]]
     } else {
-      SchemaUtils.uploadPulsarSchema(admin, tp, pulsarSchema.getSchemaInfo)
       val p =
         PulsarSinks.createProducer(clientConf, producerConf, tp, pulsarSchema)
       topic2Producer.put(tp, p)

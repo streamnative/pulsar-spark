@@ -16,10 +16,11 @@ package org.apache.spark.sql.pulsar
 import java.{util => ju}
 import java.util.concurrent.TimeUnit
 
-import org.apache.pulsar.client.api.{Producer, Schema}
+import scala.util.control.NonFatal
 
+import org.apache.pulsar.client.api.{Producer, PulsarClientException, Schema}
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{AnalysisException, DataFrame, SparkSession, SQLContext}
+import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SparkSession}
 import org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Literal}
 import org.apache.spark.sql.execution.QueryExecution
@@ -161,15 +162,28 @@ private[pulsar] object PulsarSinks extends Logging {
       topic: String,
       schema: Schema[T]): Producer[T] = {
 
-    CachedPulsarClient
-      .getOrCreate(clientConf)
-      .newProducer(schema)
-      .topic(topic)
-      .loadConf(producerConf)
-      .batchingMaxPublishDelay(100, TimeUnit.MILLISECONDS)
-      // maximizing the throughput
-      .batchingMaxMessages(5 * 1024 * 1024)
-      .create()
+    try {
+      CachedPulsarClient
+        .getOrCreate(clientConf)
+        .newProducer(schema)
+        .topic(topic)
+        .loadConf(producerConf)
+        .batchingMaxPublishDelay(100, TimeUnit.MILLISECONDS)
+        // maximizing the throughput
+        .batchingMaxMessages(5 * 1024 * 1024)
+        .create()
+    } catch {
+      case e: PulsarClientException.IncompatibleSchemaException =>
+        throw new AnalysisException(
+          s"Cannot write incompatible data to topic $topic. " +
+            s"Details: ${e.getMessage}",
+          cause = Some(e))
+      case NonFatal(e) =>
+        throw new AnalysisException(
+          s"Cannot create pulsar producer for topic $topic. " +
+            s"Details: ${e.getMessage}",
+          cause = Some(e))
+    }
   }
 
   def toStructType(attrs: Seq[Attribute]): StructType = {
