@@ -152,7 +152,7 @@ private[pulsar] class PulsarSource(
       "GetBatch generating RDD of offset range: " +
         offsetRanges.sortBy(_.topic).mkString(", "))
 
-    sqlContext.internalCreateDataFrame(rdd.setName("pulsar"), schema, isStreaming = true)
+    sqlContext.internalCreateDataFrame(rdd.setName("pulsar"), schema(), isStreaming = true)
   }
 
   override def commit(end: Offset): Unit = {

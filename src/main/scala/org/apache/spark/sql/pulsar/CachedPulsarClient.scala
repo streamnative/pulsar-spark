@@ -15,8 +15,10 @@ package org.apache.spark.sql.pulsar
 
 import java.{util => ju}
 import java.util.concurrent.{ExecutionException, TimeUnit}
+
 import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
+
 import com.google.common.cache._
 import com.google.common.util.concurrent.{ExecutionError, UncheckedExecutionException}
 import org.apache.pulsar.client.api.PulsarClient
@@ -99,9 +101,9 @@ private[pulsar] object CachedPulsarClient extends Logging {
       .build[ju.Map[String, Object], PulsarClientImpl](cacheLoader)
 
   /**
-   * Get a cached PulsarClient for a given configuration. If matching PulsarClient doesn't
-   * exist, a new PulsarClient will be created. PulsarClient is thread safe, it is best to
-   * keep one instance per specified pulsarParams.
+   * Get a cached PulsarClient for a given configuration. If matching PulsarClient doesn't exist,
+   * a new PulsarClient will be created. PulsarClient is thread safe, it is best to keep one
+   * instance per specified pulsarParams.
    */
   private[pulsar] def getOrCreate(params: ju.Map[String, Object]): PulsarClientImpl = {
     try {
