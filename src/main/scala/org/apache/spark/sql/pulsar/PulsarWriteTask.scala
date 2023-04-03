@@ -27,9 +27,8 @@ private[pulsar] class PulsarWriteTask(
     clientConf: ju.Map[String, Object],
     producerConf: ju.Map[String, Object],
     topic: Option[String],
-    inputSchema: Seq[Attribute],
-    adminUrl: String)
-    extends PulsarRowWriter(inputSchema, clientConf, producerConf, topic, adminUrl) {
+    inputSchema: Seq[Attribute])
+    extends PulsarRowWriter(inputSchema, clientConf, producerConf, topic) {
 
   /**
    * Writes key value data out to topics.
@@ -53,12 +52,9 @@ private[pulsar] abstract class PulsarRowWriter(
     inputSchema: Seq[Attribute],
     clientConf: ju.Map[String, Object],
     producerConf: ju.Map[String, Object],
-    topic: Option[String],
-    adminUrl: String) {
+    topic: Option[String]) {
 
   import PulsarOptions._
-
-  protected lazy val admin = AdminUtils.buildAdmin(adminUrl, clientConf)
 
   private def createProjections = {
     val topicExpression = topic
@@ -213,6 +209,5 @@ private[pulsar] abstract class PulsarRowWriter(
   protected def producerClose(): Unit = {
     producerFlush()
     topic2Producer.clear()
-    admin.close()
   }
 }
