@@ -40,9 +40,7 @@ import org.apache.spark.sql.types.StructType
  */
 private[pulsar] case class PulsarHelper(
     serviceUrl: String,
-    adminUrl: String,
     clientConf: ju.Map[String, Object],
-    adminClientConf: ju.Map[String, Object],
     driverGroupIdPrefix: String,
     caseInsensitiveParameters: Map[String, String],
     allowDifferentTopicSchemas: Boolean,
@@ -58,8 +56,7 @@ private[pulsar] case class PulsarHelper(
   private var topicPartitions: Seq[String] = _
 
   override def close(): Unit = {
-    CachedPulsarClient.clear()
-    CachedConsumer.clear()
+    // do nothing
   }
 
   def setupCursor(startingPos: PerTopicOffset): Unit = {
@@ -164,7 +161,7 @@ private[pulsar] case class PulsarHelper(
     inferredSchema
   }
 
-  def getPulsarSchema: SchemaInfo = {
+  def getPulsarSchema(): SchemaInfo = {
     getTopics()
     allowDifferentTopicSchemas match {
       case false =>

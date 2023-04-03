@@ -29,7 +29,6 @@ private[pulsar] class PulsarRelation(
     override val sqlContext: SQLContext,
     override val schema: StructType,
     schemaInfo: SchemaInfoSerializable,
-    adminUrl: String,
     clientConf: ju.Map[String, Object],
     readerConf: ju.Map[String, Object],
     startingOffset: SpecificPulsarOffset,
@@ -85,7 +84,6 @@ private[pulsar] class PulsarRelation(
     val rdd = new PulsarSourceRDD4Batch(
       sqlContext.sparkContext,
       schemaInfo,
-      adminUrl,
       clientConf,
       readerConf,
       offsetRanges,

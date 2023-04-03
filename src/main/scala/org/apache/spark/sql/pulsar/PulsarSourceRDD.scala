@@ -14,11 +14,9 @@
 package org.apache.spark.sql.pulsar
 
 import java.{util => ju}
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-import org.apache.pulsar.client.admin.PulsarAdmin
-import org.apache.pulsar.client.api.{Message, MessageId, PulsarClientException, Schema, SubscriptionType}
+import org.apache.pulsar.client.api.{Message, MessageId, PulsarClientException, Schema}
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
 
 import org.apache.spark.{Partition, SparkContext, TaskContext}
@@ -80,7 +78,8 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       var currentId: MessageId = _
 
       try {
-        if (!startOffset.isInstanceOf[UserProvidedMessageId] && startOffset != MessageId.earliest) {
+        if (!startOffset
+            .isInstanceOf[UserProvidedMessageId] && startOffset != MessageId.earliest) {
           reader.seek(startOffset)
           currentMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
           if (currentMessage == null) {
@@ -204,7 +203,6 @@ private[pulsar] class PulsarSourceRDD(
 private[pulsar] class PulsarSourceRDD4Batch(
     sc: SparkContext,
     schemaInfo: SchemaInfoSerializable,
-    adminUrl: String,
     clientConf: ju.Map[String, Object],
     readerConf: ju.Map[String, Object],
     offsetRanges: Seq[PulsarOffsetRange],
@@ -228,13 +226,7 @@ private[pulsar] class PulsarSourceRDD4Batch(
     val part = split.asInstanceOf[PulsarSourceRDDPartition]
     val tp = part.offsetRange.topic
     val start = part.offsetRange.fromOffset
-    val end = part.offsetRange.untilOffset match {
-      case MessageId.latest =>
-        Utils.tryWithResource(AdminUtils.buildAdmin(adminUrl, clientConf)) { admin =>
-          PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp))
-        }
-      case id => id
-    }
+    val end = part.offsetRange.untilOffset
 
     if (start == end || !messageExists(end)) {
       return Iterator.empty
