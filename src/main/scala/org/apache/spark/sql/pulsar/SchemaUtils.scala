@@ -15,18 +15,14 @@ package org.apache.spark.sql.pulsar
 
 import java.io.{Externalizable, ObjectInput, ObjectOutput}
 import java.nio.charset.StandardCharsets
-import java.nio.charset.StandardCharsets.UTF_8
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
 
-import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.{Schema => PSchema}
 import org.apache.pulsar.client.api.schema.{GenericRecord, GenericSchema}
 import org.apache.pulsar.client.impl.schema._
 import org.apache.pulsar.client.impl.schema.generic.GenericSchemaImpl
-import org.apache.pulsar.common.naming.TopicName
-import org.apache.pulsar.common.protocol.schema.PostSchemaPayload
 import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
 import org.apache.pulsar.shade.org.apache.avro.{LogicalTypes, Schema => ASchema, SchemaBuilder}
 import org.apache.pulsar.shade.org.apache.avro.LogicalTypes.{
@@ -84,54 +80,6 @@ class SchemaInfoSerializable(var si: SchemaInfo) extends Externalizable {
 private[pulsar] object SchemaUtils {
 
   private lazy val nullSchema = ASchema.create(ASchema.Type.NULL)
-
-  def uploadPulsarSchema(admin: PulsarAdmin, topic: String, schemaInfo: SchemaInfo): Unit = {
-    assert(schemaInfo != null, "schemaInfo shouldn't be null")
-
-    val existingSchema =
-      try {
-        admin.schemas().getSchemaInfo(TopicName.get(topic).toString)
-      } catch {
-        case e: PulsarAdminException if e.getStatusCode == 404 =>
-          null
-        case e: Throwable =>
-          throw new RuntimeException(
-            s"Failed to get schema information for ${TopicName.get(topic).toString}",
-            e)
-      }
-
-    if (existingSchema == null) {
-      val pl = new PostSchemaPayload()
-      pl.setType(schemaInfo.getType.name())
-      pl.setSchema(new String(schemaInfo.getSchema, UTF_8))
-      pl.setProperties(schemaInfo.getProperties)
-      try {
-        admin.schemas().createSchema(TopicName.get(topic).toString, pl)
-      } catch {
-        case e: PulsarAdminException if e.getStatusCode == 404 =>
-          throw new RuntimeException(
-            s"Create schema for ${TopicName.get(topic).toString} got 404")
-        case e: Throwable =>
-          throw new RuntimeException(
-            s"Failed to create schema for ${TopicName.get(topic).toString}",
-            e)
-      }
-    } else if (existingSchema
-        .equals(schemaInfo) || compatibleSchema(existingSchema, schemaInfo)) {
-      // no need to upload again
-    } else {
-      throw new RuntimeException("Writing to a topic which have incompatible schema")
-    }
-  }
-
-  def compatibleSchema(x: SchemaInfo, y: SchemaInfo): Boolean = {
-    (x.getType, y.getType) match {
-      // None and bytes are compatible
-      case (SchemaType.NONE, SchemaType.BYTES) => true
-      case (SchemaType.BYTES, SchemaType.NONE) => true
-      case _ => false
-    }
-  }
 
   def emptySchemaInfo(): SchemaInfo = {
     SchemaInfo.builder().name("empty").`type`(SchemaType.NONE).schema(new Array[Byte](0)).build()
