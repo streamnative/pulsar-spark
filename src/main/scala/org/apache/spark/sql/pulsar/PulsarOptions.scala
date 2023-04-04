@@ -21,8 +21,6 @@ import org.apache.pulsar.common.naming.TopicName
 private[pulsar] object PulsarOptions {
 
   // option key prefix for different modules
-
-  val PulsarAdminOptionKeyPrefix: String = "pulsar.admin."
   val PulsarClientOptionKeyPrefix: String = "pulsar.client."
   val PulsarProducerOptionKeyPrefix: String = "pulsar.producer."
   val PulsarReaderOptionKeyPrefix: String = "pulsar.reader."
@@ -38,7 +36,6 @@ private[pulsar] object PulsarOptions {
   val TopicOptionKeys: Set[String] = Set(TopicSingle, TopicMulti, TopicPattern)
 
   val ServiceUrlOptionKey: String = "service.url"
-  val AdminUrlOptionKey: String = "admin.url"
   val StartingOffsetsOptionKey: String = "startingOffsets".toLowerCase(Locale.ROOT)
   val StartingTime: String = "startingTime".toLowerCase(Locale.ROOT)
   val EndingTime: String = "endingTime".toLowerCase(Locale.ROOT)

@@ -185,7 +185,7 @@ private[pulsar] class PulsarProvider
 
     val caseInsensitiveParams = validateSinkOptions(parameters)
 
-    val (clientConfig, producerConfig, topic, adminUrl) = prepareConfForProducer(parameters)
+    val (clientConfig, producerConfig, topic) = prepareConfForProducer(parameters)
     PulsarSinks.validateQuery(data.schema.toAttributes, topic)
 
     PulsarSinks.write(
@@ -193,8 +193,7 @@ private[pulsar] class PulsarProvider
       data.queryExecution,
       clientConfig,
       producerConfig,
-      topic,
-      adminUrl)
+      topic)
 
     /**
      * This method is suppose to return a relation the data that was written. Currently we haven't
@@ -227,9 +226,9 @@ private[pulsar] class PulsarProvider
 
     val caseInsensitiveParams = validateSinkOptions(parameters)
 
-    val (clientConfig, producerConfig, topic, adminUrl) = prepareConfForProducer(parameters)
+    val (clientConfig, producerConfig, topic) = prepareConfForProducer(parameters)
 
-    new PulsarSink(sqlContext, clientConfig, producerConfig, topic, adminUrl)
+    new PulsarSink(sqlContext, clientConfig, producerConfig, topic)
   }
 }
 
@@ -370,10 +369,6 @@ private[pulsar] object PulsarProvider extends Logging {
     parameters(ServiceUrlOptionKey)
   }
 
-  private def getAdminUrl(parameters: Map[String, String]): String = {
-    parameters(AdminUrlOptionKey)
-  }
-
   private def getAllowDifferentTopicSchemas(parameters: Map[String, String]): Boolean = {
     parameters.getOrElse(AllowDifferentTopicSchemas, "false").toBoolean
   }
@@ -481,10 +476,6 @@ private[pulsar] object PulsarProvider extends Logging {
       throw new IllegalArgumentException(s"$ServiceUrlOptionKey must be specified")
     }
 
-    if (!caseInsensitiveParams.contains(AdminUrlOptionKey)) {
-      throw new IllegalArgumentException(s"$AdminUrlOptionKey must be specified")
-    }
-
     val topicOptions =
       caseInsensitiveParams.filter { case (k, _) => TopicOptionKeys.contains(k) }.toSeq.toMap
     if (topicOptions.size > 1 || topicOptions.contains(TopicMulti) || topicOptions.contains(
@@ -512,10 +503,9 @@ private[pulsar] object PulsarProvider extends Logging {
   }
 
   private def prepareConfForProducer(parameters: Map[String, String])
-      : (ju.Map[String, Object], ju.Map[String, Object], Option[String], String) = {
+      : (ju.Map[String, Object], ju.Map[String, Object], Option[String]) = {
 
     val serviceUrl = getServiceUrl(parameters)
-    val adminUrl = getAdminUrl(parameters)
 
     var clientParams = getClientParams(parameters)
     clientParams += (ServiceUrlOptionKey -> serviceUrl)
@@ -526,8 +516,7 @@ private[pulsar] object PulsarProvider extends Logging {
     (
       paramsToPulsarConf("pulsar.client", clientParams),
       paramsToPulsarConf("pulsar.producer", producerParams),
-      topic,
-      adminUrl)
+      topic)
   }
 
   private def jsonOptions: JSONOptionsInRead = {

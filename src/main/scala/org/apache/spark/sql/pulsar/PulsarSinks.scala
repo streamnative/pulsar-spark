@@ -33,8 +33,7 @@ private[pulsar] class PulsarSink(
     sqlContext: SQLContext,
     pulsarClientConf: ju.Map[String, Object],
     pulsarProducerConf: ju.Map[String, Object],
-    topic: Option[String],
-    adminUrl: String)
+    topic: Option[String])
     extends Sink
     with Logging {
 
@@ -53,8 +52,7 @@ private[pulsar] class PulsarSink(
         data.queryExecution,
         pulsarClientConf,
         pulsarProducerConf,
-        topic,
-        adminUrl)
+        topic)
       latestBatchId = batchId
     }
   }
@@ -141,8 +139,7 @@ private[pulsar] object PulsarSinks extends Logging {
       queryExecution: QueryExecution,
       pulsarClientConf: ju.Map[String, Object],
       pulsarProducerConf: ju.Map[String, Object],
-      topic: Option[String],
-      adminUrl: String): Unit = {
+      topic: Option[String]): Unit = {
 
     // validate the schema
     val schema = queryExecution.analyzed.output
@@ -151,7 +148,7 @@ private[pulsar] object PulsarSinks extends Logging {
     // execute RDD
     queryExecution.toRdd.foreachPartition { iter =>
       val writeTask =
-        new PulsarWriteTask(pulsarClientConf, pulsarProducerConf, topic, schema, adminUrl)
+        new PulsarWriteTask(pulsarClientConf, pulsarProducerConf, topic, schema)
       Utils.tryWithSafeFinally(block = writeTask.execute(iter))(finallyBlock = writeTask.close())
     }
   }
