@@ -18,13 +18,13 @@ import java.io.Closeable
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
-import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.language.postfixOps
 import scala.util.control.NonFatal
 
-import org.apache.pulsar.client.api.{Message, MessageId}
-import org.apache.pulsar.client.impl.PulsarClientImpl
+import org.apache.pulsar.client.api.{MessageId, PulsarClient}
+import org.apache.pulsar.client.api.schema.GenericRecord
+import org.apache.pulsar.client.impl.{ConsumerImpl, MessageIdImpl, PulsarClientImpl}
 import org.apache.pulsar.client.impl.schema.BytesSchema
 import org.apache.pulsar.common.api.proto.CommandGetTopicsOfNamespace
 import org.apache.pulsar.common.naming.TopicName
@@ -394,106 +394,71 @@ private[pulsar] case class PulsarHelper(
       reportDataLoss: String => Unit): Map[String, MessageId] = {
 
     offset match {
-      case so: SpecificPulsarOffset => fetchCurrentOffsets(so, pollTimeoutMs, reportDataLoss)
-      case st: SpecificPulsarTime => fetchCurrentOffsets(st, pollTimeoutMs, reportDataLoss)
+      case so: SpecificPulsarOffset => fetchCurrentOffsets(so, reportDataLoss)
+      case st: SpecificPulsarTime => fetchCurrentOffsets(st, reportDataLoss)
       case t => throw new IllegalArgumentException(s"not supported offset type: $t")
     }
   }
 
   private def fetchCurrentOffsets(
-      time: SpecificPulsarTime,
-      pollTimeoutMs: Int,
+      offset: SpecificPulsarOffset,
       reportDataLoss: String => Unit): Map[String, MessageId] = {
 
-    time.topicTimes.map { case (tp, time) =>
-      val actualOffset =
-        if (time == PulsarProvider.EARLIEST_TIME) {
-          UserProvidedMessageId(MessageId.earliest)
-        } else if (time == PulsarProvider.LATEST_TIME) {
+    offset.topicOffsets.map { case (tp, off) =>
+      val actualOffset = off match {
+        case MessageId.earliest =>
+          UserProvidedMessageId(off)
+        case MessageId.latest =>
           UserProvidedMessageId(PulsarSourceUtils.seekableLatestMid(getLastMessageId(tp)))
-        } else {
-          assert(time > 0, s"time less than 0: $time")
-          val reader = client
-            .newReader()
-            .subscriptionRolePrefix(driverGroupIdPrefix)
-            .topic(tp)
-            .startMessageId(MessageId.earliest)
-            .startMessageIdInclusive()
-            .create()
-
-          var earliestMessage: Message[Array[Byte]] = null
-          earliestMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
-          if (earliestMessage == null) {
-            UserProvidedMessageId(MessageId.earliest)
-          } else {
-            val earliestId = earliestMessage.getMessageId
-
-            reader.seek(time)
-            var msg: Message[Array[Byte]] = null
-            msg = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
-            reader.close()
-            if (msg == null) {
-              UserProvidedMessageId(MessageId.earliest)
-            } else {
-              if (msg.getMessageId == earliestId) {
-                UserProvidedMessageId(MessageId.earliest)
-              } else {
-                // intentionally leave this id from UserProvided since it's the last id
-                // less than time, need to skip this one at the beginning
-                PulsarSourceUtils.mid2Impl(msg.getMessageId)
-              }
-            }
-          }
-        }
+        case _: MessageId =>
+          getUserProvidedMessageId(tp, None, Some(off))
+        case _ =>
+          throw new IllegalArgumentException(s"not supported offset type: $off")
+      }
       (tp, actualOffset)
     }
   }
 
   private def fetchCurrentOffsets(
-      offset: SpecificPulsarOffset,
-      poolTimeoutMs: Int,
+      time: SpecificPulsarTime,
       reportDataLoss: String => Unit): Map[String, MessageId] = {
 
-    offset.topicOffsets.map { case (tp, off) =>
-      val actualOffset = fetchOffsetForTopic(poolTimeoutMs, reportDataLoss, tp, off)
+    time.topicTimes.map { case (tp, time) =>
+      val actualOffset = time match {
+        case PulsarProvider.EARLIEST_TIME =>
+          UserProvidedMessageId(MessageId.earliest)
+        case PulsarProvider.LATEST_TIME =>
+          UserProvidedMessageId(PulsarSourceUtils.seekableLatestMid(getLastMessageId(tp)))
+        case _ =>
+          assert(time > 0, s"time less than 0: $time")
+          getUserProvidedMessageId(tp, Some(time), None)
+      }
       (tp, actualOffset)
     }
   }
 
-  @tailrec
-  private def fetchOffsetForTopic(
-      poolTimeoutMs: Int,
-      reportDataLoss: String => Unit,
-      tp: String,
-      off: MessageId): MessageId = {
-    off match {
-      case UserProvidedMessageId(mid) if mid == MessageId.earliest =>
-        UserProvidedMessageId(mid)
-      case UserProvidedMessageId(mid) if mid == MessageId.latest =>
-        UserProvidedMessageId(mid)
-      case UserProvidedMessageId(mid) =>
-        fetchOffsetForTopic(poolTimeoutMs, reportDataLoss, tp, mid)
-      case MessageId.earliest =>
-        UserProvidedMessageId(off)
-      case MessageId.latest =>
-        UserProvidedMessageId(PulsarSourceUtils.seekableLatestMid(getLastMessageId(tp)))
-      case _ =>
-        val reader = client
-          .newReader()
-          .subscriptionRolePrefix(driverGroupIdPrefix)
-          .startMessageId(off)
-          .startMessageIdInclusive()
-          .topic(tp)
-          .create()
-        var msg: Message[Array[Byte]] = null
-        msg = reader.readNext(poolTimeoutMs, TimeUnit.MILLISECONDS)
-        reader.close()
-        if (msg == null) {
-          reportDataLoss(s"The starting offset provided is not available: $tp, $off")
-          UserProvidedMessageId(MessageId.earliest)
-        } else {
-          UserProvidedMessageId(PulsarSourceUtils.mid2Impl(msg.getMessageId))
-        }
+  private def getUserProvidedMessageId(
+      topic: String,
+      time: Option[Long],
+      offset: Option[MessageId]): MessageIdImpl = {
+    val (subscriptionName, _) = extractSubscription(predefinedSubscription, topic)
+    val consumer =
+      CachedConsumer.getOrCreate(topic, subscriptionName, client.asInstanceOf[PulsarClient])
+
+    // seek to specified offset or time and get the actual corresponding message id
+    // we don't call consumer.acknowledge() here because the message is not processed yet
+    if (consumer.asInstanceOf[ConsumerImpl[GenericRecord]].hasMessageAvailable) {
+      (time, offset) match {
+        case (None, Some(o)) => consumer.seek(o)
+        case (Some(t), None) => consumer.seek(t)
+        case _ =>
+          throw new IllegalArgumentException(
+            s"one of time and offset should be set. time: $time, offset: $offset")
+      }
+
+      PulsarSourceUtils.mid2Impl(consumer.receive().getMessageId)
+    } else {
+      UserProvidedMessageId(MessageId.earliest)
     }
   }
 
