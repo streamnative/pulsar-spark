@@ -44,7 +44,7 @@ private[pulsar] class PulsarSource(
 
   private val sc = sqlContext.sparkContext
 
-  private val reportDataLoss = reportDataLossFunc(failOnDataLoss)
+  val reportDataLoss = reportDataLossFunc(failOnDataLoss)
   private var stopped = false
 
   private lazy val initialTopicOffsets: SpecificPulsarOffset = {
@@ -81,7 +81,7 @@ private[pulsar] class PulsarSource(
     if (start.isDefined && start.get == end) {
       return sqlContext.internalCreateDataFrame(
         sqlContext.sparkContext.emptyRDD[InternalRow].setName("empty"),
-        schema(),
+        schema,
         isStreaming = true)
     }
 
@@ -166,5 +166,6 @@ private[pulsar] class PulsarSource(
       pulsarHelper.close()
       stopped = true
     }
+
   }
 }
