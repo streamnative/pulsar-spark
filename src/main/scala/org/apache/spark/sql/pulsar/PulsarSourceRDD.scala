@@ -99,8 +99,8 @@ private[pulsar] abstract class PulsarSourceRDDBase(
               case (_: BatchMessageIdImpl, _: BatchMessageIdImpl) =>
               // we seek using a batch message id, we can read next directly in `getNext()`
               case (_: MessageIdImpl, cbmid: BatchMessageIdImpl) =>
-                // we seek using a message id, this is supposed to be read by previous task since it's
-                // inclusive for the last batch (start, end], so we skip this batch
+                // we seek using a message id, this is supposed to be read by previous task since
+                // it's inclusive for the last batch (start, end], so we skip this batch
                 val newStart = new MessageIdImpl(
                   cbmid.getLedgerId,
                   cbmid.getEntryId + 1,

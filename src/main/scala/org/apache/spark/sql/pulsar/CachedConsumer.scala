@@ -14,11 +14,14 @@
 package org.apache.spark.sql.pulsar
 
 import java.util.concurrent.TimeUnit
+
 import scala.util.{Failure, Success, Try}
+
 import com.google.common.cache._
 import org.apache.pulsar.client.api.{Consumer, PulsarClient, SubscriptionInitialPosition}
 import org.apache.pulsar.client.api.schema.GenericRecord
 import org.apache.pulsar.client.impl.schema.AutoConsumeSchema
+
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 

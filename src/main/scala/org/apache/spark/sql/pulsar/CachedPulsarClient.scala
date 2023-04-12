@@ -23,6 +23,7 @@ import com.google.common.cache._
 import com.google.common.util.concurrent.{ExecutionError, UncheckedExecutionException}
 import org.apache.pulsar.client.api.PulsarClient
 import org.apache.pulsar.client.impl.PulsarClientImpl
+
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.pulsar.PulsarOptions._

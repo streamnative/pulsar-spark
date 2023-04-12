@@ -30,6 +30,7 @@ import org.apache.pulsar.common.api.proto.CommandGetTopicsOfNamespace
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
 import org.apache.pulsar.shade.com.google.common.util.concurrent.Uninterruptibles
+
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.pulsar.PulsarOptions._
 import org.apache.spark.sql.types.StructType
