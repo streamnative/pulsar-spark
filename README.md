@@ -1,7 +1,6 @@
 # pulsar-spark
 
 [![Version](https://img.shields.io/github/release/streamnative/pulsar-spark/all.svg)](https://github.com/streamnative/pulsar-spark/releases)
-
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-spark.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-spark?ref=badge_shield)
 
@@ -76,7 +75,6 @@ val df = spark
   .readStream
   .format("pulsar")
   .option("service.url", "pulsar://localhost:6650")
-  .option("admin.url", "http://localhost:8080")
   .option("topic", "topic1")
   .load()
 df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
@@ -87,18 +85,16 @@ val df = spark
   .readStream
   .format("pulsar")
   .option("service.url", "pulsar://localhost:6650")
-  .option("admin.url", "http://localhost:8080")
   .option("topics", "topic1,topic2")
   .load()
 df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
   .as[(String, String)]
 
-// Subscribe to a pattern
+// Subscribe to a topic pattern
 val df = spark
   .readStream
   .format("pulsar")
   .option("service.url", "pulsar://localhost:6650")
-  .option("admin.url", "http://localhost:8080")
   .option("topicsPattern", "topic.*")
   .load()
 df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
@@ -121,7 +117,6 @@ val df = spark
   .read
   .format("pulsar")
   .option("service.url", "pulsar://localhost:6650")
-  .option("admin.url", "http://localhost:8080")
   .option("topic", "topic1")
   .load()
 df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
@@ -135,7 +130,6 @@ val df = spark
   .read
   .format("pulsar")
   .option("service.url", "pulsar://localhost:6650")
-  .option("admin.url", "http://localhost:8080")
   .option("topics", "topic1,topic2")
   .option("startingOffsets", startingOffsets)
   .option("endingOffsets", endingOffsets)
@@ -148,7 +142,6 @@ val df = spark
   .read
   .format("pulsar")
   .option("service.url", "pulsar://localhost:6650")
-  .option("admin.url", "http://localhost:8080")
   .option("topicsPattern", "topic.*")
   .option("startingOffsets", "earliest")
   .option("endingOffsets", "latest")
@@ -157,54 +150,155 @@ df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
   .as[(String, String)]
 ```
 
-The following options must be set for the Pulsar source
-for both batch and streaming queries.
+### Write data to Pulsar
+
+The DataFrame written to Pulsar can have arbitrary schema, since each record in DataFrame is transformed as one message sent to Pulsar, fields of DataFrame are divided into two groups: `__key` and `__eventTime` fields are encoded as metadata of Pulsar message; other fields are grouped and encoded using AVRO and put in `value()`:
+```scala
+producer.newMessage().key(__key).value(avro_encoded_fields).eventTime(__eventTime)
+```
+
+#### Create a Pulsar sink for streaming queries
+The following examples are in Scala.
+```scala
+
+// Write key-value data from a DataFrame to a specific Pulsar topic specified in an option
+val ds = df
+  .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
+  .writeStream
+  .format("pulsar")
+  .option("service.url", "pulsar://localhost:6650")
+  .option("topic", "topic1")
+  .start()
+
+// Write key-value data from a DataFrame to Pulsar using a topic specified in the data
+val ds = df
+  .selectExpr("__topic", "CAST(__key AS STRING)", "CAST(value AS STRING)")
+  .writeStream
+  .format("pulsar")
+  .option("service.url", "pulsar://localhost:6650")
+  .start()
+```
+
+#### Write the output of batch queries to Pulsar
+The following examples are in Scala.
+```scala
+
+// Write key-value data from a DataFrame to a specific Pulsar topic specified in an option
+df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
+  .write
+  .format("pulsar")
+  .option("service.url", "pulsar://localhost:6650")
+  .option("topic", "topic1")
+  .save()
+
+// Write key-value data from a DataFrame to Pulsar using a topic specified in the data
+df.selectExpr("__topic", "CAST(__key AS STRING)", "CAST(value AS STRING)")
+  .write
+  .format("pulsar")
+  .option("service.url", "pulsar://localhost:6650")
+  .save()
+```
+
+#### Limitations
+
+Currently, we provide at-least-once semantic. Consequently, when writing either streaming queries or batch queries to Pulsar, some records may be duplicated.
+A possible solution to remove duplicates when reading the written data could be to introduce a primary (unique) key that can be used to perform de-duplication when reading.
+
+
+## Configurations
 
 <table class="table">
-<tr><th>Option</th><th>Value</th><th>Description</th></tr>
+<tr><th>Option</th><th>Value</th><th>Required</th><th>Default</th><th>QueryType</th><th>Description</th></tr>
+<tr>
+  <td>`service.url`</td>
+  <td>The Pulsar `serviceUrl` String</td>
+  <td>Yes</td>
+  <td>None</td>
+  <td>Streaming and Batch</td>
+  <td>The Pulsar `serviceUrl` configuration for Pulsar service. Example: "pulsar://localhost:6650".</td>
+</tr>
+
+<tr>
+  <td>`admin.url` (Deprecated)</td>
+  <td>A service HTTP URL of your Pulsar cluster</td>
+  <td>No</td>
+  <td>None</td>
+  <td>Streaming and Batch</td>
+  <td>The Pulsar `serviceHttpUrl` configuration. </td>
+</tr>
+
+<tr>
+  <td>`predefinedSubscription`</td>
+  <td>A Subscription name string</td>
+  <td>No</td>
+  <td>None</td>
+  <td>Streaming and Batch</td>
+  <td>The predefined subscription name used by the connector to track spark application progress.</td>
+</tr>
+
+<tr>
+    <td>`subscriptionPrefix`</td>
+    <td>A subscription prefix string</td>
+    <td>No</td>
+    <td>None</td>
+    <td>Streaming and Batch</td>
+    <td>A prefix used by the connector to generate a random subscription to track spark application progress.</td>
+</tr>
+
 <tr>
   <td>`topic`</td>
   <td>A topic name string</td>
+  <td>Yes</td>
+  <td>None</td>
+  <td>Streaming and Batch</td>
   <td>The topic to be consumed.
   Only one of `topic`, `topics` or `topicsPattern`
   options can be specified for Pulsar source.</td>
 </tr>
+
 <tr>
   <td>`topics`</td>
   <td>A comma-separated list of topics</td>
+  <td>Yes</td>
+  <td>None</td>
+  <td>Streaming and Batch</td> 
   <td>The topic list to be consumed.
   Only one of `topic`, `topics` or `topicsPattern`
   options can be specified for Pulsar source.</td>
 </tr>
+
 <tr>
   <td>`topicsPattern`</td>
   <td>A Java regex string</td>
+  <td>Yes</td>
+  <td>None</td>
+  <td>Streaming and Batch</td>
   <td>The pattern used to subscribe to topic(s).
   Only one of `topic`, `topics` or `topicsPattern`
   options can be specified for Pulsar source.</td>
 </tr>
+
 <tr>
-  <td>`service.url`</td>
-  <td>A service URL of your Pulsar cluster</td>
-  <td>The Pulsar `serviceUrl` configuration.</td>
+  <td>`poolTimeoutMs`</td>
+  <td>A number string in unit of milliseconds </td>
+  <td>No</td>
+  <td>"120000"</td>
+  <td>Streaming and Batch</td>
+  <td>The timeout for reading messages from Pulsar. Example: `6000`.</td>
 </tr>
+
 <tr>
-  <td>`admin.url`</td>
-  <td>A service HTTP URL of your Pulsar cluster</td>
-  <td>The Pulsar `serviceHttpUrl` configuration.</td>
+  <td>`waitingForNonExistedTopic`</td>
+  <td>The following are valid values: true or false<br>
+  <td>No</td>
+  <td>"false"</td>
+  <td>Streaming and Batch</td>
+  <td>Whether the connector should wait until the desired topics are created. 
+  By default, the connector will not wait for the topic</td>
 </tr>
-</table>
-
-The following configurations are optional.
-
-<table class="table">
-
-<tr><th>Option</th><th>Value</th><th>Default</th><th>Query Type</th><th>Description</th></tr>
 
 <tr>
-
   <td>`startingOffsets`</td>
-
   <td>The following are valid values:<br>
 
   * "earliest"(streaming and batch queries)<br>
@@ -217,15 +311,13 @@ The following configurations are optional.
 
     """ {"topic-1":[8,11,16,101,24,1,32,1],"topic-5":[8,15,16,105,24,5,32,5]} """
   </td>
-
+  <td>No</td>
   <td>
 
    * "earliest"（batch query)<br>
 
    *  "latest"（streaming query)</td>
-
   <td>Streaming and batch queries</td>
-
   <td>
 
   `startingOffsets` option controls where a reader reads data from.
@@ -243,14 +335,12 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
 
 * For streaming query, "latest" only applies when a new query is started, and the resuming will
   always pick up from where the query left off. Newly discovered partitions during a query will start at
-  "earliest".</td>
-
+  "earliest".
+  </td>
 </tr>
 
 <tr>
-
   <td>`endingOffsets`</td>
-
   <td>The following are valid values:<br>
 
   * "latest" (batch query)<br>
@@ -262,11 +352,9 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
    {"topic-1":[8,12,16,102,24,2,32,2],"topic-5":[8,16,16,106,24,6,32,6]}
 
   </td>
-
+  <td>No</td>
   <td>"latest"</td>
-
   <td>Batch query</td>
-
   <td>
 
   `endingOffsets` option controls where a reader stops reading data.
@@ -277,26 +365,16 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
 
     **Note**: <br>
 
-    `MessageId.earliest ([8,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,16,-1,-1,-1,-1,-1,-1,-1,-1,-1,1])` is not allowed.</td>
-
+    `MessageId.earliest ([8,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,16,-1,-1,-1,-1,-1,-1,-1,-1,-1,1])` is not allowed.
+  </td>
 </tr>
 
 <tr>
-
   <td>`failOnDataLoss`</td>
-
-  <td>The following are valid values:<br>
-
-  * true
-
-  * false
-
-  </td>
-
+  <td>The following are valid values: true or false</td>
+  <td>No</td>
   <td>true</td>
-
   <td>Streaming query</td>
-
   <td>
 
   `failOnDataLoss` option controls whether to fail a query when data is lost (for example, topics are deleted, or
@@ -304,38 +382,64 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
 
   This may cause a false alarm. You can set it to `false` when it doesn't work as you expected. <br>
 
-  A batch query always fails if it fails to read any data from the provided offsets due to data loss.</td>
-
+  A batch query always fails if it fails to read any data from the provided offsets due to data loss.
+  </td>
 </tr>
+
 <tr>
-<td>
-`allowDifferentTopicSchemas`
-</td>
-<td>
-Boolean value
-</td>
-<td>
-`false`
-</td>
-<td>
-Streaming query
-</td>
-<td>
-If multiple topics with different schemas are read, 
-using this parameter automatic schema-based topic 
-value deserialization can be turned off. 
-In that way, topics with different schemas can
-be read in the same pipeline - which is then responsible
-for deserializing the raw values based on some
-schema. Since only the raw values are returned when
-this is `true`, Pulsar topic schema(s) are not
-taken into account during operation.
-</td>
+  <td>`allowDifferentTopicSchemas`</td>
+  <td> Boolean value </td>
+  <td>No</td>
+  <td>`false`</td>
+  <td> Streaming query  </td>
+  <td>If multiple topics with different schemas are read, 
+  using this parameter automatic schema-based topic 
+  value deserialization can be turned off. 
+  In that way, topics with different schemas can
+  be read in the same pipeline - which is then responsible
+  for deserializing the raw values based on some
+  schema. Since only the raw values are returned when
+  this is `true`, Pulsar topic schema(s) are not
+  taken into account during operation.
+  </td>
+</tr>
+
+<tr>
+  <td>`pulsar.client.*`</td>
+  <td>Pulsar Client configurations</td>
+  <td>No</td>
+  <td>None</td>
+  <td>Streaming and Batch</td>
+  <td>Client configurations. Example: "pulsar.client.authPluginClassName".
+
+Please check [Pulsar Client Configuration](https://pulsar.apache.org/docs/2.11.x/client-libraries-java/#client) for more details </td>
+</tr>
+
+<tr>
+  <td>`pulsar.reader.*`</td>
+  <td>Pulsar Reader configurations</td>
+  <td>No</td>
+  <td>None</td>
+  <td>Streaming and Batch</td>
+  <td>Reader configurations. Example: "pulsar.reader.subscriptionName". 
+
+Please check [Pulsar Reader Configuration](https://pulsar.apache.org/docs/2.11.x/client-libraries-java/#configure-reader) for more details </td>
+</tr>
+
+<tr>
+  <td>`pulsar.producer.*`</td>
+  <td>Pulsar Producer configurations</td>
+  <td>No</td>
+  <td>None</td>
+  <td>Streaming and Batch</td>
+  <td>Producer configurations. Example: "pulsar.producer.blockIfQueueFull".
+
+Please check [Pulsar Producer Configuration](https://pulsar.apache.org/docs/2.11.x/client-libraries-java/#configure-producer) for more details</td>
 </tr>
 
 </table>
 
-#### Authentication
+### Authentication
 Should the Pulsar cluster require authentication, credentials can be set in the following way.
 
 The following examples are in Scala.
@@ -347,22 +451,6 @@ val df = spark
   .readStream
   .format("pulsar")
   .option("service.url", "pulsar://localhost:6650")
-  .option("admin.url", "http://localhost:8080")
-  .option("pulsar.client.authPluginClassName","org.apache.pulsar.client.impl.auth.AuthenticationToken")
-  .option("pulsar.client.authParams","token:<valid client JWT token>")
-  .option("topicsPattern", "sensitiveTopic")
-  .load()
-df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
-  .as[(String, String)]
-// Secure connection with authentication, using different credentials for
-// Pulsar client and admin interfaces.
-val df = spark
-  .readStream
-  .format("pulsar")
-  .option("service.url", "pulsar://localhost:6650")
-  .option("admin.url", "http://localhost:8080")
-  .option("pulsar.admin.authPluginClassName","org.apache.pulsar.client.impl.auth.AuthenticationToken")
-  .option("pulsar.admin.authParams","token:<valid admin JWT token>")
   .option("pulsar.client.authPluginClassName","org.apache.pulsar.client.impl.auth.AuthenticationToken")
   .option("pulsar.client.authParams","token:<valid client JWT token>")
   .option("topicsPattern", "sensitiveTopic")
@@ -377,7 +465,6 @@ val df = spark
   .readStream
   .format("pulsar")
   .option("service.url", "pulsar+ssl://localhost:6651")
-  .option("admin.url", "http://localhost:8080")
   .option("pulsar.admin.authPluginClassName","org.apache.pulsar.client.impl.auth.AuthenticationToken")
   .option("pulsar.admin.authParams","token:<valid admin JWT token>")
   .option("pulsar.client.authPluginClassName","org.apache.pulsar.client.impl.auth.AuthenticationToken")
@@ -391,7 +478,7 @@ df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
   .as[(String, String)]
 ```
 
-#### Schema of Pulsar source
+## Schema of Pulsar source
 - For topics without schema or with primitive schema in Pulsar, messages' payload
 is loaded to a `value` column with the corresponding type with Pulsar schema.
 - For topics with Avro or JSON schema, their field names and field types are kept in the result rows.
@@ -429,7 +516,7 @@ Besides, each row in the source has the following metadata fields as well.
 </tr>
 </table>
 
-** Example**
+### Example
 
 The topic of AVRO schema _s_ in Pulsar is as below:
 ```scala
@@ -468,79 +555,7 @@ root
  |    |-- value: string (valueContainsNull = true)
  ```
 
-### Write data to Pulsar
 
-The DataFrame written to Pulsar can have arbitrary schema, since each record in DataFrame is transformed as one message sent to Pulsar, fields of DataFrame are divided into two groups: `__key` and `__eventTime` fields are encoded as metadata of Pulsar message; other fields are grouped and encoded using AVRO and put in `value()`:
-```scala
-producer.newMessage().key(__key).value(avro_encoded_fields).eventTime(__eventTime)
-```
-
-#### Create a Pulsar sink for streaming queries
-The following examples are in Scala.
-```scala
-
-// Write key-value data from a DataFrame to a specific Pulsar topic specified in an option
-val ds = df
-  .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
-  .writeStream
-  .format("pulsar")
-  .option("service.url", "pulsar://localhost:6650")
-  .option("admin.url", "http://localhost:8080")
-  .option("topic", "topic1")
-  .start()
-
-// Write key-value data from a DataFrame to Pulsar using a topic specified in the data
-val ds = df
-  .selectExpr("__topic", "CAST(__key AS STRING)", "CAST(value AS STRING)")
-  .writeStream
-  .format("pulsar")
-  .option("service.url", "pulsar://localhost:6650")
-  .option("admin.url", "http://localhost:8080")
-  .start()
-```
-
-#### Write the output of batch queries to Pulsar
-The following examples are in Scala.
-```scala
-
-// Write key-value data from a DataFrame to a specific Pulsar topic specified in an option
-df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
-  .write
-  .format("pulsar")
-  .option("service.url", "pulsar://localhost:6650")
-  .option("admin.url", "http://localhost:8080")
-  .option("topic", "topic1")
-  .save()
-
-// Write key-value data from a DataFrame to Pulsar using a topic specified in the data
-df.selectExpr("__topic", "CAST(__key AS STRING)", "CAST(value AS STRING)")
-  .write
-  .format("pulsar")
-  .option("service.url", "pulsar://localhost:6650")
-  .option("admin.url", "http://localhost:8080")
-  .save()
-```
-
-#### Limitations
-
-Currently, we provide at-least-once semantic. Consequently, when writing either streaming queries or batch queries to Pulsar, some records may be duplicated.
-A possible solution to remove duplicates when reading the written data could be to introduce a primary (unique) key that can be used to perform de-duplication when reading.
-
-
-### Pulsar specific configurations
-
-Client/producer/reader configurations of Pulsar can be set via `DataStreamReader.option`
-with `pulsar.client.`/`pulsar.producer.`/`pulsar.reader.` prefix, e.g,
-`stream.option("pulsar.reader.receiverQueueSize", "1000000")`. 
-Since the connector needs to access the Pulsar Admin interface as well, separate 
-configuration of the admin client can be set via the same method with the
-`pulsar.admin` prefix. For example: `stream.option("pulsar.admin.authParams","token:<token>")`.
-This can be useful if a different authentication plugin or
-token need to be used. If this is not given explicitly, the client
-parameters (with `pulsar.client` prefix) will be used for accessing the admin
-interface as well.
-For possible Pulsar parameters, check docs at
-[Pulsar client libraries](https://pulsar.apache.org/docs/en/client-libraries/).
 
 ## Build Spark Pulsar Connector
 If you want to build a Spark-Pulsar connector reading data from Pulsar and writing results to Pulsar, follow the steps below.
