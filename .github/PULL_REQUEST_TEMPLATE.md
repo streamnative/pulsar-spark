@@ -24,6 +24,6 @@ Check the box below.
 
 Need to update docs? 
 
-- [ ] `doc-required` <!-- If you need help on updating docs, create a doc issue -->
-- [ ] `no-need-doc`
-- [ ] `doc` <!-- If this PR contains doc changes -->
+- [ ] `doc-required`
+- [x] `no-need-doc`
+- [ ] `doc`

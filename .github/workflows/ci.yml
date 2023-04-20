@@ -2,8 +2,9 @@ name: CI
 
 on:
   push:
-    - main
-    - branch-*
+    branches:
+      - main
+      - branch-*
   pull_request:
 
 # Concurrency strategy:
