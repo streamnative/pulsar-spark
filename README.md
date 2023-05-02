@@ -152,7 +152,7 @@ df.selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
 
 ### Write data to Pulsar
 
-The DataFrame written to Pulsar can have arbitrary schema, since each record in DataFrame is transformed as one message sent to Pulsar, fields of DataFrame are divided into two groups: `__key` and `__eventTime` fields are encoded as metadata of Pulsar message; other fields are grouped and encoded using AVRO and put in `value()`:
+The DataFrame written to Pulsar can have arbitrary schema, since each record in DataFrame is transformed as one message sent to Pulsar, fields of DataFrame are divided into two groups: `__key`, `__eventTime` and `__messageProperties` fields are encoded as metadata of Pulsar message; other fields are grouped and encoded using AVRO and put in `value()`:
 ```scala
 producer.newMessage().key(__key).value(avro_encoded_fields).eventTime(__eventTime)
 ```
