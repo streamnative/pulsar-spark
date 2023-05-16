@@ -72,6 +72,7 @@
     <scalatest.version>3.2.14</scalatest.version>
     <spark.version>3.2.2</spark.version>
     <commons-io.version>2.11.0</commons-io.version>
+    <commons-text.version>1.10.0</commons-text.version>
     <testcontainers.version>1.17.6</testcontainers.version>
 
     <!-- plugin dependencies -->
@@ -137,6 +138,11 @@
       <artifactId>commons-io</artifactId>
       <version>${commons-io.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-text</artifactId>
+      <version>${commons-text.version}</version>
+    </dependency>
 
     <!-- spark dependency -->
 
@@ -149,6 +155,14 @@
         <exclusion>
           <groupId>io.netty</groupId>
           <artifactId>netty-all</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId> org.apache.commons</groupId>
+          <artifactId>commons-text</artifactId>
+        </exclusion>
+        <exclusion>
+          <artifactId>log4j</artifactId>
+          <groupId>log4j</groupId>
         </exclusion>
       </exclusions>
     </dependency>
