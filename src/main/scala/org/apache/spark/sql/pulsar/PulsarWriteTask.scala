@@ -15,7 +15,9 @@ package org.apache.spark.sql.pulsar
 
 import java.{util => ju}
 import java.util.function.BiConsumer
+
 import scala.collection.mutable
+
 import org.apache.pulsar.client.api.{MessageId, Producer}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Cast, Literal, UnsafeProjection}
