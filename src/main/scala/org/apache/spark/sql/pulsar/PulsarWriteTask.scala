@@ -209,6 +209,11 @@ private[pulsar] abstract class PulsarRowWriter(
 
   protected def producerClose(): Unit = {
     producerFlush()
+    if (singleProducer != null) {
+      singleProducer.close()
+    } else {
+      topic2Producer.foreach(_._2.close())
+    }
     topic2Producer.clear()
   }
 }
