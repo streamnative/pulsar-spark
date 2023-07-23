@@ -361,6 +361,7 @@
                 <includes>
                   <include>com.github.luben:*</include>
                   <include>javax.*:*</include>
+                  <include>org.apache.avro*:*</include>
                   <include>org.apache.pulsar*:*</include>
                   <include>org.bouncycastle*:*</include>
                   <include>org.lz4*:*</include>
@@ -389,8 +390,32 @@
                   <shadedPattern>org.apache.pulsar.shade.com.google</shadedPattern>
                 </relocation>
                 <relocation>
+                  <pattern>javax.xml</pattern>
+                  <shadedPattern>org.apache.pulsar.shade.javax.xml</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.avro</pattern>
+                  <shadedPattern>org.apache.pulsar.shade.org.apache.avro</shadedPattern>
+                </relocation>
+                <relocation>
                   <pattern>org.apache.commons</pattern>
                   <shadedPattern>org.apache.pulsar.shade.org.apache.commons</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.pulsar.client</pattern>
+                  <shadedPattern>org.apache.pulsar.shade.org.apache.pulsar.client</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.pulsar.common</pattern>
+                  <shadedPattern>org.apache.pulsar.shade.org.apache.pulsar.common</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.bouncycastle</pattern>
+                  <shadedPattern>org.apache.pulsar.shade.org.bouncycastle</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.lz4</pattern>
+                  <shadedPattern>org.apache.pulsar.shade.org.lz4</shadedPattern>
                 </relocation>
               </relocations>
               <transformers>
