@@ -517,7 +517,7 @@ private[pulsar] object PulsarProvider extends Logging {
   }
 
   private def jsonOptions: JSONOptionsInRead = {
-    val spark = SparkSession.getActiveSession.get
+    val spark = SparkSession.builder().getOrCreate()
     new JSONOptionsInRead(
       CaseInsensitiveMap(Map.empty),
       spark.sessionState.conf.sessionLocalTimeZone,
