@@ -402,18 +402,6 @@
                   <shadedPattern>org.apache.pulsar.shade.org.apache.commons</shadedPattern>
                 </relocation>
                 <relocation>
-                  <pattern>org.apache.pulsar.client</pattern>
-                  <shadedPattern>org.apache.pulsar.shade.org.apache.pulsar.client</shadedPattern>
-                </relocation>
-                <relocation>
-                  <pattern>org.apache.pulsar.common</pattern>
-                  <shadedPattern>org.apache.pulsar.shade.org.apache.pulsar.common</shadedPattern>
-                </relocation>
-                <relocation>
-                  <pattern>org.bouncycastle</pattern>
-                  <shadedPattern>org.apache.pulsar.shade.org.bouncycastle</shadedPattern>
-                </relocation>
-                <relocation>
                   <pattern>org.lz4</pattern>
                   <shadedPattern>org.apache.pulsar.shade.org.lz4</shadedPattern>
                 </relocation>
