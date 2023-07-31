@@ -72,7 +72,7 @@
     <scalatest.version>3.2.14</scalatest.version>
     <spark.version>3.2.2</spark.version>
     <commons-io.version>2.11.0</commons-io.version>
-    <testcontainers.version>1.17.6</testcontainers.version>
+    <testcontainers.version>1.18.3</testcontainers.version>
 
     <!-- plugin dependencies -->
     <maven.version>3.5.4</maven.version>
@@ -199,6 +199,14 @@
       <groupId>org.scalatest</groupId>
       <artifactId>scalatest_${scala.binary.version}</artifactId>
       <version>${scalatest.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- Pulsar testing environment -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>pulsar</artifactId>
+      <version>${testcontainers.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

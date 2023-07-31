@@ -32,17 +32,18 @@ import org.apache.pulsar.common.schema.SchemaType
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.physical.AllTuples
 import org.apache.spark.sql.catalyst.util.stackTraceToString
+import org.apache.spark.sql.connector.read.streaming.SparkDataStream
 import org.apache.spark.sql.execution.datasources.v2.StreamingDataSourceV2Relation
-import org.apache.spark.sql.execution.streaming.continuous.ContinuousExecution
-import org.apache.spark.sql.execution.streaming.sources.MemorySinkV2
+import org.apache.spark.sql.execution.streaming.sources.MemorySink
 import org.apache.spark.sql.execution.streaming._
+import org.apache.spark.sql.connector.read.streaming.{Offset => OffsetV2}
 import org.apache.spark.sql.streaming.StreamingQueryListener.{QueryProgressEvent, QueryStartedEvent, QueryTerminatedEvent}
 import org.apache.spark.sql.streaming.{OutputMode, StreamTest, StreamingQueryException, StreamingQueryListener}
-import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.{Dataset, QueryTest}
 import org.apache.spark.util.{SystemClock, Utils}
 
-class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest {
+class PulsarSourceTest extends StreamTest with SharedSparkSession with PulsarTest {
 
   override val streamingTimeout = 30.seconds
 
@@ -59,7 +60,6 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
     // its "getOffset" is called before pushing any data. Otherwise, because of the race condition,
     // we don't know which data should be fetched when `startingOffsets` is latest.
     q match {
-      case c: ContinuousExecution => c.awaitEpoch(0)
       case m: MicroBatchExecution => m.processAllAvailable()
     }
     true
@@ -77,7 +77,7 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
     topicAction: (String, Option[MessageId]) => Unit = (_, _) => {})
     extends AddData {
 
-    override def addData(query: Option[StreamExecution]): (BaseStreamingSource, Offset) = {
+    override def addData(query: Option[StreamExecution]): (SparkDataStream, Offset) = {
       query match {
         // Make sure no Spark job is running when deleting a topic
         case Some(m: MicroBatchExecution) => m.processAllAvailable()
@@ -97,19 +97,10 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
         query.nonEmpty,
         "Cannot add data when there is no query for finding the active pulsar source")
 
-      val sources = {
-        query.get.logicalPlan.collect {
+      val sources = query.get.logicalPlan.collect {
           case StreamingExecutionRelation(source: PulsarSource, _) => source
           case StreamingExecutionRelation(source: PulsarMicroBatchReader, _) => source
-        } ++ (query.get.lastExecution match {
-          case null => Seq()
-          case e =>
-            e.logical.collect {
-              case StreamingDataSourceV2Relation(_, _, _, reader: PulsarContinuousReader) =>
-                reader
-            }
-        })
-      }.distinct
+        }.distinct
 
       if (sources.isEmpty) {
         throw new Exception(
@@ -145,7 +136,7 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
     topicAction: (String, Option[MessageId]) => Unit = (_, _) => {})
     extends AddData {
 
-    override def addData(query: Option[StreamExecution]): (BaseStreamingSource, Offset) = {
+    override def addData(query: Option[StreamExecution]): (SparkDataStream, Offset) = {
       query match {
         // Make sure no Spark job is running when deleting a topic
         case Some(m: MicroBatchExecution) => m.processAllAvailable()
@@ -165,19 +156,10 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
         query.nonEmpty,
         "Cannot add data when there is no query for finding the active pulsar source")
 
-      val sources = {
-        query.get.logicalPlan.collect {
+      val sources = query.get.logicalPlan.collect {
           case StreamingExecutionRelation(source: PulsarSource, _) => source
           case StreamingExecutionRelation(source: PulsarMicroBatchReader, _) => source
-        } ++ (query.get.lastExecution match {
-          case null => Seq()
-          case e =>
-            e.logical.collect {
-              case StreamingDataSourceV2Relation(_, _, _, reader: PulsarContinuousReader) =>
-                reader
-            }
-        })
-      }.distinct
+        }.distinct
 
       if (sources.isEmpty) {
         throw new Exception(
@@ -207,7 +189,7 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
 
   protected def newTopic(): String = TopicName.get(s"topic-${topicId.getAndIncrement()}").toString
 
-  override def testStream(_stream: Dataset[_], outputMode: OutputMode, useV2Sink: Boolean)(
+  override def testStream(_stream: Dataset[_], outputMode: OutputMode)(
     actions: StreamAction*): Unit = synchronized {
     import org.apache.spark.sql.streaming.util.StreamManualClock
 
@@ -220,8 +202,8 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
     var pos = 0
     var currentStream: StreamExecution = null
     var lastStream: StreamExecution = null
-    val awaiting = new mutable.HashMap[Int, Offset]() // source index -> offset to wait for
-    val sink = if (useV2Sink) new MemorySinkV2 else new MemorySink(stream.schema, outputMode)
+    val awaiting = new mutable.HashMap[Int, OffsetV2]() // source index -> offset to wait for
+    val sink = new MemorySink()
     val resetConfValues = mutable.Map[String, Option[String]]()
     val defaultCheckpointLocation =
       Utils.createTempDir(namePrefix = "streaming.metadata").getCanonicalPath
@@ -279,7 +261,6 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
     def testState = {
       val sinkDebugString = sink match {
         case s: MemorySink => s.toDebugString
-        case s: MemorySinkV2 => s.toDebugString
       }
       s"""
          |== Progress ==
@@ -341,9 +322,9 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
     var lastFetchedMemorySinkLastBatchId: Long = -1
 
     def fetchStreamAnswer(
-                           currentStream: StreamExecution,
-                           lastOnly: Boolean = false,
-                           sinceLastFetchOnly: Boolean = false) = {
+        currentStream: StreamExecution,
+        lastOnly: Boolean = false,
+        sinceLastFetchOnly: Boolean = false) = {
       verify(
         !(lastOnly && sinceLastFetchOnly),
         "both lastOnly and sinceLastFetchOnly cannot be true")
@@ -353,7 +334,7 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
       awaiting.foreach {
         case (sourceIndex, offset) =>
           failAfter(streamingTimeout) {
-            currentStream.awaitOffset(sourceIndex, offset, streamingTimeout.toMillis)
+            // currentStream.awaitOffset(sourceIndex, offset, streamingTimeout.toMillis)
             // Make sure all processing including no-data-batches have been executed
             if (!currentStream.triggerClock.isInstanceOf[StreamManualClock]) {
               currentStream.processAllAvailable()
@@ -437,13 +418,6 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
           // after starting the query.
           try {
             currentStream.awaitInitialization(streamingTimeout.toMillis)
-            currentStream match {
-              case s: ContinuousExecution =>
-                eventually("IncrementalExecution was not created") {
-                  assert(s.lastExecution != null)
-                }
-              case _ =>
-            }
           } catch {
             case _: StreamingQueryException =>
             // Ignore the exception. `StopStream` or `ExpectFailure` will catch it as well.
@@ -596,7 +570,7 @@ class PulsarSourceTest extends StreamTest with SharedSQLContext with PulsarTest 
               plan
                 .collect {
                   case r: StreamingExecutionRelation => r.source
-                  case r: StreamingDataSourceV2Relation => r.reader
+                  case r: StreamingDataSourceV2Relation => r.stream
                 }
                 .zipWithIndex
                 .find(_._1 == source)

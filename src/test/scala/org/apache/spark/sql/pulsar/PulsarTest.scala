@@ -16,28 +16,27 @@ package org.apache.spark.sql.pulsar
 import java.lang.{Integer => JInt}
 import java.nio.charset.StandardCharsets
 import java.nio.charset.StandardCharsets.UTF_8
-import java.time.Clock
+import java.time.{Clock, Duration}
 import java.util.{Map => JMap}
-
-import io.streamnative.tests.pulsar.service.{PulsarService, PulsarServiceFactory, PulsarServiceSpec}
 
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
-import scala.util.Random
 
 import org.scalatest.concurrent.Eventually.{eventually, timeout}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
-import com.google.common.collect.Sets
+import org.testcontainers.containers.PulsarContainer
+import org.testcontainers.utility.DockerImageName.parse
 
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.{MessageId, Producer, PulsarClient, Schema}
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.protocol.schema.PostSchemaPayload
 import org.apache.pulsar.common.schema.{SchemaInfo, SchemaType}
-
 import org.apache.spark.SparkFunSuite
 import org.apache.spark.util.Utils
+
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * A trait to clean cached Pulsar producers in `afterAll`
@@ -46,44 +45,36 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
   self: SparkFunSuite =>
   import PulsarOptions._
 
-  var pulsarService: PulsarService = _
-  var serviceUrl: String = _
-  var adminUrl: String = _
+  val CURRENT_VERSION = "3.0.0"
+
+  var pulsarContainer: PulsarContainer = null
+  var serviceUrl: String = null
+  var adminUrl: String = null
 
   override def beforeAll(): Unit = {
-    val spec: PulsarServiceSpec = PulsarServiceSpec
-      .builder()
-      .clusterName(s"standalone-${Random.alphanumeric.take(6).mkString}")
-      .enableContainerLogging(false)
-      .build()
+    pulsarContainer = new PulsarContainer(parse("apachepulsar/pulsar:" + CURRENT_VERSION))
+    pulsarContainer.withStartupTimeout(Duration.ofMinutes(5))
+    pulsarContainer.start()
 
-    pulsarService = PulsarServiceFactory.createPulsarService(spec)
-    pulsarService.start()
 
-    val uris = pulsarService.getServiceUris.asScala
-      .filter(_ != null)
-      .partition(_.getScheme == "pulsar")
-
-    serviceUrl = uris._1(0).toString
-    adminUrl = uris._2(0).toString
-
-    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
-      admin.namespaces().createNamespace("public/default", Sets.newHashSet("standalone"))
-    }
-
-    logInfo(s"Successfully started pulsar service at cluster ${spec.clusterName}")
+    serviceUrl = pulsarContainer.getPulsarBrokerUrl()
+    adminUrl = pulsarContainer.getHttpServiceUrl()
 
     super.beforeAll()
   }
 
+  private val subscriptionId = new AtomicInteger(0)
+
+  protected def newSubscription(): String = TopicName.get(
+    s"subscription-${subscriptionId.getAndIncrement()}").toString
+
   override def afterAll(): Unit = {
     super.afterAll()
     CachedPulsarClient.clear()
-    if (pulsarService != null) {
-      pulsarService.stop()
-      pulsarService.cleanup()
+    if (pulsarContainer != null) {
+      pulsarContainer.stop()
+      pulsarContainer.close()
     }
-
   }
 
   protected override def afterEach(): Unit = {
@@ -127,11 +118,11 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
 
   /** Send the array of messages to the Pulsar using specified partition */
   def sendMessages(
-                    topic: String,
-                    messages: Array[String],
-                    partition: Option[Int]): Seq[(String, MessageId)] = {
+      topic: String,
+      messages: Array[String],
+      partition: Option[Int]): Seq[(String, MessageId)] = {
 
-    val topicName = if (partition.isEmpty) topic else s"$topic$TopicName.PARTITIONED_TOPIC_SUFFIX${partition.get}"
+    val topicName = if (partition.isEmpty) topic else s"$topic$PartitionSuffix${partition.get}"
 
     val client = PulsarClient
       .builder()
@@ -156,12 +147,12 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
 
   /** Send the array of messages to the Pulsar using specified partition */
   def sendMessagesWithClock(
-                             topic: String,
-                             messages: Array[String],
-                             partition: Option[Int],
-                             clock: Clock): Seq[(String, MessageId)] = {
+      topic: String,
+      messages: Array[String],
+      partition: Option[Int],
+      clock: Clock): Seq[(String, MessageId)] = {
 
-    val topicName = if (partition.isEmpty) topic else s"$topic$TopicName.PARTITIONED_TOPIC_SUFFIX${partition.get}"
+    val topicName = if (partition.isEmpty) topic else s"$topic$PartitionSuffix${partition.get}"
 
     val client = PulsarClient
       .builder()
@@ -186,12 +177,12 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
   }
 
   def sendTypedMessages[T: ClassTag](
-                                      topic: String,
-                                      tpe: SchemaType,
-                                      messages: Seq[T],
-                                      partition: Option[Int]): Seq[MessageId] = {
+      topic: String,
+      tpe: SchemaType,
+      messages: Seq[T],
+      partition: Option[Int]): Seq[MessageId] = {
 
-    val topicName = if (partition.isEmpty) topic else s"$topic$TopicName.PARTITIONED_TOPIC_SUFFIX${partition.get}"
+    val topicName = if (partition.isEmpty) topic else s"$topic$PartitionSuffix${partition.get}"
 
     val client = PulsarClient
       .builder()
@@ -260,21 +251,22 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
   }
 
   def getLatestOffsets(topics: Set[String]): Map[String, MessageId] = {
-    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
-      topics.flatMap { tp =>
-        val partNum = admin.topics().getPartitionedTopicMetadata(tp).partitions
-        if (partNum > 1) {
-          (0 until partNum).map { pn =>
-            (
-              s"$tp$TopicName.PARTITIONED_TOPIC_SUFFIX$pn",
-              PulsarSourceUtils.seekableLatestMid(
-                admin.topics().getLastMessageId(s"$tp$TopicName.PARTITIONED_TOPIC_SUFFIX$pn")))
-          }
-        } else {
-          (tp, PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp))) :: Nil
-        }
-      }.toMap
+    val client = PulsarClient
+      .builder()
+      .serviceUrl(serviceUrl)
+      .build()
+
+    val topicPartitions = topics.flatMap { tp =>
+      client.getPartitionsForTopic(tp).get().asScala
     }
+    val subscription = newSubscription()
+    val offsets = topicPartitions.map { tp =>
+      val mid = CachedConsumer.getOrCreate(tp, subscription, client).getLastMessageId
+      tp -> mid
+    }.toMap
+    client.close()
+    topicPartitions.foreach(CachedConsumer.close(_, subscription))
+    offsets
   }
 
   def addPartitions(topic: String, partitions: Int): Unit = {

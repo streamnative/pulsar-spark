@@ -16,23 +16,19 @@ package org.apache.spark.sql.pulsar
 import java.text.SimpleDateFormat
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.{Date, Locale}
-
 import scala.reflect.ClassTag
-
 import org.scalatest.time.SpanSugar._
-
 import org.apache.pulsar.client.api.Schema
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
-
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, SpecificInternalRow, UnsafeProjection}
 import org.apache.spark.sql.execution.streaming.MemoryStream
 import org.apache.spark.sql.streaming._
-import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{BinaryType, DataType}
 import org.apache.spark.sql._
 
-class PulsarSinkSuite extends StreamTest with SharedSQLContext with  {
+class PulsarSinkSuite extends StreamTest with PulsarTest with SharedSparkSession {
   import PulsarOptions._
   import SchemaData._
   import testImplicits._
@@ -47,7 +43,6 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with  {
     df.write
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
-      .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(TopicSingle, topic)
       .save()
 
@@ -57,10 +52,10 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with  {
   }
 
   private def batchCheck[T: ClassTag](
-                                       schemaInfo: SchemaInfo,
-                                       data: Seq[T],
-                                       encoder: Encoder[T],
-                                       str: T => String) = {
+      schemaInfo: SchemaInfo,
+      data: Seq[T],
+      encoder: Encoder[T],
+      str: T => String) = {
     val topic = newTopic()
 
     val df = if (str == null) {
@@ -72,7 +67,6 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with  {
     df.write
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
-      .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(TopicSingle, topic)
       .save()
 
@@ -144,7 +138,6 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with  {
     df.write
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
-      .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(TopicSingle, topic)
       .save()
 
@@ -159,7 +152,6 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with  {
       df.write
         .format("pulsar")
         .option(ServiceUrlOptionKey, serviceUrl)
-        .option(ADMIN_URL_OPTION_KEY, adminUrl)
         .save()
     }
     assert(ex.getMessage.toLowerCase(Locale.ROOT).contains("topic option required"))
@@ -203,7 +195,8 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with  {
       withTopic = None,
       withOutputMode = Some(OutputMode.Append))(withSelectExpr = s"'$topic' as __topic", "value")
 
-    val reader = createPulsarReader(topic)
+    // reader needs to be created on demand because start and end offsets are resolved when dataframes are created.
+    def reader = createPulsarReader(topic)
       .selectExpr("CAST(__key as STRING) __key", "CAST(value as STRING) value")
       .selectExpr("CAST(__key as INT) __key", "CAST(value as INT) value")
       .as[(Option[Int], Int)]
@@ -237,7 +230,8 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with  {
       "CAST(count as STRING) value"
     )
 
-    val reader = createPulsarReader(topic)
+    // reader needs to be created on demand because start and end offsets are resolved when dataframes are created.
+    def reader = createPulsarReader(topic)
       .selectExpr("CAST(__key as STRING) __key", "CAST(value as STRING) value")
       .selectExpr("CAST(__key as INT) __key", "CAST(value as INT) value")
       .as[(Int, Int)]
@@ -278,7 +272,8 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with  {
       "CAST(value as STRING) __key",
       "CAST(count as STRING) value")
 
-    val reader = createPulsarReader(topic)
+    // reader needs to be created on demand because start and end offsets are resolved when dataframes are created.
+    def reader = createPulsarReader(topic)
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .selectExpr("CAST(__key AS INT)", "CAST(value AS INT)")
       .as[(Int, Int)]
@@ -300,10 +295,10 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with  {
   }
 
   private def streamCheck[T: ClassTag](
-                                        schemaInfo: SchemaInfo,
-                                        data: Seq[T],
-                                        encoder: Encoder[T],
-                                        str: T => String) = {
+      schemaInfo: SchemaInfo,
+      data: Seq[T],
+      encoder: Encoder[T],
+      str: T => String) = {
     implicit val enc = encoder
     val input = MemoryStream[T]
     val topic = newTopic()
@@ -501,9 +496,8 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with  {
     } toDF ("key", "value")
     df.write
       .format("pulsar")
-      .option(SERVICE_URL_OPTION_KEY, serviceUrl)
-      .option(ADMIN_URL_OPTION_KEY, adminUrl)
-      .option(TOPIC_SINGLE, topic)
+      .option(ServiceUrlOptionKey, serviceUrl)
+      .option(TopicSingle, topic)
       .option("pulsar.producer.blockIfQueueFull", "true")
       .option("pulsar.producer.maxPendingMessages", "100000")
       .option("pulsar.producer.maxPendingMessagesAcrossPartitions", "5000000")
@@ -530,23 +524,25 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with  {
         "pulsar.producer.sendTimeoutMs" -> "30000")
     )(withSelectExpr = s"'$topic' as __topic", "value")
 
-    val reader = createPulsarReader(topic)
-      .selectExpr("CAST(__key as STRING) __key", "CAST(value as STRING) value")
-      .selectExpr("CAST(__key as INT) __key", "CAST(value as INT) value")
-      .as[(Option[Int], Int)]
-      .map(_._2)
+    // reader needs to be created on demand because start and end offsets are resolved when dataframes are created.
+    def reader()= createPulsarReader(topic).selectExpr("CAST(value as STRING) value")
+        .selectExpr("CAST(value as INT) value").as[Int]
+
 
     try {
       input.addData("1", "2", "3", "4", "5")
+
       failAfter(streamingTimeout) {
         writer.processAllAvailable()
       }
-      checkDatasetUnorderly(reader, 1, 2, 3, 4, 5)
+      checkDatasetUnorderly(reader(), 1, 2, 3, 4, 5)
+
+
       input.addData("6", "7", "8", "9", "10")
       failAfter(streamingTimeout) {
         writer.processAllAvailable()
       }
-      checkDatasetUnorderly(reader, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+      checkDatasetUnorderly(reader(), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
     } finally {
       writer.stop()
     }
@@ -589,7 +585,6 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with  {
     spark.read
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
-      .option(ADMIN_URL_OPTION_KEY, adminUrl)
       .option(StartingOffsetsOptionKey, "earliest")
       .option(EndingOffsetsOptionKey, "latest")
       .option(TopicSingle, topic)
@@ -597,11 +592,11 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with  {
   }
 
   private def createPulsarWriter(
-                                  input: DataFrame,
-                                  withTopic: Option[String] = None,
-                                  withOutputMode: Option[OutputMode] = None,
-                                  withOptions: Map[String, String] = Map[String, String]())(
-                                  withSelectExpr: String*): StreamingQuery = {
+      input: DataFrame,
+      withTopic: Option[String] = None,
+      withOutputMode: Option[OutputMode] = None,
+      withOptions: Map[String, String] = Map[String, String]())(
+    withSelectExpr: String*): StreamingQuery = {
     var stream: DataStreamWriter[Row] = null
     withTempDir { checkpointDir =>
       var df = input.toDF()
@@ -612,11 +607,11 @@ class PulsarSinkSuite extends StreamTest with SharedSQLContext with  {
         .format("pulsar")
         .option("checkpointLocation", checkpointDir.getCanonicalPath)
         .option(ServiceUrlOptionKey, serviceUrl)
-        .option(ADMIN_URL_OPTION_KEY, adminUrl)
         .queryName("pulsarStream")
       withTopic.foreach(stream.option(TopicSingle, _))
       withOutputMode.foreach(stream.outputMode(_))
-      withOptions.foreach(opt => stream.option(opt._1, opt._2))
+      stream.options(withOptions)
+      // withOptions.foreach(opt => stream.option(opt._1, opt._2))
     }
     stream.start()
   }
