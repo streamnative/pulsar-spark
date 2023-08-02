@@ -16,6 +16,19 @@ jobs:
           distribution: temurin
           java-version: 8
 
+      - uses: actions/checkout@v2
+        with:
+          repository: streamnative/streamnative-ci
+          token: ${{ secrets.SNBOT_GITHUB_TOKEN }}
+          ref: master
+          path: ci
+
+      - name: Import GPG key
+        env:
+          SNBOT_SECRET_PASSPHRASE: ${{ secrets.SNBOT_SECRET_PASSPHRASE }}
+        run: |
+          ci/.github/bot/setup-git.sh
+
       - name: Release Maven package
         uses: samuelmeuli/action-maven-publish@v1
         with:
