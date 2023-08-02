@@ -24,6 +24,8 @@ jobs:
           path: ci
 
       - name: Import GPG key
+        env:
+          SNBOT_SECRET_PASSPHRASE: ${{ secrets.SNBOT_SECRET_PASSPHRASE }}
         run: |
           ci/.github/bot/setup-git.sh
 
