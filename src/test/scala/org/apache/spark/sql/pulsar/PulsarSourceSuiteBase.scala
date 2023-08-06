@@ -13,13 +13,14 @@
  */
 package org.apache.spark.sql.pulsar
 
+import org.apache.pulsar.client.api.schema.GenericRecord
+
 import java.nio.charset.StandardCharsets.UTF_8
 import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
-
 import scala.reflect.ClassTag
-
 import org.apache.pulsar.client.api.{MessageId, Schema}
+import org.apache.pulsar.client.impl.ConsumerImpl
 import org.apache.pulsar.common.schema.SchemaInfo
 import org.apache.spark.sql.execution.streaming.StreamExecution
 import org.apache.spark.sql.{Encoder, Encoders}
@@ -28,6 +29,22 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
   import PulsarOptions._
   import SchemaData._
   import testImplicits._
+
+  test("hasMessagesAvailable crash") {
+    val topic = newTopic()
+    sendMessages(topic, (1 to 3).map { _.toString }.toArray)
+    require(getLatestOffsets(Set(topic)).size === 1)
+    val params = new java.util.HashMap[String, Object]()
+    params.put(ServiceUrlOptionKey, serviceUrl)
+    val client = CachedPulsarClient.getOrCreate(params)
+    val consumer = CachedConsumer.getOrCreate(topic, "panda_subscription", client)
+    assert(consumer.isConnected)
+    // hasMessageAvailable will works if consumer call receives first.
+    // assert(consumer.receive() != null)
+    assert(consumer.asInstanceOf[ConsumerImpl[GenericRecord]].hasMessageAvailable)
+    consumer.close()
+    client.close()
+  }
 
   test("cannot stop Pulsar stream") {
     val topic = newTopic()
