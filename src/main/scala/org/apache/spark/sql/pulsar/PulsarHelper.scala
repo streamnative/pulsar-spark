@@ -449,7 +449,7 @@ private[pulsar] case class PulsarHelper(
     // seek to specified offset or time and get the actual corresponding message id
     // we don't call consumer.acknowledge() here because the message is not processed yet
     if (time.isDefined || offset.isDefined) {
-      // Call getLastMessageId to reconnect to consumer before seeking.
+      // Call getLastMessageId to reconnect the consumer before seeking.
       if (!consumer.isConnected) consumer.getLastMessageId
       (time, offset) match {
         case (None, Some(o)) => consumer.seek(o)
