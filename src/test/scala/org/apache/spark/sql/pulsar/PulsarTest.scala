@@ -25,8 +25,11 @@ import scala.reflect.ClassTag
 import org.scalatest.concurrent.Eventually.{eventually, timeout}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.testcontainers.containers.PulsarContainer
 import org.testcontainers.utility.DockerImageName.parse
+import org.testcontainers.containers.output.Slf4jLogConsumer
 
 import org.apache.pulsar.client.admin.{PulsarAdmin, PulsarAdminException}
 import org.apache.pulsar.client.api.{MessageId, Producer, PulsarClient, Schema}
@@ -51,6 +54,8 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
   var serviceUrl: String = null
   var adminUrl: String = null
 
+  private val logger: Logger = LoggerFactory.getLogger("pulsar-spark-test-logger")
+
   override def beforeAll(): Unit = {
     pulsarContainer = new PulsarContainer(parse("apachepulsar/pulsar:" + CURRENT_VERSION))
     pulsarContainer.withStartupTimeout(Duration.ofMinutes(5))
@@ -59,6 +64,7 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
 
     serviceUrl = pulsarContainer.getPulsarBrokerUrl()
     adminUrl = pulsarContainer.getHttpServiceUrl()
+    pulsarContainer.followOutput(new Slf4jLogConsumer(logger, true))
 
     super.beforeAll()
   }
@@ -129,7 +135,7 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
       .serviceUrl(serviceUrl)
       .build()
 
-    val producer = client.newProducer().topic(topicName).create()
+    val producer = client.newProducer().topic(topicName).enableBatching(false).create()
 
     val offsets = try {
       messages.map { m =>

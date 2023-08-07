@@ -30,6 +30,16 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
   import SchemaData._
   import testImplicits._
 
+  test(s"assign from specific offsets (failOnDataLoss: panda)") {
+    sparkContext.setLogLevel("INFO")
+    val topic = newTopic()
+    testFromSpecificOffsets(
+      topic,
+      failOnDataLoss = true,
+      TopicSingle -> topic,
+      FailOnDataLossOptionKey -> "true")
+  }
+
   test("hasMessagesAvailable crash") {
     val topic = newTopic()
     sendMessages(topic, (1 to 3).map { _.toString }.toArray)
