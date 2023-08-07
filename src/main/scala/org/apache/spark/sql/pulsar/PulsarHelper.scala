@@ -448,7 +448,8 @@ private[pulsar] case class PulsarHelper(
 
     // seek to specified offset or time and get the actual corresponding message id
     // we don't call consumer.acknowledge() here because the message is not processed yet
-    if (consumer.asInstanceOf[ConsumerImpl[GenericRecord]].hasMessageAvailable) {
+    if (time.isDefined || offset.isDefined) {
+      if (!consumer.isConnected) consumer.getLastMessageId
       (time, offset) match {
         case (None, Some(o)) => consumer.seek(o)
         case (Some(t), None) => consumer.seek(t)
@@ -456,8 +457,11 @@ private[pulsar] case class PulsarHelper(
           throw new IllegalArgumentException(
             s"one of time and offset should be set. time: $time, offset: $offset")
       }
-
-      PulsarSourceUtils.mid2Impl(consumer.receive().getMessageId)
+      val message = consumer.receive()
+      // This must be wrapped in UserProvidedMessageId to prevent first message from being skipped
+      // because start offset is exclusive by default.
+      if (message != null) UserProvidedMessageId(PulsarSourceUtils.mid2Impl(message.getMessageId))
+      else UserProvidedMessageId(MessageId.earliest)
     } else {
       UserProvidedMessageId(MessageId.earliest)
     }
