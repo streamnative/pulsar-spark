@@ -135,7 +135,7 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
       .serviceUrl(serviceUrl)
       .build()
 
-    val producer = client.newProducer().topic(topicName).enableBatching(false).create()
+    val producer = client.newProducer().topic(topicName).create()
 
     val offsets = try {
       messages.map { m =>

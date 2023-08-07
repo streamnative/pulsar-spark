@@ -28,12 +28,9 @@ class PulsarMicroBatchV1SourceSuite extends PulsarMicroBatchSourceSuiteBase {
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    spark.conf.set(
-      "spark.sql.streaming.disabledV2MicroBatchReaders",
-      classOf[PulsarProvider].getCanonicalName)
   }
 
-  test("V1 Source is used when disabled through SQLConf") {
+  test("V1 Source is used by default") {
     val topic = newTopic()
 
     val pulsar = spark.readStream
@@ -47,28 +44,6 @@ class PulsarMicroBatchV1SourceSuite extends PulsarMicroBatchSourceSuiteBase {
       AssertOnQuery { query =>
         query.logicalPlan.collect {
           case StreamingExecutionRelation(_: PulsarSource, _) => true
-        }.nonEmpty
-      }
-    )
-  }
-}
-
-class PulsarMicroBatchV2SourceSuite extends PulsarMicroBatchSourceSuiteBase {
-
-  test("V2 Source is used by default") {
-    val topic = newTopic()
-
-    val pulsar = spark.readStream
-      .format("pulsar")
-      .option(ServiceUrlOptionKey, serviceUrl)
-      .option(TopicPattern, s"$topic.*")
-      .load()
-
-    testStream(pulsar)(
-      makeSureGetOffsetCalled,
-      AssertOnQuery { query =>
-        query.logicalPlan.collect {
-          case StreamingExecutionRelation(_: PulsarMicroBatchReader, _) => true
         }.nonEmpty
       }
     )
