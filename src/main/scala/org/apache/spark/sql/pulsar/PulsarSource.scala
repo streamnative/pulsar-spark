@@ -27,12 +27,14 @@ import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.connector.read.streaming
 import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, SupportsAdmissionControl}
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
+import org.apache.spark.sql.pulsar.PulsarOptions.ServiceUrlOptionKey
 import org.apache.spark.sql.pulsar.SpecificPulsarOffset.getTopicOffsets
 import org.apache.spark.sql.types.StructType
 
 import scala.collection.mutable
 
 private[pulsar] class PulsarSource(
+    serviceUrl: String,
     sqlContext: SQLContext,
     pulsarHelper: PulsarHelper,
     clientConf: ju.Map[String, Object],
@@ -61,7 +63,7 @@ private[pulsar] class PulsarSource(
 
   private var currentTopicOffsets: Option[Map[String, MessageId]] = None
 
-  private val pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(clientConf.get("serviceUrl").toString).build()
+  private lazy val pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(serviceUrl).build()
 
   private lazy val pulsarSchema: SchemaInfo = pulsarHelper.getPulsarSchema
 
@@ -80,12 +82,16 @@ private[pulsar] class PulsarSource(
     initialTopicOffsets
     val latestOffsets = pulsarHelper.fetchLatestOffsets().topicOffsets
     // add new partitions from PulsarAdmin, set to earliest entry and ledger id based on limit
-    val existingStartOffsets = getTopicOffsets(startingOffset.asInstanceOf[SpecificPulsarOffset])
+    val existingStartOffsets = if (startingOffset != null) {
+      getTopicOffsets(startingOffset.asInstanceOf[SpecificPulsarOffset])
+    } else {
+      Map[String, MessageId]()
+    }
+    print(s"readLimit: ${readLimit.toString}\n")
     val newTopics = latestOffsets.keySet.diff(existingStartOffsets.keySet)
     val startPartitionOffsets = existingStartOffsets ++ newTopics.map(topicPartition => topicPartition -> MessageId.earliest)
     val totalReadLimit = AdmissionLimits(readLimit).get.bytesToTake
-    val offsets = mutable.Map[String, MessageIdImpl]()
-
+    val offsets = mutable.Map[String, MessageId]()
     val numPartitions = startPartitionOffsets.size
     startPartitionOffsets.keys.foreach { topicPartition =>
       var readLimit = totalReadLimit / numPartitions
@@ -131,7 +137,8 @@ private[pulsar] class PulsarSource(
 
   object AdmissionLimits {
     def apply(limit: ReadLimit): Option[AdmissionLimits] = limit match {
-      case maxBytes: ReadMaxBytes => Some (new AdmissionLimits(maxBytes.maxBytes) )
+      case maxBytes: ReadMaxBytes => Some(new AdmissionLimits(maxBytes.maxBytes))
+      case _  : ReadAllAvailable => Some(new AdmissionLimits(Int.MaxValue))
     }
 
   }

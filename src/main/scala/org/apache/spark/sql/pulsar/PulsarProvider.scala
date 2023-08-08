@@ -106,6 +106,7 @@ private[pulsar] class PulsarProvider
     pulsarHelper.setupCursor(offset)
 
     new PulsarSource(
+      serviceUrl,
       sqlContext,
       pulsarHelper,
       clientConfig,
