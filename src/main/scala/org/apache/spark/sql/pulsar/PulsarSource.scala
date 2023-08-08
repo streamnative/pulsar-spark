@@ -102,7 +102,13 @@ private[pulsar] class PulsarSource(
             val avgBytesPerEntries = ledger.size / ledger.entries
             // approximation of bytes left in ledger to deal with case
             // where we are at the middle of the ledger
-            val bytesLeftInLedger = avgBytesPerEntries * (ledger.entries - entryId)
+            val bytesLeftInLedger = avgBytesPerEntries * {
+              if (ledger.ledgerId == ledgerId) {
+                ledger.entries - entryId
+              } else {
+                ledger.entries
+              }
+            }
             if (readLimit > bytesLeftInLedger) {
               readLimit -= bytesLeftInLedger
               offsets += (topicPartition -> DefaultImplementation
