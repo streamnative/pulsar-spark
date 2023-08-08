@@ -31,6 +31,7 @@ import org.apache.spark.sql.pulsar.PulsarOptions.ServiceUrlOptionKey
 import org.apache.spark.sql.pulsar.SpecificPulsarOffset.getTopicOffsets
 import org.apache.spark.sql.types.StructType
 
+import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.collection.mutable
 
 private[pulsar] class PulsarSource(
@@ -80,14 +81,15 @@ private[pulsar] class PulsarSource(
 
   override def latestOffset(startingOffset: streaming.Offset, readLimit: ReadLimit): streaming.Offset = {
     initialTopicOffsets
+    // implement helper inside PulsarHelper in order to use getTopicPartitions
     val latestOffsets = pulsarHelper.fetchLatestOffsets().topicOffsets
     // add new partitions from PulsarAdmin, set to earliest entry and ledger id based on limit
+    // start a reader, get to the earliest offset for new topic partitions
     val existingStartOffsets = if (startingOffset != null) {
       getTopicOffsets(startingOffset.asInstanceOf[SpecificPulsarOffset])
     } else {
       Map[String, MessageId]()
     }
-    print(s"readLimit: ${readLimit.toString}\n")
     val newTopics = latestOffsets.keySet.diff(existingStartOffsets.keySet)
     val startPartitionOffsets = existingStartOffsets ++ newTopics.map(topicPartition => topicPartition -> MessageId.earliest)
     val totalReadLimit = AdmissionLimits(readLimit).get.bytesToTake
@@ -95,40 +97,35 @@ private[pulsar] class PulsarSource(
     val numPartitions = startPartitionOffsets.size
     startPartitionOffsets.keys.foreach { topicPartition =>
       var readLimit = totalReadLimit / numPartitions
-      pulsarHelper.fetchLatestOffsetForTopic(topicPartition)
       val messageId = startPartitionOffsets.apply(topicPartition)
       val ledgerId = getLedgerId(messageId)
       val entryId = getEntryId(messageId)
-      pulsarAdmin.topics().getPartitionedInternalStats(topicPartition).partitions.forEach { (_, partitionMetadata) =>
-        partitionMetadata.ledgers.sort((ledger1, ledger2) => {
-          (ledger1.ledgerId - ledger2.ledgerId).toInt
-        })
-        partitionMetadata.ledgers.forEach { ledger =>
-          if (ledger.ledgerId >= ledgerId) {
-            val avgBytesPerEntries = ledger.size / ledger.entries
-            // approximation of bytes left in ledger to deal with case
-            // where we are at the middle of the ledger
-            val bytesLeftInLedger = avgBytesPerEntries * {
-              if (ledger.ledgerId == ledgerId) {
-                ledger.entries - entryId
-              } else {
-                ledger.entries
-              }
-            }
-            if (readLimit > bytesLeftInLedger) {
-              readLimit -= bytesLeftInLedger
-              offsets += (topicPartition -> DefaultImplementation
-                .getDefaultImplementation
-                .newMessageId(ledger.ledgerId, ledger.entries, -1))
+//      pulsarAdmin.topics().getPartitionedInternalStats(topicPartition).partitions.forEach { (_, partitionMetadata) =>
+//        partitionMetadata.ledgers.asScala.filter(_.ledgerId < ledgerId).sortBy(_.ledgerId).foreach { ledger =>
+      pulsarAdmin.topics.getInternalStats(topicPartition).ledgers.asScala.filter(_.ledgerId < ledgerId).sortBy(_.ledgerId).foreach { ledger =>
+          val avgBytesPerEntries = ledger.size / ledger.entries
+          // approximation of bytes left in ledger to deal with case
+          // where we are at the middle of the ledger
+          val bytesLeftInLedger = avgBytesPerEntries * {
+            if (ledger.ledgerId == ledgerId) {
+              ledger.entries - entryId
             } else {
-              offsets += (topicPartition -> DefaultImplementation
-                .getDefaultImplementation
-                .newMessageId(ledger.ledgerId, entryId + readLimit / avgBytesPerEntries, -1))
-              readLimit = 0
+              ledger.entries
             }
           }
+          if (readLimit > bytesLeftInLedger) {
+            readLimit -= bytesLeftInLedger
+            offsets += (topicPartition -> DefaultImplementation
+              .getDefaultImplementation
+              .newMessageId(ledger.ledgerId, ledger.entries, -1))
+          } else {
+            offsets += (topicPartition -> DefaultImplementation
+              .getDefaultImplementation
+              .newMessageId(ledger.ledgerId, entryId + readLimit / avgBytesPerEntries, -1))
+            readLimit = 0
+          }
         }
-      }
+//      }
     }
     SpecificPulsarOffset(offsets.toMap)
   }
