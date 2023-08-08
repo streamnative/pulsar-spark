@@ -73,6 +73,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     }
 
     test(s"assign from time (failOnDataLoss: $failOnDataLoss)") {
+      sparkContext.setLogLevel("INFO")
       val topic = newTopic()
       testFromTime(
         topic,
@@ -450,8 +451,8 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       failOnDataLoss: Boolean,
       options: (String, String)*): Unit = {
 
-    val time0 = System.currentTimeMillis()
-    Thread.sleep(5000)
+    val time0 = System.currentTimeMillis() - 10000
+
     sendMessages(topic, (1 to 3).map { _.toString }.toArray)
     require(getLatestOffsets(Set(topic)).size === 1)
 
