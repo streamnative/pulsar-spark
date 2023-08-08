@@ -13,18 +13,24 @@
  */
 package org.apache.spark.sql.pulsar
 
-import java.{util => ju}
+import org.apache.pulsar.client.admin.PulsarAdmin
 
+import java.{util => ju}
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.MessageIdImpl
+import org.apache.pulsar.client.internal.DefaultImplementation
 import org.apache.pulsar.common.schema.SchemaInfo
-
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
+import org.apache.spark.sql.connector.read.streaming
+import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, SupportsAdmissionControl}
 import org.apache.spark.sql.execution.streaming.{Offset, Source}
+import org.apache.spark.sql.pulsar.SpecificPulsarOffset.getTopicOffsets
 import org.apache.spark.sql.types.StructType
+
+import scala.collection.mutable
 
 private[pulsar] class PulsarSource(
     sqlContext: SQLContext,
@@ -38,7 +44,8 @@ private[pulsar] class PulsarSource(
     subscriptionNamePrefix: String,
     jsonOptions: JSONOptionsInRead)
     extends Source
-    with Logging {
+    with Logging
+    with SupportsAdmissionControl {
 
   import PulsarSourceUtils._
 
@@ -54,6 +61,8 @@ private[pulsar] class PulsarSource(
 
   private var currentTopicOffsets: Option[Map[String, MessageId]] = None
 
+  private val pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(clientConf.get("serviceUrl").toString).build()
+
   private lazy val pulsarSchema: SchemaInfo = pulsarHelper.getPulsarSchema
 
   override def schema(): StructType = SchemaUtils.pulsarSourceSchema(pulsarSchema)
@@ -65,6 +74,60 @@ private[pulsar] class PulsarSource(
     currentTopicOffsets = Some(latest.topicOffsets)
     logDebug(s"GetOffset: ${latest.topicOffsets.toSeq.map(_.toString).sorted}")
     Some(latest.asInstanceOf[Offset])
+  }
+
+  override def latestOffset(startingOffset: streaming.Offset, readLimit: ReadLimit): streaming.Offset = {
+    initialTopicOffsets
+    val latestOffsets = pulsarHelper.fetchLatestOffsets().topicOffsets
+    // add new partitions from PulsarAdmin, set to earliest entry and ledger id based on limit
+    val existingStartOffsets = getTopicOffsets(startingOffset.asInstanceOf[SpecificPulsarOffset])
+    val newTopics = latestOffsets.keySet.diff(existingStartOffsets.keySet)
+    val startPartitionOffsets = existingStartOffsets ++ newTopics.map(topicPartition => topicPartition -> MessageId.earliest)
+    val totalReadLimit = AdmissionLimits(readLimit).get.bytesToTake
+    val offsets = mutable.Map[String, MessageIdImpl]()
+
+    val numPartitions = startPartitionOffsets.size
+    startPartitionOffsets.keys.foreach { topicPartition =>
+      var readLimit = totalReadLimit / numPartitions
+      pulsarHelper.fetchLatestOffsetForTopic(topicPartition)
+      val messageId = startPartitionOffsets.apply(topicPartition)
+      val ledgerId = getLedgerId(messageId)
+      val entryId = getEntryId(messageId)
+      pulsarAdmin.topics().getPartitionedInternalStats(topicPartition).partitions.forEach { (_, partitionMetadata) =>
+        partitionMetadata.ledgers.sort((ledger1, ledger2) => {
+          (ledger1.ledgerId - ledger2.ledgerId).toInt
+        })
+        partitionMetadata.ledgers.forEach { ledger =>
+          if (ledger.ledgerId >= ledgerId) {
+            val avgBytesPerEntries = ledger.size / ledger.entries
+            // approximation of bytes left in ledger to deal with case
+            // where we are at the middle of the ledger
+            val bytesLeftInLedger = avgBytesPerEntries * (ledger.entries - entryId)
+            if (readLimit > bytesLeftInLedger) {
+              readLimit -= bytesLeftInLedger
+              offsets += (topicPartition -> DefaultImplementation
+                .getDefaultImplementation
+                .newMessageId(ledger.ledgerId, ledger.entries, -1))
+            } else {
+              offsets += (topicPartition -> DefaultImplementation
+                .getDefaultImplementation
+                .newMessageId(ledger.ledgerId, entryId + readLimit / avgBytesPerEntries, -1))
+              readLimit = 0
+            }
+          }
+        }
+      }
+    }
+    SpecificPulsarOffset(offsets.toMap)
+  }
+
+  class AdmissionLimits(var bytesToTake: Long)
+
+  object AdmissionLimits {
+    def apply(limit: ReadLimit): Option[AdmissionLimits] = limit match {
+      case maxBytes: ReadMaxBytes => Some (new AdmissionLimits(maxBytes.maxBytes) )
+    }
+
   }
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
@@ -169,3 +232,6 @@ private[pulsar] class PulsarSource(
 
   }
 }
+
+/** A read limit that admits a soft-max of `maxBytes` per micro-batch. */
+case class ReadMaxBytes(maxBytes: Long) extends ReadLimit
