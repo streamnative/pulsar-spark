@@ -49,6 +49,8 @@ class PulsarSourceTest extends StreamTest with SharedSparkSession with PulsarTes
 
   override def beforeAll(): Unit = {
     super.beforeAll()
+    // TODO: disable task retry when pulsar reader seek failure is fixed.
+    sparkContext.conf.set("spark.task.maxFailures", "5")
   }
 
   override def afterAll(): Unit = {

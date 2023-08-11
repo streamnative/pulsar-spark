@@ -16,15 +16,13 @@ package org.apache.spark.sql.pulsar
 import java.nio.charset.StandardCharsets.UTF_8
 import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
-
 import scala.reflect.ClassTag
-
 import org.apache.pulsar.client.api.schema.GenericRecord
 import org.apache.pulsar.client.api.{MessageId, Schema}
 import org.apache.pulsar.client.impl.ConsumerImpl
 import org.apache.pulsar.common.schema.SchemaInfo
-
 import org.apache.spark.sql.execution.streaming.StreamExecution
+import org.apache.spark.sql.pulsar.PulsarProvider.getPulsarOffset
 import org.apache.spark.sql.{Encoder, Encoders}
 
 abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
@@ -175,8 +173,9 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     testBadOptions(TopicMulti -> "")("No topics is specified")
     testBadOptions(TopicPattern -> "")("TopicsPattern is empty")
   }
-/*
-  test("get offsets from case insensitive parameters") {
+
+  // TODO: figure out what the new behavior is and re-enable the test.
+  ignore("get offsets from case insensitive parameters") {
     for ((optionKey, optionValue, answer) <- Seq(
       (StartingOffsetsOptionKey, "earLiEst", EarliestOffset),
       (EndingOffsetsOptionKey, "laTest", LatestOffset))) {
@@ -191,7 +190,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       assert(offset === answer)
     }
   }
-*/
+
   test("Pulsar column types") {
     val now = System.currentTimeMillis()
     val topic = newTopic()
