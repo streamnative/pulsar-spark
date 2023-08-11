@@ -105,7 +105,6 @@ private[pulsar] abstract class PulsarSourceRDDBase(
                   cbmid.getLedgerId,
                   cbmid.getEntryId + 1,
                   cbmid.getPartitionIndex)
-                if (!reader.isConnected) reader.readNext()
                 reader.seek(newStart)
               case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
               // current entry is a non-batch entry, we can read next directly in `getNext()`
