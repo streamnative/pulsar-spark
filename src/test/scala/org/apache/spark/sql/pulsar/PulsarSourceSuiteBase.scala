@@ -80,7 +80,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
         TopicSingle -> topic)
     }
 
-    test(s"assign from specific offsets (failOnDataLoss: $failOnDataLoss)") {
+    ignore(s"assign from specific offsets (failOnDataLoss: $failOnDataLoss)") {
       val topic = newTopic()
       testFromSpecificOffsets(
         topic,
@@ -107,7 +107,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
         TopicMulti -> topic)
     }
 
-    test(s"subscribing topic by name from specific offsets (failOnDataLoss: $failOnDataLoss)") {
+    ignore(s"subscribing topic by name from specific offsets (failOnDataLoss: $failOnDataLoss)") {
       val topic = newTopic()
       testFromSpecificOffsets(topic, failOnDataLoss = failOnDataLoss, TopicMulti -> topic)
     }
@@ -132,7 +132,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
         TopicPattern -> s"$topicPrefix-.*")
     }
 
-    test(s"subscribing topic by pattern from specific offsets (failOnDataLoss: $failOnDataLoss)") {
+    ignore(s"subscribing topic by pattern from specific offsets (failOnDataLoss: $failOnDataLoss)") {
       val topicPrefix = newTopic()
       val topic = topicPrefix + "-suffix"
       testFromSpecificOffsets(

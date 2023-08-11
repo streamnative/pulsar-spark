@@ -442,25 +442,25 @@ private[pulsar] case class PulsarHelper(
       topic: String,
       time: Option[Long],
       offset: Option[MessageId]): MessageIdImpl = {
+    val (subscriptionName, _) = extractSubscription(predefinedSubscription, topic)
+    val consumer =
+      CachedConsumer.getOrCreate(topic, subscriptionName, client.asInstanceOf[PulsarClient])
+
     // seek to specified offset or time and get the actual corresponding message id
     // we don't call consumer.acknowledge() here because the message is not processed yet
     if (time.isDefined || offset.isDefined) {
-      val reader = client
-        .newReader()
-        .subscriptionRolePrefix(driverGroupIdPrefix)
-        .topic(topic)
-        .startMessageId(offset.getOrElse(MessageId.earliest))
-        .startMessageIdInclusive()
-        .create()
+      // Call getLastMessageId to reconnect the consumer before seeking.
+      if (!consumer.isConnected) consumer.getLastMessageId
       (time, offset) match {
-        case (None, Some(o)) =>
-        case (Some(t), None) => reader.seek(t)
+        case (None, Some(o)) => consumer.seek(o)
+        case (Some(t), None) => consumer.seek(t)
         case _ =>
           throw new IllegalArgumentException(
             s"one of time and offset should be set. time: $time, offset: $offset")
       }
-      val message = reader.readNext()
-      reader.close()
+      val message = consumer.receive()
+      // This must be wrapped in UserProvidedMessageId to prevent first message from being skipped
+      // because start offset is exclusive by default.
       if (message != null) UserProvidedMessageId(PulsarSourceUtils.mid2Impl(message.getMessageId))
       else UserProvidedMessageId(MessageId.earliest)
     } else {
