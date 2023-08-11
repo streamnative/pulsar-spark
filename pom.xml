@@ -24,7 +24,7 @@
 
   <groupId>io.streamnative.connectors</groupId>
   <artifactId>pulsar-spark-connector_2.12</artifactId>
-  <version>3.2.0.2</version>
+  <version>3.2.2.2</version>
   <name>StreamNative :: Pulsar Spark Connector</name>
   <url>https://pulsar.apache.org</url>
   <inceptionYear>2019</inceptionYear>
@@ -369,6 +369,7 @@
                 <includes>
                   <include>com.github.luben:*</include>
                   <include>javax.*:*</include>
+                  <include>org.apache.avro*:*</include>
                   <include>org.apache.pulsar*:*</include>
                   <include>org.bouncycastle*:*</include>
                   <include>org.lz4*:*</include>
@@ -397,8 +398,20 @@
                   <shadedPattern>org.apache.pulsar.shade.com.google</shadedPattern>
                 </relocation>
                 <relocation>
+                  <pattern>javax.xml</pattern>
+                  <shadedPattern>org.apache.pulsar.shade.javax.xml</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.avro</pattern>
+                  <shadedPattern>org.apache.pulsar.shade.org.apache.avro</shadedPattern>
+                </relocation>
+                <relocation>
                   <pattern>org.apache.commons</pattern>
                   <shadedPattern>org.apache.pulsar.shade.org.apache.commons</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.lz4</pattern>
+                  <shadedPattern>org.apache.pulsar.shade.org.lz4</shadedPattern>
                 </relocation>
               </relocations>
               <transformers>
