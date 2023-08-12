@@ -87,27 +87,30 @@ private[pulsar] abstract class PulsarSourceRDDBase(
             reportDataLoss(s"cannot read data at $startOffset from topic $topic")
           } else {
             currentId = currentMessage.getMessageId
-            if (startOffset != MessageId.earliest && !messageIdRoughEquals(
+            if (enterEndFunc(currentId)) isLast = true
+            else {
+              if (startOffset != MessageId.earliest && !messageIdRoughEquals(
                 currentId,
                 startOffset)) {
-              reportDataLoss(
-                s"Potential Data Loss: intended to start at $startOffset, " +
-                  s"actually we get $currentId")
-            }
+                reportDataLoss(
+                  s"Potential Data Loss: intended to start at $startOffset, " +
+                    s"actually we get $currentId")
+              }
 
-            (startOffset, currentId) match {
-              case (_: BatchMessageIdImpl, _: BatchMessageIdImpl) =>
-              // we seek using a batch message id, we can read next directly in `getNext()`
-              case (_: MessageIdImpl, cbmid: BatchMessageIdImpl) =>
-                // we seek using a message id, this is supposed to be read by previous task since
-                // it's inclusive for the last batch (start, end], so we skip this batch
-                val newStart = new MessageIdImpl(
-                  cbmid.getLedgerId,
-                  cbmid.getEntryId + 1,
-                  cbmid.getPartitionIndex)
-                reader.seek(newStart)
-              case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
-              // current entry is a non-batch entry, we can read next directly in `getNext()`
+              (startOffset, currentId) match {
+                case (_: BatchMessageIdImpl, _: BatchMessageIdImpl) =>
+                // we seek using a batch message id, we can read next directly in `getNext()`
+                case (_: MessageIdImpl, cbmid: BatchMessageIdImpl) =>
+                  // we seek using a message id, this is supposed to be read by previous task since
+                  // it's inclusive for the last batch (start, end], so we skip this batch
+                  val newStart = new MessageIdImpl(
+                    cbmid.getLedgerId,
+                    cbmid.getEntryId + 1,
+                    cbmid.getPartitionIndex)
+                  reader.seek(newStart)
+                case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
+                // current entry is a non-batch entry, we can read next directly in `getNext()`
+              }
             }
           }
         }
