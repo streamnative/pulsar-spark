@@ -63,7 +63,7 @@ private[pulsar] class PulsarSource(
     initialTopicOffsets
     val latest = pulsarHelper.fetchLatestOffsets()
     currentTopicOffsets = Some(latest.topicOffsets)
-    logDebug(s"GetOffset: ${latest.topicOffsets.toSeq.map(_.toString).sorted}")
+    logInfo(s"GetOffset: ${latest.topicOffsets.toSeq.map(_.toString).sorted}")
     Some(latest.asInstanceOf[Offset])
   }
 
