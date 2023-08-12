@@ -80,7 +80,6 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       try {
         if (!startOffset
             .isInstanceOf[UserProvidedMessageId] && startOffset != MessageId.earliest) {
-          reader.seek(startOffset)
           currentMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
           if (currentMessage == null) {
             isLast = true
@@ -110,8 +109,8 @@ private[pulsar] abstract class PulsarSourceRDDBase(
               // current entry is a non-batch entry, we can read next directly in `getNext()`
             }
           }
+          if (currentId != null && enterEndFunc(currentId)) isLast = true
         }
-        if (currentId != null && enterEndFunc(currentId)) isLast = true
       } catch {
         case e: PulsarClientException =>
           logError(s"PulsarClient failed to read message from topic $topic", e)
