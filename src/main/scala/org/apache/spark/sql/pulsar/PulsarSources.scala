@@ -172,7 +172,7 @@ class PulsarSourceInitialOffsetWriter(sparkSession: SparkSession, metadataPath: 
   }
 }
 
-private[pulsar] class PulsarOffsetRange private (
+private[pulsar] case class PulsarOffsetRange private (
     private var topic_ : String,
     private var fromOffset_ : MessageId,
     private var untilOffset_ : MessageId,
