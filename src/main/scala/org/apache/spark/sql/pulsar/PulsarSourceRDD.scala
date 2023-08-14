@@ -80,7 +80,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       try {
         if (!startOffset
             .isInstanceOf[UserProvidedMessageId] && startOffset != MessageId.earliest) {
-          reader.seek(startOffset)
+          // Read and skip the first message when the start offset is exclusive.
           currentMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
           if (currentMessage == null) {
             isLast = true
@@ -110,6 +110,8 @@ private[pulsar] abstract class PulsarSourceRDDBase(
               // current entry is a non-batch entry, we can read next directly in `getNext()`
             }
           }
+          // If start offset is exclusive and equal to end offset, don't read any data.
+          if (currentId != null && enterEndFunc(currentId)) isLast = true
         }
       } catch {
         case e: PulsarClientException =>
