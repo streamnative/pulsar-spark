@@ -114,6 +114,7 @@ private[pulsar] class PulsarProvider
       metadataPath,
       offset,
       pollTimeoutMs(caseInsensitiveParams),
+      maxBytesPerTrigger(caseInsensitiveParams),
       failOnDataLoss(caseInsensitiveParams),
       subscriptionNamePrefix,
       jsonOptions)
@@ -384,6 +385,13 @@ private[pulsar] object PulsarProvider extends Logging {
         PulsarOptions.PollTimeoutMS,
         (SparkEnv.get.conf.getTimeAsSeconds("spark.network.timeout", "120s") * 1000).toString)
       .toInt
+
+  private def maxBytesPerTrigger(caseInsensitiveParams: Map[String, String]): Long =
+    caseInsensitiveParams
+      .getOrElse(
+        PulsarOptions.MaxBytesPerTrigger,
+        Long.MaxValue.toString
+      ).toLong
 
   private def validateGeneralOptions(
       caseInsensitiveParams: Map[String, String]): Map[String, String] = {

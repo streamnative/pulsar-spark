@@ -46,6 +46,7 @@ private[pulsar] object PulsarOptions {
   val SubscriptionPrefix: String = "subscriptionPrefix".toLowerCase(Locale.ROOT)
   val PredefinedSubscription: String = "predefinedSubscription".toLowerCase(Locale.ROOT)
 
+  val MaxBytesPerTrigger: String = "maxBytesPerTrigger".toLowerCase(Locale.ROOT)
   val PollTimeoutMS: String = "pollTimeoutMs".toLowerCase(Locale.ROOT)
   val FailOnDataLossOptionKey: String = "failOnDataLoss".toLowerCase(Locale.ROOT)
 

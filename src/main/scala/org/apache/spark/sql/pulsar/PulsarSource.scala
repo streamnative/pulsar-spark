@@ -43,13 +43,13 @@ private[pulsar] class PulsarSource(
     metadataPath: String,
     startingOffsets: PerTopicOffset,
     pollTimeoutMs: Int,
+    maxBytesPerTrigger: Long,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
     jsonOptions: JSONOptionsInRead)
     extends Source
     with Logging
-    with SupportsAdmissionControl
-    {
+    with SupportsAdmissionControl {
 
   import PulsarSourceUtils._
 
@@ -97,25 +97,6 @@ private[pulsar] class PulsarSource(
     val offsets = mutable.Map[String, MessageId]()
     offsets ++= startPartitionOffsets
     val numPartitions = startPartitionOffsets.size
-    val startingOffsetStr = startPartitionOffsets.map { case (k, v) =>
-      val ledgerId = getLedgerId(v) // Assuming getLedgerId is a method of the object
-      val entryId = getEntryId(v) // Assuming getEntryId is a method of the object
-      val stats = pulsarAdmin.topics().getInternalStats(k)
-      val numEntries = stats.numberOfEntries
-      val numEntriesPerLedger = pulsarAdmin.topics().getInternalStats(k).ledgers.asScala.map{ ledger =>
-        s"[LedgerID: ${ledger.ledgerId}, Size: ${ledger.size}, Entries: ${ledger.entries}]"
-      }.mkString(", ")
-
-      s"[$k, LedgerId: $ledgerId, " +
-        s"EntryId: $entryId, " +
-        s"Entries: ${numEntries}, " +
-        s"CurrentLedgerEntries: ${stats.currentLedgerEntries}, " +
-        s"CurrentLedgerSize: ${stats.currentLedgerSize}, " +
-        s"NumLedgers: ${stats.ledgers.size()}, " +
-        s"TotalSize: ${stats.totalSize}, " +
-        s"EntriesPerLedger: ${numEntriesPerLedger}]"
-    }.mkString(", ")
-    print(s"STARTOFFSETS: $startingOffsetStr\n")
     startPartitionOffsets.keys.filter(topicPartition => {
       pulsarAdmin.topics.getInternalStats(topicPartition).currentLedgerEntries > 0
     }).foreach { topicPartition =>
@@ -151,7 +132,9 @@ private[pulsar] class PulsarSource(
     }
     SpecificPulsarOffset(offsets.toMap)
   }
-
+  override def getDefaultReadLimit: ReadLimit = {
+      ReadMaxBytes.apply(maxBytesPerTrigger)
+  }
   class AdmissionLimits(var bytesToTake: Long)
 
   object AdmissionLimits {
