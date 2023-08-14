@@ -135,8 +135,7 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
       .serviceUrl(serviceUrl)
       .build()
 
-    // TODO: enable batching in the test once we figure our how to fix the reader disconnect issue.
-    val producer = client.newProducer().enableBatching(false).topic(topicName).create()
+    val producer = client.newProducer().topic(topicName).create()
 
     val offsets = try {
       messages.map { m =>
