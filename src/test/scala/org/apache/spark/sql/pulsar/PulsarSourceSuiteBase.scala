@@ -71,7 +71,6 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     }
 
     test(s"assign from time (failOnDataLoss: $failOnDataLoss)") {
-      sparkContext.setLogLevel("INFO")
       val topic = newTopic()
       testFromTime(
         topic,
