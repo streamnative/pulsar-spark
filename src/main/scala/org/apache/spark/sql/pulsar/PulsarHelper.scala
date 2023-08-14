@@ -409,7 +409,7 @@ private[pulsar] case class PulsarHelper(
         case MessageId.earliest =>
           UserProvidedMessageId(off)
         case MessageId.latest =>
-          PulsarSourceUtils.seekableLatestMid(getLastMessageId(tp))
+          UserProvidedMessageId(PulsarSourceUtils.seekableLatestMid(getLastMessageId(tp)))
         case _: MessageId =>
           getUserProvidedMessageId(tp, None, Some(off))
         case _ =>
@@ -428,7 +428,7 @@ private[pulsar] case class PulsarHelper(
         case PulsarProvider.EARLIEST_TIME =>
           UserProvidedMessageId(MessageId.earliest)
         case PulsarProvider.LATEST_TIME =>
-          PulsarSourceUtils.seekableLatestMid(getLastMessageId(tp))
+          UserProvidedMessageId(PulsarSourceUtils.seekableLatestMid(getLastMessageId(tp)))
         case _ =>
           assert(time > 0, s"time less than 0: $time")
           getUserProvidedMessageId(tp, Some(time), None)
