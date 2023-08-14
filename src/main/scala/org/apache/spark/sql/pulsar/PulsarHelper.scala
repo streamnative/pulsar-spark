@@ -23,8 +23,7 @@ import scala.language.postfixOps
 import scala.util.control.NonFatal
 
 import org.apache.pulsar.client.api.{MessageId, PulsarClient}
-import org.apache.pulsar.client.api.schema.GenericRecord
-import org.apache.pulsar.client.impl.{ConsumerImpl, MessageIdImpl, PulsarClientImpl}
+import org.apache.pulsar.client.impl.{MessageIdImpl, PulsarClientImpl}
 import org.apache.pulsar.client.impl.schema.BytesSchema
 import org.apache.pulsar.common.api.proto.CommandGetTopicsOfNamespace
 import org.apache.pulsar.common.naming.TopicName
