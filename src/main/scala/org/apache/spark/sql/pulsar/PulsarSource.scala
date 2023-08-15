@@ -13,13 +13,18 @@
  */
 package org.apache.spark.sql.pulsar
 
-import org.apache.pulsar.client.admin.PulsarAdmin
 
 import java.{util => ju}
+
+import scala.collection.JavaConverters.asScalaBufferConverter
+import scala.collection.mutable
+
+import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.MessageIdImpl
 import org.apache.pulsar.client.internal.DefaultImplementation
 import org.apache.pulsar.common.schema.SchemaInfo
+
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.sql.catalyst.InternalRow
@@ -31,8 +36,6 @@ import org.apache.spark.sql.pulsar.PulsarOptions.ServiceUrlOptionKey
 import org.apache.spark.sql.pulsar.SpecificPulsarOffset.getTopicOffsets
 import org.apache.spark.sql.types.StructType
 
-import scala.collection.JavaConverters.asScalaBufferConverter
-import scala.collection.mutable
 
 private[pulsar] class PulsarSource(
     serviceUrl: String,
@@ -76,11 +79,11 @@ private[pulsar] class PulsarSource(
     initialTopicOffsets
     val latest = pulsarHelper.fetchLatestOffsets()
     currentTopicOffsets = Some(latest.topicOffsets)
-    logDebug(s"GetOffset: ${latest.topicOffsets.toSeq.map(_.toString).sorted}")
     Some(latest.asInstanceOf[Offset])
   }
 
-  override def latestOffset(startingOffset: streaming.Offset, readLimit: ReadLimit): streaming.Offset = {
+  override def latestOffset(startingOffset: streaming.Offset,
+                            readLimit: ReadLimit): streaming.Offset = {
     initialTopicOffsets
     // implement helper inside PulsarHelper in order to use getTopicPartitions
     val latestOffsets = pulsarHelper.fetchLatestOffsets().topicOffsets
@@ -92,7 +95,8 @@ private[pulsar] class PulsarSource(
       Map[String, MessageId]()
     }
     val newTopics = latestOffsets.keySet.diff(existingStartOffsets.keySet)
-    val startPartitionOffsets = existingStartOffsets ++ newTopics.map(topicPartition => topicPartition -> pulsarHelper.fetchLatestOffsetForTopic(topicPartition))
+    val startPartitionOffsets = existingStartOffsets ++ newTopics.map(topicPartition
+      => topicPartition -> pulsarHelper.fetchLatestOffsetForTopic(topicPartition))
     val totalReadLimit = AdmissionLimits(readLimit).get.bytesToTake
     val offsets = mutable.Map[String, MessageId]()
     offsets ++= startPartitionOffsets
@@ -105,7 +109,8 @@ private[pulsar] class PulsarSource(
       val ledgerId = getLedgerId(messageId)
       val entryId = getEntryId(messageId)
       val stats = pulsarAdmin.topics.getInternalStats(topicPartition)
-      pulsarAdmin.topics.getInternalStats(topicPartition).ledgers.asScala.filter(_.ledgerId >= ledgerId).sortBy(_.ledgerId).foreach{ ledger =>
+      pulsarAdmin.topics.getInternalStats(topicPartition).ledgers.
+        asScala.filter(_.ledgerId >= ledgerId).sortBy(_.ledgerId).foreach{ ledger =>
         ledger.entries = stats.currentLedgerEntries
         val avgBytesPerEntries = stats.currentLedgerSize / stats.currentLedgerEntries
         // approximation of bytes left in ledger to deal with case
@@ -123,9 +128,11 @@ private[pulsar] class PulsarSource(
             .getDefaultImplementation
             .newMessageId(ledger.ledgerId, ledger.entries - 1, -1))
         } else {
+          val numEntriesToRead = Math.max(1, readLimit / avgBytesPerEntries)
+          val lastEntryRead = Math.min(ledger.entries - 1, entryId + numEntriesToRead)
           offsets += (topicPartition -> DefaultImplementation
             .getDefaultImplementation
-            .newMessageId(ledger.ledgerId, entryId + readLimit / avgBytesPerEntries, -1))
+            .newMessageId(ledger.ledgerId, lastEntryRead, -1))
           readLimit = 0
         }
       }
