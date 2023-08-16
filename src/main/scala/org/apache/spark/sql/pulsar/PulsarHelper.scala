@@ -62,6 +62,9 @@ private[pulsar] case class PulsarHelper(
   private var topics: Seq[String] = _
   private var topicPartitions: Seq[String] = _
 
+  // We can do this because pulsarAdmin will only be called if latestOffset is called
+  // and there should be an exception thrown in PulsarProvider if maxBytes is set,
+  // and maxBytes is not set
   private lazy val pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(adminUrl.get).build()
 
   override def close(): Unit = {
@@ -273,6 +276,9 @@ private[pulsar] case class PulsarHelper(
     var messageId = startMessageId
     var readLimitLeft = readLimit
     ledgers.filter(_.entries != 0).sortBy(_.ledgerId).foreach { ledger =>
+      if (readLimitLeft == 0) {
+        return messageId
+      }
       val avgBytesPerEntries = ledger.size / ledger.entries
       // approximation of bytes left in ledger to deal with case
       // where we are at the middle of the ledger
