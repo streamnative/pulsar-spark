@@ -82,10 +82,18 @@ private[pulsar] class PulsarSource(
                             readLimit: ReadLimit): streaming.Offset = {
     initialTopicOffsets
     val admissionLimits = AdmissionLimits(readLimit)
-    pulsarHelper.latestOffsets(startingOffset, admissionLimits.get)
+    if (admissionLimits.isEmpty) {
+      pulsarHelper.fetchLatestOffsets()
+    } else {
+      pulsarHelper.latestOffsets(startingOffset, admissionLimits.get)
+    }
   }
   override def getDefaultReadLimit: ReadLimit = {
+    if (maxBytesPerTrigger == Long.MaxValue) {
+      ReadLimit.allAvailable()
+    } else {
       ReadMaxBytes.apply(maxBytesPerTrigger)
+    }
   }
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
@@ -199,7 +207,7 @@ class AdmissionLimits(var bytesToTake: Long)
 object AdmissionLimits {
   def apply(limit: ReadLimit): Option[AdmissionLimits] = limit match {
     case maxBytes: ReadMaxBytes => Some(new AdmissionLimits(maxBytes.maxBytes))
-    case _: ReadAllAvailable => Some(new AdmissionLimits(Int.MaxValue))
+    case _: ReadAllAvailable => None
   }
 
 }
