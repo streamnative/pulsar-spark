@@ -40,7 +40,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
 
     // Each Int adds 38 bytes to message size, so we expect 3 Ints in each message
     testStream(mapped)(
-      StartStream(trigger = ProcessingTime(10)),
+      StartStream(trigger = ProcessingTime(100)),
       makeSureGetOffsetCalled,
       AddPulsarData(Set(topic), 1, 2, 3),
       CheckLastBatch(2, 3, 4),
