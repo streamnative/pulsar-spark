@@ -21,7 +21,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
    * Can send message of specific size in AddPulsarData here
    */
 
-  test("Admission Control") {
+  test("Check last batch where message size is greater than maxBytesPerTrigger") {
     val topic = newTopic()
     sendMessages(topic, Array("-1"))
     require(getLatestOffsets(Set(topic)).size === 1)
@@ -40,7 +40,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
 
     // Each Int adds 38 bytes to message size, so we expect 3 Ints in each message
     testStream(mapped)(
-      StartStream(trigger = ProcessingTime(100)),
+      StartStream(trigger = ProcessingTime(10)),
       makeSureGetOffsetCalled,
       AddPulsarData(Set(topic), 1, 2, 3),
       CheckLastBatch(2, 3, 4),
@@ -51,7 +51,6 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
         recordsRead == 9
       }
     )
-
   }
 
 }

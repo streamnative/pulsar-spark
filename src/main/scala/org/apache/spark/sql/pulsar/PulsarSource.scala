@@ -38,7 +38,6 @@ import org.apache.spark.sql.types.StructType
 
 
 private[pulsar] class PulsarSource(
-    serviceUrl: String,
     sqlContext: SQLContext,
     pulsarHelper: PulsarHelper,
     clientConf: ju.Map[String, Object],
@@ -81,15 +80,13 @@ private[pulsar] class PulsarSource(
   override def latestOffset(startingOffset: streaming.Offset,
                             readLimit: ReadLimit): streaming.Offset = {
     initialTopicOffsets
-    val admissionLimits = AdmissionLimits(readLimit)
-    if (admissionLimits.isEmpty) {
-      pulsarHelper.fetchLatestOffsets()
-    } else {
-      pulsarHelper.latestOffsets(startingOffset, admissionLimits.get)
+    readLimit match {
+      case ReadMaxBytes(maxBytes) => pulsarHelper.latestOffsets(startingOffset, maxBytes)
+      case _: ReadAllAvailable => pulsarHelper.fetchLatestOffsets()
     }
   }
   override def getDefaultReadLimit: ReadLimit = {
-    if (maxBytesPerTrigger == Long.MaxValue) {
+    if (maxBytesPerTrigger == 0L) {
       ReadLimit.allAvailable()
     } else {
       ReadMaxBytes.apply(maxBytesPerTrigger)

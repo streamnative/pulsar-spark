@@ -107,8 +107,13 @@ private[pulsar] class PulsarProvider
       pulsarHelper.offsetForEachTopic(caseInsensitiveParams, LatestOffset, StartOptionKey)
     pulsarHelper.setupCursor(offset)
 
+    val maxBytes = maxBytesPerTrigger(caseInsensitiveParams)
+    if (adminUrl.isEmpty && maxBytes != 0L) {
+      throw new IllegalArgumentException("admin.url " +
+        "must be specified if maxBytesPerTrigger is specified")
+    }
+
     new PulsarSource(
-      adminUrl,
       sqlContext,
       pulsarHelper,
       clientConfig,
@@ -371,8 +376,12 @@ private[pulsar] object PulsarProvider extends Logging {
     parameters(ServiceUrlOptionKey)
   }
 
-  private def getAdminUrl(parameters: Map[String, String]): String = {
-    parameters(AdminUrlOptionKey)
+  private def getAdminUrl(parameters: Map[String, String]): Option[String] = {
+    val adminUrl = parameters.getOrElse(AdminUrlOptionKey, "")
+    adminUrl match {
+      case "" => None
+      case s => Option(s)
+    }
   }
 
   private def getAllowDifferentTopicSchemas(parameters: Map[String, String]): Boolean = {
@@ -393,7 +402,7 @@ private[pulsar] object PulsarProvider extends Logging {
     caseInsensitiveParams
       .getOrElse(
         PulsarOptions.MaxBytesPerTrigger,
-        Long.MaxValue.toString
+        0L.toString
       ).toLong
 
   private def validateGeneralOptions(
@@ -502,7 +511,7 @@ private[pulsar] object PulsarProvider extends Logging {
   }
 
   private def prepareConfForReader(parameters: Map[String, String])
-      : (ju.Map[String, Object], ju.Map[String, Object], String, String) = {
+      : (ju.Map[String, Object], ju.Map[String, Object], String, Option[String]) = {
 
     val serviceUrl = getServiceUrl(parameters)
     val adminUrl = getAdminUrl(parameters)

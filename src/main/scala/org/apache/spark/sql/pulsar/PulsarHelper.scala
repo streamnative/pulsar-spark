@@ -46,7 +46,7 @@ import org.apache.spark.sql.types.StructType
  */
 private[pulsar] case class PulsarHelper(
     serviceUrl: String,
-    adminUrl: String,
+    adminUrl: Option[String],
     clientConf: ju.Map[String, Object],
     driverGroupIdPrefix: String,
     caseInsensitiveParameters: Map[String, String],
@@ -62,7 +62,7 @@ private[pulsar] case class PulsarHelper(
   private var topics: Seq[String] = _
   private var topicPartitions: Seq[String] = _
 
-  private lazy val pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()
+  private lazy val pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(adminUrl.get).build()
 
   override def close(): Unit = {
     // do nothing
@@ -217,9 +217,9 @@ private[pulsar] case class PulsarHelper(
   }
 
   def latestOffsets(startingOffset: streaming.Offset,
-                    admissionLimits: AdmissionLimits): SpecificPulsarOffset = {
+                    totalReadLimit: Long): SpecificPulsarOffset = {
     // implement helper inside PulsarHelper in order to use getTopicPartitions
-    val latestOffsets = fetchLatestOffsets().topicOffsets
+    val topicPartitions = getTopicPartitions
     // add new partitions from PulsarAdmin, set to earliest entry and ledger id based on limit
     // start a reader, get to the earliest offset for new topic partitions
     val existingStartOffsets = if (startingOffset != null) {
@@ -227,10 +227,9 @@ private[pulsar] case class PulsarHelper(
     } else {
       Map[String, MessageId]()
     }
-    val newTopics = latestOffsets.keySet.diff(existingStartOffsets.keySet)
+    val newTopics = topicPartitions.toSet.diff(existingStartOffsets.keySet)
     val startPartitionOffsets = existingStartOffsets ++ newTopics.map(topicPartition
     => topicPartition -> fetchLatestOffsetForTopic(topicPartition))
-    val totalReadLimit = admissionLimits.bytesToTake
     val offsets = mutable.Map[String, MessageId]()
     offsets ++= startPartitionOffsets
     val numPartitions = startPartitionOffsets.size
@@ -264,6 +263,9 @@ private[pulsar] case class PulsarHelper(
     val stats = pulsarAdmin.topics.getInternalStats(topicPartition)
     val ledgers = pulsarAdmin.topics.getInternalStats(topicPartition).ledgers.
       asScala.filter(_.ledgerId >= startLedgerId).sortBy(_.ledgerId)
+    // The last ledger of the ledgers list doesn't have .size or .entries
+    // properly populated, and the corresponding info is in currentLedgerSize
+    // and currentLedgerEntries
     if (ledgers.nonEmpty) {
       ledgers.last.size = stats.currentLedgerSize
       ledgers.last.entries = stats.currentLedgerEntries
