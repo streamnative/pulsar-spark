@@ -288,7 +288,7 @@ private[pulsar] case class PulsarHelper(
           .newMessageId(ledger.ledgerId, ledger.entries - 1, -1)
       } else {
         val numEntriesToRead = Math.max(1, readLimit / avgBytesPerEntries)
-        val lastEntryId = if (ledger.ledgerId == startLedgerId) {
+        val lastEntryId = if (ledger.ledgerId != startLedgerId) {
           numEntriesToRead - 1
         } else {
           startEntryId + numEntriesToRead
