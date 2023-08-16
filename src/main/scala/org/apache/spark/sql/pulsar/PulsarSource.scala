@@ -199,12 +199,3 @@ private[pulsar] class PulsarSource(
 /** A read limit that admits a soft-max of `maxBytes` per micro-batch. */
 case class ReadMaxBytes(maxBytes: Long) extends ReadLimit
 
-class AdmissionLimits(var bytesToTake: Long)
-
-object AdmissionLimits {
-  def apply(limit: ReadLimit): Option[AdmissionLimits] = limit match {
-    case maxBytes: ReadMaxBytes => Some(new AdmissionLimits(maxBytes.maxBytes))
-    case _: ReadAllAvailable => None
-  }
-
-}

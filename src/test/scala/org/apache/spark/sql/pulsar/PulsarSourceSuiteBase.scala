@@ -36,7 +36,6 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     val reader = spark.readStream
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .option(TopicPattern, s"$topic.*")
 
     val pulsar = reader
@@ -147,7 +146,6 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
         val reader = spark.readStream
           .format("pulsar")
           .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
         options.foreach { case (k, v) => reader.option(k, v) }
         reader.load()
       }
@@ -199,7 +197,6 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     val pulsar = spark.readStream
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .option(StartingOffsetsOptionKey, "earliest")
       .option(TopicMulti, topic)
       .load()
@@ -242,7 +239,6 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       .format("pulsar")
       .option(StartingOffsetsOptionKey, "earliest")
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .option(FailOnDataLossOptionKey, true)
       .option(TopicSingle, topic)
 
@@ -332,7 +328,6 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       .format("pulsar")
       .option(StartingOffsetsOptionKey, "earliest")
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .option(FailOnDataLossOptionKey, true)
       .option(TopicSingle, topic)
 
@@ -353,7 +348,6 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       .format("pulsar")
       .option(StartingOffsetsOptionKey, "earliest")
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .option(FailOnDataLossOptionKey, true)
       .option(TopicSingle, topic)
 
@@ -378,7 +372,6 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       .format("pulsar")
       .option(StartingOffsetsOptionKey, "latest")
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .option(FailOnDataLossOptionKey, failOnDataLoss.toString)
 
     options.foreach { case (k, v) => reader.option(k, v) }
@@ -423,7 +416,6 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       .format("pulsar")
       .option(StartingOffsetsOptionKey, "earliest")
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .option(FailOnDataLossOptionKey, failOnDataLoss.toString)
     options.foreach { case (k, v) => reader.option(k, v) }
     val pulsar = reader
@@ -467,7 +459,6 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
         .format("pulsar")
         .option(StartingTime, time0)
         .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
         .option(FailOnDataLossOptionKey, failOnDataLoss.toString)
       options.foreach { case (k, v) => reader.option(k, v) }
       val pulsar = reader
@@ -502,7 +493,6 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       .format("pulsar")
       .option(StartingOffsetsOptionKey, s1)
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .option(FailOnDataLossOptionKey, failOnDataLoss.toString)
     options.foreach { case (k, v) => reader.option(k, v) }
     val pulsar = reader

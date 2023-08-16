@@ -14,12 +14,13 @@
 package org.apache.spark.sql.pulsar
 
 import java.util.concurrent.ConcurrentLinkedQueue
+
 import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.spark.SparkException
 import org.apache.spark.sql.ForeachWriter
 import org.apache.spark.sql.execution.streaming.StreamingExecutionRelation
 import org.apache.spark.sql.functions.{count, window}
-import org.apache.spark.sql.pulsar.PulsarOptions.{AdminUrlOptionKey, ServiceUrlOptionKey, TopicPattern}
+import org.apache.spark.sql.pulsar.PulsarOptions.{ServiceUrlOptionKey, TopicPattern}
 import org.apache.spark.sql.streaming.Trigger.ProcessingTime
 import org.apache.spark.util.Utils
 
@@ -30,7 +31,6 @@ class PulsarMicroBatchV1SourceSuite extends PulsarMicroBatchSourceSuiteBase {
     val pulsar = spark.readStream
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .option(TopicPattern, s"$topic.*")
       .load()
 
@@ -56,7 +56,6 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     val reader = spark.readStream
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .option(TopicSingle, topic)
 
     testStream(reader.load)(makeSureGetOffsetCalled, StopStream, StartStream(), StopStream)
@@ -71,7 +70,6 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       .format("pulsar")
       .option(TopicSingle, topic)
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .load()
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
@@ -100,7 +98,6 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     val reader = spark.readStream
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .option(TopicPattern, s"$topicPrefix-.*")
       .option("failOnDataLoss", "false")
 
@@ -136,7 +133,6 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     val reader = spark.readStream
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .option(TopicPattern, s"$topicPrefix-.*")
       .option("failOnDataLoss", "true")
       .option("startingOffsets", "earliest")
@@ -184,7 +180,6 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     val pulsar = spark.readStream
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .option(StartingOffsetsOptionKey, "earliest")
       .option(TopicSingle, topic)
       .load()
@@ -223,7 +218,6 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
     val reader = spark.readStream
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .option(TopicSingle, topic)
       .option(StartingOffsetsOptionKey, "earliest")
       .option(PollTimeoutMS, "1000")
@@ -267,7 +261,6 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       .format("pulsar")
       .option(TopicSingle, topic)
       .option(ServiceUrlOptionKey, serviceUrl)
-			.option(AdminUrlOptionKey, adminUrl)
       .load()
 
     val values = pulsar
