@@ -134,7 +134,9 @@ private[pulsar] case class PulsarHelper(
     offset.foreach { case (tp, mid) =>
       try {
         val (subscription, _) = extractSubscription(predefinedSubscription, tp)
-        CachedConsumer.getOrCreate(tp, subscription, client).seek(mid)
+        val consumer = CachedConsumer.getOrCreate(tp, subscription, client)
+        if (!consumer.isConnected) consumer.getLastMessageId
+        consumer.seek(mid)
       } catch {
         case e: Throwable =>
           throw new RuntimeException(
@@ -232,7 +234,7 @@ private[pulsar] case class PulsarHelper(
     }
     val newTopics = topicPartitions.toSet.diff(existingStartOffsets.keySet)
     val startPartitionOffsets = existingStartOffsets ++ newTopics.map(topicPartition
-    => topicPartition -> fetchLatestOffsetForTopic(topicPartition))
+    => topicPartition -> MessageId.earliest)
     val offsets = mutable.Map[String, MessageId]()
     offsets ++= startPartitionOffsets
     val numPartitions = startPartitionOffsets.size

@@ -1,6 +1,7 @@
 package org.apache.spark.sql.pulsar
 
 import org.apache.pulsar.client.admin.PulsarAdmin
+import org.apache.pulsar.client.internal.DefaultImplementation
 import org.apache.spark.sql.streaming.Trigger.{Once, ProcessingTime}
 import org.apache.spark.util.Utils
 
@@ -11,6 +12,10 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
 
   override def beforeAll(): Unit = {
     super.beforeAll()
+  }
+
+  override def afterAll(): Unit = {
+    super.afterAll()
   }
 
   /**
@@ -31,7 +36,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       .option(TopicSingle, topic)
       .option(ServiceUrlOptionKey, serviceUrl)
       .option(AdminUrlOptionKey, adminUrl)
-      .option(MaxBytesPerTrigger, 120)
+      .option(MaxBytesPerTrigger, 150)
       .load()
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
@@ -40,7 +45,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
 
     // Each Int adds 38 bytes to message size, so we expect 3 Ints in each message
     testStream(mapped)(
-      StartStream(trigger = ProcessingTime(100)),
+      StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
       AddPulsarData(Set(topic), 1, 2, 3),
       CheckLastBatch(2, 3, 4),
@@ -53,4 +58,11 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     )
   }
 
+//  test("latest") {
+//    val topic = newTopic()
+//    sendMessages(topic, Array("1"))
+//
+//    val adminu: String = adminUrl
+//    val pulsarHelper = new PulsarAdmissionControlHelper(adminu)
+//  }
 }
