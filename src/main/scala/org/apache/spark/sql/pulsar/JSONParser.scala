@@ -161,7 +161,7 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
             // See https://issues.apache.org/jira/browse/SPARK-10681.
             Long.box {
               Try(
-                TimestampFormatter(options.timestampFormat, options.zoneId, true)
+                TimestampFormatter(options.timestampFormatInWrite, options.zoneId, true)
                   .parse(stringValue))
                 .getOrElse {
                   // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
@@ -184,7 +184,7 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
           // See https://issues.apache.org/jira/browse/SPARK-10681.x
           Long.box {
             Try(
-              TimestampFormatter(options.timestampFormat, options.zoneId, true).parse(
+              TimestampFormatter(options.timestampFormatInWrite, options.zoneId, true).parse(
                 stringValue))
               .orElse {
                 // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
