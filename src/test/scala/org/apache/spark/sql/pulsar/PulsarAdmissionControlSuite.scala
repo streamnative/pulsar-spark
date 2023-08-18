@@ -1,7 +1,9 @@
 package org.apache.spark.sql.pulsar
 
 import org.apache.pulsar.client.admin.PulsarAdmin
+import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.internal.DefaultImplementation
+import org.apache.spark.sql.pulsar.PulsarSourceUtils.{getEntryId, getLedgerId}
 import org.apache.spark.sql.streaming.Trigger.{Once, ProcessingTime}
 import org.apache.spark.util.Utils
 
@@ -58,11 +60,16 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     )
   }
 
-//  test("latest") {
-//    val topic = newTopic()
-//    sendMessages(topic, Array("1"))
-//
-//    val adminu: String = adminUrl
-//    val pulsarHelper = new PulsarAdmissionControlHelper(adminu)
-//  }
+  test("latest") {
+    val topic = newTopic()
+    sendMessages(topic, Array("-1"))
+    require(getLatestOffsets(Set(topic)).size === 1)
+    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin => {
+      val admissionControlHelper = new PulsarAdmissionControlHelper(admin)
+      val offset = admissionControlHelper.latestOffsetForTopic(topic, MessageId.earliest, 10)
+      logInfo(s"MESSAGE ID: [${getLedgerId(offset)}, ${getEntryId(offset)}]\n")
+
+      }
+    }
+  }
 }
