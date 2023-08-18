@@ -224,7 +224,7 @@ private[pulsar] case class PulsarHelper(
   def latestOffsets(startingOffset: streaming.Offset,
                     totalReadLimit: Long): SpecificPulsarOffset = {
     // implement helper inside PulsarHelper in order to use getTopicPartitions
-    val topicPartitions = fetchLatestOffsets().topicOffsets.keySet
+    val topicPartitions = getTopicPartitions
     // add new partitions from PulsarAdmin, set to earliest entry and ledger id based on limit
     // start a reader, get to the earliest offset for new topic partitions
     val existingStartOffsets = if (startingOffset != null) {
