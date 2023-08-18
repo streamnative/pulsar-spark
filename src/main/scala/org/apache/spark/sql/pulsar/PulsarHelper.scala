@@ -224,7 +224,7 @@ private[pulsar] case class PulsarHelper(
   def latestOffsets(startingOffset: streaming.Offset,
                     totalReadLimit: Long): SpecificPulsarOffset = {
     // implement helper inside PulsarHelper in order to use getTopicPartitions
-    val topicPartitions = getTopicPartitions
+    val topicPartitions = fetchLatestOffsets().topicOffsets.keySet
     // add new partitions from PulsarAdmin, set to earliest entry and ledger id based on limit
     // start a reader, get to the earliest offset for new topic partitions
     val existingStartOffsets = if (startingOffset != null) {
@@ -233,8 +233,13 @@ private[pulsar] case class PulsarHelper(
       Map[String, MessageId]()
     }
     val newTopics = topicPartitions.toSet.diff(existingStartOffsets.keySet)
+    logInfo(s"EXISTING TOPIC PARTITIONS: ${existingStartOffsets.keySet.mkString(",")}\n")
+    logInfo(s"ALL TOPIC PARTITIONS: ${topicPartitions.mkString(",")}\n")
     val startPartitionOffsets = existingStartOffsets ++ newTopics.map(topicPartition
-      => topicPartition -> MessageId.earliest)
+      =>  {
+      logInfo(s"SETTING NEW TOPIC PARTITION: $topicPartition\n")
+      topicPartition -> MessageId.earliest
+    })
     val offsets = mutable.Map[String, MessageId]()
     offsets ++= startPartitionOffsets
     val numPartitions = startPartitionOffsets.size
@@ -523,6 +528,7 @@ class PulsarAdmissionControlHelper(adminUrl: String)
   def latestOffsetForTopic(topicPartition: String,
                            startMessageId: MessageId,
                            readLimit: Long): MessageId = {
+    logInfo(s"TOPIC PARTITION: $topicPartition\n")
     val startLedgerId = getLedgerId(startMessageId)
     val startEntryId = getEntryId(startMessageId)
     val stats = pulsarAdmin.topics.getInternalStats(topicPartition)

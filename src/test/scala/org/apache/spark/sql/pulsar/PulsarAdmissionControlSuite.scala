@@ -116,4 +116,37 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     )
   }
 
+  test("Add new topic after stream as started") {
+    val topic1 = newTopic()
+    sendMessages(topic1, Array("-1"))
+    require(getLatestOffsets(Set(topic1)).size === 1)
+
+    val pulsar = spark.readStream
+      .format("pulsar")
+      .option(TopicMulti, topic1)
+      .option(ServiceUrlOptionKey, serviceUrl)
+      .option(AdminUrlOptionKey, adminUrl)
+      .option(MaxBytesPerTrigger, 300)
+      .load()
+      .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
+      .as[(String, String)]
+
+    val mapped = pulsar.map(kv => kv._2.toInt + 1)
+
+    val topic2 = newTopic()
+    // Each Int adds 49 bytes to message size, so we expect 3 Ints in each message
+    testStream(mapped)(
+      StartStream(trigger = ProcessingTime(1000)),
+      makeSureGetOffsetCalled,
+      AddPulsarData(Set(topic1), 1, 2, 3),
+      CheckLastBatch(2, 3, 4),
+      AddPulsarData(Set(topic2), 4, 5, 6, 7, 8, 9),
+      CheckLastBatch(8, 9, 10),
+      AssertOnQuery { query =>
+        val recordsRead = query.recentProgress.map(_.numInputRows).sum
+        recordsRead == 9
+      }
+    )
+  }
+
 }
