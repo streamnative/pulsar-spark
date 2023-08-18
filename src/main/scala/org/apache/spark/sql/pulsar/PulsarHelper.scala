@@ -62,11 +62,10 @@ private[pulsar] case class PulsarHelper(
   private var topics: Seq[String] = _
   private var topicPartitions: Seq[String] = _
 
-  // We can do this because pulsarAdmin will only be called if latestOffset is called
+  // We can call adminUrl.get because admissionControlHelper will only be called if latestOffset is called
   // and there should be an exception thrown in PulsarProvider if maxBytes is set,
-  // and maxBytes is not set
-  private lazy val pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(adminUrl.get).build()
-  private lazy val admissionControlHelper = new PulsarAdmissionControlHelper(pulsarAdmin)
+  // and adminUrl is not set
+  private lazy val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl.get)
 
   override def close(): Unit = {
     // do nothing
@@ -235,7 +234,7 @@ private[pulsar] case class PulsarHelper(
     }
     val newTopics = topicPartitions.toSet.diff(existingStartOffsets.keySet)
     val startPartitionOffsets = existingStartOffsets ++ newTopics.map(topicPartition
-    => topicPartition -> MessageId.earliest)
+      => topicPartition -> MessageId.earliest)
     val offsets = mutable.Map[String, MessageId]()
     offsets ++= startPartitionOffsets
     val numPartitions = startPartitionOffsets.size
@@ -515,8 +514,10 @@ private[pulsar] case class PulsarHelper(
   }
 }
 
-class PulsarAdmissionControlHelper(pulsarAdmin: PulsarAdmin)
+class PulsarAdmissionControlHelper(adminUrl: String)
   extends Logging {
+
+  private lazy val pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()
 
   import scala.collection.JavaConverters._
   def latestOffsetForTopic(topicPartition: String,

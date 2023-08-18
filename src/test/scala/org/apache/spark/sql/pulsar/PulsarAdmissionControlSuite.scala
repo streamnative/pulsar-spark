@@ -67,12 +67,10 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     val firstLedger = getLedgerId(firstMid)
     val firstEntry = getEntryId(firstMid)
     require(getLatestOffsets(Set(topic)).size === 1)
-    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin => {
-      val admissionControlHelper = new PulsarAdmissionControlHelper(admin)
-      val offset = admissionControlHelper.latestOffsetForTopic(topic, MessageId.earliest, 1)
-      assert(getLedgerId(offset) == firstLedger && getEntryId(offset) == firstEntry)
-      }
-    }
+    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl)
+    val offset = admissionControlHelper.latestOffsetForTopic(topic, MessageId.earliest, 1)
+    assert(getLedgerId(offset) == firstLedger && getEntryId(offset) == firstEntry)
+
   }
 
   test("Admit entry in the middle of the ledger") {
@@ -81,11 +79,10 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     val firstMid = messageIds.head._2
     val secondMid = messageIds.apply(1)._2
     require(getLatestOffsets(Set(topic)).size === 1)
-    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
-      val admissionControlHelper = new PulsarAdmissionControlHelper(admin)
-      val offset = admissionControlHelper.latestOffsetForTopic(topic, firstMid, 1)
-      assert(getLedgerId(offset) == getLedgerId(secondMid) && getEntryId(offset) == getEntryId(secondMid))
-    }
+    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl)
+    val offset = admissionControlHelper.latestOffsetForTopic(topic, firstMid, 1)
+    assert(getLedgerId(offset) == getLedgerId(secondMid) && getEntryId(offset) == getEntryId(secondMid))
+
   }
 
   test("Admission Control for multiple topics") {
