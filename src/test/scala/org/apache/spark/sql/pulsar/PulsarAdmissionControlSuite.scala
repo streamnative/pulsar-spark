@@ -45,7 +45,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
 
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
 
-    // Each Int adds 38 bytes to message size, so we expect 3 Ints in each message
+    // Each Int adds 49 bytes to message size, so we expect 3 Ints in each message
     testStream(mapped)(
       StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
@@ -60,16 +60,63 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     )
   }
 
-  test("latest") {
+  test("Only admit first entry of ledger") {
     val topic = newTopic()
-    sendMessages(topic, Array("-1"))
+    val messageIds = sendMessages(topic, Array("1", "2", "3"))
+    val firstMid = messageIds.head._2
+    val firstLedger = getLedgerId(firstMid)
+    val firstEntry = getEntryId(firstMid)
     require(getLatestOffsets(Set(topic)).size === 1)
     Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin => {
       val admissionControlHelper = new PulsarAdmissionControlHelper(admin)
-      val offset = admissionControlHelper.latestOffsetForTopic(topic, MessageId.earliest, 10)
-      logInfo(s"MESSAGE ID: [${getLedgerId(offset)}, ${getEntryId(offset)}]\n")
-
+      val offset = admissionControlHelper.latestOffsetForTopic(topic, MessageId.earliest, 1)
+      assert(getLedgerId(offset) == firstLedger && getEntryId(offset) == firstEntry)
       }
     }
   }
+
+  test("Admit entry in the middle of the ledger") {
+    val topic = newTopic()
+    val messageIds = sendMessages(topic, Array("1", "2", "3"))
+    val firstMid = messageIds.head._2
+    val secondMid = messageIds.apply(1)._2
+    require(getLatestOffsets(Set(topic)).size === 1)
+    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+      val admissionControlHelper = new PulsarAdmissionControlHelper(admin)
+      val offset = admissionControlHelper.latestOffsetForTopic(topic, firstMid, 1)
+      assert(getLedgerId(offset) == getLedgerId(secondMid) && getEntryId(offset) == getEntryId(secondMid))
+    }
+  }
+
+  test("Admission Control for multiple topics") {
+    val topic1 = newTopic()
+    val topic2 = newTopic()
+
+    val pulsar = spark.readStream
+      .format("pulsar")
+      .option(TopicMulti, s"$topic1,$topic2")
+      .option(ServiceUrlOptionKey, serviceUrl)
+      .option(AdminUrlOptionKey, adminUrl)
+      .option(MaxBytesPerTrigger, 300)
+      .load()
+      .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
+      .as[(String, String)]
+
+    val mapped = pulsar.map(kv => kv._2.toInt + 1)
+
+    // Each Int adds 49 bytes to message size, so we expect 3 Ints in each message
+    testStream(mapped)(
+      StartStream(trigger = ProcessingTime(1000)),
+      makeSureGetOffsetCalled,
+      AddPulsarData(Set(topic1), 1, 2, 3),
+      CheckLastBatch(2, 3, 4),
+      AddPulsarData(Set(topic2), 4, 5, 6, 7, 8, 9),
+      CheckLastBatch(8, 9, 10),
+      AssertOnQuery { query =>
+        val recordsRead = query.recentProgress.map(_.numInputRows).sum
+        recordsRead == 9
+      }
+    )
+  }
+
 }

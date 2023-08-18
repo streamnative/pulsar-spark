@@ -515,7 +515,8 @@ private[pulsar] case class PulsarHelper(
   }
 }
 
-class PulsarAdmissionControlHelper(pulsarAdmin: PulsarAdmin) {
+class PulsarAdmissionControlHelper(pulsarAdmin: PulsarAdmin)
+  extends Logging {
 
   import scala.collection.JavaConverters._
   def latestOffsetForTopic(topicPartition: String,
