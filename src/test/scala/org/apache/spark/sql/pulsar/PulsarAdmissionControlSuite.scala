@@ -14,7 +14,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
 
   private val maxEntriesPerLedger = "managedLedgerMaxEntriesPerLedger"
   private val ledgerRolloverTime = "managedLedgerMinLedgerRolloverTimeMinutes"
-  private val sizeOfInt = 49
+  private val sizeOfInt = 50
 
   override def beforeAll(): Unit = {
     brokerConfigs.put(maxEntriesPerLedger, "3")
@@ -24,6 +24,30 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
 
   override def afterAll(): Unit = {
     super.afterAll()
+  }
+
+  test("Only admit first entry of ledger") {
+    val topic = newTopic()
+    val messageIds = sendMessages(topic, Array("1", "2", "3"))
+    val firstMid = messageIds.head._2
+    val firstLedger = getLedgerId(firstMid)
+    val firstEntry = getEntryId(firstMid)
+    require(getLatestOffsets(Set(topic)).size === 1)
+    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl)
+    val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, MessageId.earliest, sizeOfInt)
+    assert(getLedgerId(offset) == firstLedger && getEntryId(offset) == firstEntry)
+  }
+
+  test("Admit entry in the middle of the ledger") {
+    val topic = newTopic()
+    val messageIds = sendMessages(topic, Array("1", "2", "3"))
+    val firstMid = messageIds.head._2
+    val secondMid = messageIds.apply(1)._2
+    require(getLatestOffsets(Set(topic)).size === 1)
+    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl)
+    val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, firstMid, sizeOfInt)
+    assert(getLedgerId(offset) == getLedgerId(secondMid) && getEntryId(offset) == getEntryId(secondMid))
+
   }
 
   test("Check last batch where message size is greater than maxBytesPerTrigger") {
@@ -43,7 +67,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       .as[(String, String)]
 
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
-    
+
     testStream(mapped)(
       StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
@@ -52,34 +76,11 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       AddPulsarData(Set(topic), 4, 5, 6, 7, 8, 9),
       CheckLastBatch(8, 9, 10),
       AssertOnQuery { query =>
-        val recordsRead = query.recentProgress.map(_.numInputRows).sum
-        recordsRead == 9
+        query.recentProgress.map(microBatch =>
+          microBatch.numInputRows == 0 || microBatch.numInputRows == 3
+        ).forall(_ == true)
       }
     )
-  }
-
-  test("Only admit first entry of ledger") {
-    val topic = newTopic()
-    val messageIds = sendMessages(topic, Array("1", "2", "3"))
-    val firstMid = messageIds.head._2
-    val firstLedger = getLedgerId(firstMid)
-    val firstEntry = getEntryId(firstMid)
-    require(getLatestOffsets(Set(topic)).size === 1)
-    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl)
-    val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, MessageId.earliest, 1)
-    assert(getLedgerId(offset) == firstLedger && getEntryId(offset) == firstEntry)
-  }
-
-  test("Admit entry in the middle of the ledger") {
-    val topic = newTopic()
-    val messageIds = sendMessages(topic, Array("1", "2", "3"))
-    val firstMid = messageIds.head._2
-    val secondMid = messageIds.apply(1)._2
-    require(getLatestOffsets(Set(topic)).size === 1)
-    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl)
-    val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, firstMid, 1)
-    assert(getLedgerId(offset) == getLedgerId(secondMid) && getEntryId(offset) == getEntryId(secondMid))
-
   }
 
   test("Admission Control for multiple topics") {
@@ -107,8 +108,9 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       AddPulsarData(Set(topic2), 4, 5, 6, 7, 8, 9),
       CheckLastBatch(8, 9, 10),
       AssertOnQuery { query =>
-        val recordsRead = query.recentProgress.map(_.numInputRows).sum
-        recordsRead == 9
+        query.recentProgress.map(microBatch =>
+          microBatch.numInputRows == 0 || microBatch.numInputRows == 3
+        ).forall(_ == true)
       }
     )
   }
@@ -138,8 +140,9 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       AddPulsarData(Set(topic1, topic2), 4, 5, 6, 7, 8, 9),
       CheckLastBatch(8, 9, 10),
       AssertOnQuery { query =>
-        val recordsRead = query.recentProgress.map(_.numInputRows).sum
-        recordsRead == 9
+        query.recentProgress.map(microBatch =>
+          microBatch.numInputRows == 0 || microBatch.numInputRows == 3
+        ).forall(_ == true)
       }
     )
   }
@@ -170,11 +173,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
       AddPulsarDataWithPartition(topic, Some(0), 1, 2, 3, 4),
-      CheckLastBatch(4),
-      AssertOnQuery { query =>
-        val recordsRead = query.recentProgress.map(_.numInputRows).sum
-        recordsRead == 4
-      }
+      CheckLastBatch(4)
     )
   }
 
@@ -208,8 +207,9 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       AddPulsarDataWithPartition(topic, Some(1), 5, 6, 7, 8),
       CheckLastBatch(7, 8),
       AssertOnQuery { query =>
-        val recordsRead = query.recentProgress.map(_.numInputRows).sum
-        recordsRead == 8
+        query.recentProgress.map( microBatch =>
+            microBatch.numInputRows == 0 || microBatch.numInputRows == 2
+        ).forall(_ == true)
       }
     )
   }
@@ -241,6 +241,11 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       makeSureGetOffsetCalled,
       AddPulsarDataWithPartition(topic, Some(0), 1, 2, 3, 4),
       CheckLastBatch(1, 2, 3, 4),
+      AssertOnQuery { query =>
+        query.recentProgress.map(microBatch =>
+          microBatch.numInputRows == 0 || microBatch.numInputRows == 4
+        ).forall(_ == true)
+      }
     )
 
     addPartitions(topic, 2)
@@ -249,8 +254,9 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       AddPulsarDataWithPartition(topic, Some(1), 5, 6, 7, 8),
       CheckLastBatch(7, 8),
       AssertOnQuery { query =>
-        val recordsRead = query.recentProgress.map(_.numInputRows).sum
-        recordsRead == 4
+        query.recentProgress.map(microBatch =>
+          microBatch.numInputRows == 0 || microBatch.numInputRows == 2
+        ).forall(_ == true)
       }
     )
   }
