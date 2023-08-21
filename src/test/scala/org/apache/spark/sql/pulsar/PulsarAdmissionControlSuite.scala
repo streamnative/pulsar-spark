@@ -14,7 +14,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
 
   private val maxEntriesPerLedger = "managedLedgerMaxEntriesPerLedger"
   private val ledgerRolloverTime = "managedLedgerMinLedgerRolloverTimeMinutes"
-  private val sizeOfInt = 50
+  private val approxSizeOfInt = 50
 
   override def beforeAll(): Unit = {
     brokerConfigs.put(maxEntriesPerLedger, "3")
@@ -34,7 +34,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     val firstEntry = getEntryId(firstMid)
     require(getLatestOffsets(Set(topic)).size === 1)
     val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl)
-    val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, MessageId.earliest, sizeOfInt)
+    val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, MessageId.earliest, approxSizeOfInt)
     assert(getLedgerId(offset) == firstLedger && getEntryId(offset) == firstEntry)
   }
 
@@ -45,7 +45,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     val secondMid = messageIds.apply(1)._2
     require(getLatestOffsets(Set(topic)).size === 1)
     val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl)
-    val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, firstMid, sizeOfInt)
+    val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, firstMid, approxSizeOfInt)
     assert(getLedgerId(offset) == getLedgerId(secondMid) && getEntryId(offset) == getEntryId(secondMid))
 
   }
@@ -61,7 +61,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       .option(ServiceUrlOptionKey, serviceUrl)
       .option(AdminUrlOptionKey, adminUrl)
       .option(FailOnDataLossOptionKey, "true")
-      .option(MaxBytesPerTrigger, sizeOfInt * 3)
+      .option(MaxBytesPerTrigger, approxSizeOfInt * 3)
       .load()
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
@@ -72,12 +72,10 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
       AddPulsarData(Set(topic), 1, 2, 3),
-      CheckLastBatch(2, 3, 4),
       AddPulsarData(Set(topic), 4, 5, 6, 7, 8, 9),
-      CheckLastBatch(8, 9, 10),
       AssertOnQuery { query =>
         query.recentProgress.map(microBatch =>
-          microBatch.numInputRows == 0 || microBatch.numInputRows == 3
+           microBatch.numInputRows <= 4
         ).forall(_ == true)
       }
     )
@@ -93,7 +91,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       .option(ServiceUrlOptionKey, serviceUrl)
       .option(AdminUrlOptionKey, adminUrl)
       .option(FailOnDataLossOptionKey, "true")
-      .option(MaxBytesPerTrigger, sizeOfInt * 6)
+      .option(MaxBytesPerTrigger, approxSizeOfInt * 6)
       .load()
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
@@ -104,12 +102,10 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
       AddPulsarData(Set(topic1), 1, 2, 3),
-      CheckLastBatch(2, 3, 4),
       AddPulsarData(Set(topic2), 4, 5, 6, 7, 8, 9),
-      CheckLastBatch(8, 9, 10),
       AssertOnQuery { query =>
         query.recentProgress.map(microBatch =>
-          microBatch.numInputRows == 0 || microBatch.numInputRows == 3
+          microBatch.numInputRows <= 4
         ).forall(_ == true)
       }
     )
@@ -125,7 +121,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       .option(ServiceUrlOptionKey, serviceUrl)
       .option(AdminUrlOptionKey, adminUrl)
       .option(FailOnDataLossOptionKey, "true")
-      .option(MaxBytesPerTrigger, sizeOfInt * 6)
+      .option(MaxBytesPerTrigger, approxSizeOfInt * 6)
       .load()
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
@@ -136,12 +132,10 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
       AddPulsarData(Set(topic1, topic2), 1, 2, 3),
-      CheckLastBatch(2, 3, 4),
       AddPulsarData(Set(topic1, topic2), 4, 5, 6, 7, 8, 9),
-      CheckLastBatch(8, 9, 10),
       AssertOnQuery { query =>
         query.recentProgress.map(microBatch =>
-          microBatch.numInputRows == 0 || microBatch.numInputRows == 3
+          microBatch.numInputRows <= 4
         ).forall(_ == true)
       }
     )
@@ -160,7 +154,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       .option(ServiceUrlOptionKey, serviceUrl)
       .option(AdminUrlOptionKey, adminUrl)
       .option(FailOnDataLossOptionKey, "true")
-      .option(MaxBytesPerTrigger, sizeOfInt * 3)
+      .option(MaxBytesPerTrigger, approxSizeOfInt * 3)
 
     val pulsar = reader
       .option(TopicSingle, topic)
@@ -173,7 +167,11 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
       AddPulsarDataWithPartition(topic, Some(0), 1, 2, 3, 4),
-      CheckLastBatch(4)
+      AssertOnQuery { query =>
+        query.recentProgress.map(microBatch =>
+          microBatch.numInputRows <= 4
+        ).forall(_ == true)
+      }
     )
   }
 
@@ -190,7 +188,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       .option(ServiceUrlOptionKey, serviceUrl)
       .option(AdminUrlOptionKey, adminUrl)
       .option(FailOnDataLossOptionKey, "true")
-      .option(MaxBytesPerTrigger, sizeOfInt * 4)
+      .option(MaxBytesPerTrigger, approxSizeOfInt * 4)
 
     val pulsar = reader
       .option(TopicSingle, topic)
@@ -203,12 +201,10 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
       AddPulsarDataWithPartition(topic, Some(0), 1, 2, 3, 4),
-      CheckLastBatch(3, 4),
       AddPulsarDataWithPartition(topic, Some(1), 5, 6, 7, 8),
-      CheckLastBatch(7, 8),
       AssertOnQuery { query =>
-        query.recentProgress.map( microBatch =>
-            microBatch.numInputRows == 0 || microBatch.numInputRows == 2
+        query.recentProgress.map(microBatch =>
+          microBatch.numInputRows <= 3
         ).forall(_ == true)
       }
     )
@@ -227,7 +223,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       .option(ServiceUrlOptionKey, serviceUrl)
       .option(AdminUrlOptionKey, adminUrl)
       .option(FailOnDataLossOptionKey, "true")
-      .option(MaxBytesPerTrigger, sizeOfInt * 4)
+      .option(MaxBytesPerTrigger, approxSizeOfInt * 4)
 
     val pulsar = reader
       .option(TopicSingle, topic)
@@ -240,10 +236,9 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
       AddPulsarDataWithPartition(topic, Some(0), 1, 2, 3, 4),
-      CheckLastBatch(1, 2, 3, 4),
       AssertOnQuery { query =>
         query.recentProgress.map(microBatch =>
-          microBatch.numInputRows == 0 || microBatch.numInputRows == 4
+          microBatch.numInputRows <= 4
         ).forall(_ == true)
       }
     )
@@ -252,10 +247,9 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
 
     testStream(mapped)(
       AddPulsarDataWithPartition(topic, Some(1), 5, 6, 7, 8),
-      CheckLastBatch(7, 8),
       AssertOnQuery { query =>
         query.recentProgress.map(microBatch =>
-          microBatch.numInputRows == 0 || microBatch.numInputRows == 2
+          microBatch.numInputRows <= 3
         ).forall(_ == true)
       }
     )

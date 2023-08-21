@@ -564,7 +564,7 @@ class PulsarAdmissionControlHelper(adminUrl: String)
         messageId = DefaultImplementation
           .getDefaultImplementation
           .newMessageId(ledger.ledgerId, ledger.entries - 1, partitionIndex)
-      } else if (readLimitLeft >= avgBytesPerEntries) {
+      } else {
         val numEntriesToRead = Math.max(1, readLimitLeft / avgBytesPerEntries)
         val lastEntryId = if (ledger.ledgerId != startLedgerId) {
           numEntriesToRead - 1
