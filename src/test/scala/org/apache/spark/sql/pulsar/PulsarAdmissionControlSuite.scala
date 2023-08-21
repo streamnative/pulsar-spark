@@ -108,6 +108,36 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     )
   }
 
+  test("Admission Control for concurrent topic writes") {
+    val topic1 = newTopic()
+    val topic2 = newTopic()
+
+    val pulsar = spark.readStream
+      .format("pulsar")
+      .option(TopicMulti, s"$topic1,$topic2")
+      .option(ServiceUrlOptionKey, serviceUrl)
+      .option(AdminUrlOptionKey, adminUrl)
+      .option(MaxBytesPerTrigger, 300)
+      .load()
+      .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
+      .as[(String, String)]
+
+    val mapped = pulsar.map(kv => kv._2.toInt + 1)
+
+    // Each Int adds 49 bytes to message size, so we expect 3 Ints in each message
+    testStream(mapped)(
+      StartStream(trigger = ProcessingTime(1000)),
+      makeSureGetOffsetCalled,
+      AddPulsarData(Set(topic1, topic2), 1, 2, 3),
+      CheckLastBatch(2, 3, 4),
+      AddPulsarData(Set(topic1, topic2), 4, 5, 6, 7, 8, 9),
+      CheckLastBatch(8, 9, 10),
+      AssertOnQuery { query =>
+        val recordsRead = query.recentProgress.map(_.numInputRows).sum
+        recordsRead == 9
+      }
+    )
+  }
 
   test("Admission Control with one topic-partition") {
     val topic = newTopic()
