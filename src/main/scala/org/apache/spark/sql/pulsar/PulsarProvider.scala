@@ -377,11 +377,7 @@ private[pulsar] object PulsarProvider extends Logging {
   }
 
   private def getAdminUrl(parameters: Map[String, String]): Option[String] = {
-    val adminUrl = parameters.getOrElse(AdminUrlOptionKey, "")
-    adminUrl match {
-      case "" => None
-      case s => Option(s)
-    }
+    parameters.get(AdminUrlOptionKey)
   }
 
   private def getAllowDifferentTopicSchemas(parameters: Map[String, String]): Boolean = {

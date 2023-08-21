@@ -239,7 +239,6 @@ private[pulsar] case class PulsarHelper(
       topicPartition -> MessageId.earliest
     })
     val offsets = mutable.Map[String, MessageId]()
-    offsets ++= startPartitionOffsets
     val numPartitions = startPartitionOffsets.size
     // move all topic partition logic to helper function
     val readLimit = totalReadLimit / numPartitions
