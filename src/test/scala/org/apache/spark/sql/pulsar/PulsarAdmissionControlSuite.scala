@@ -43,7 +43,6 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       .as[(String, String)]
 
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
-
     
     testStream(mapped)(
       StartStream(trigger = ProcessingTime(1000)),
@@ -69,7 +68,6 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl)
     val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, MessageId.earliest, 1)
     assert(getLedgerId(offset) == firstLedger && getEntryId(offset) == firstEntry)
-
   }
 
   test("Admit entry in the middle of the ledger") {
@@ -101,7 +99,6 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
 
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
 
-    
     testStream(mapped)(
       StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
@@ -133,7 +130,6 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
 
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
 
-    
     testStream(mapped)(
       StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
@@ -150,7 +146,6 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
 
   test("Admission Control with one topic-partition") {
     val topic = newTopic()
-
 
     Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
       admin.topics().createPartitionedTopic(topic, 1)
