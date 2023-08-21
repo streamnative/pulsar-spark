@@ -24,7 +24,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     val topic = newTopic()
     sendMessages(topic, Array("-1"))
     require(getLatestOffsets(Set(topic)).size === 1)
-    sparkContext.setLogLevel("INFO")
+    
     val pulsar = spark.readStream
       .format("pulsar")
       .option(TopicSingle, topic)
@@ -81,7 +81,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
   test("Admission Control for multiple topics") {
     val topic1 = newTopic()
     val topic2 = newTopic()
-    sparkContext.setLogLevel("INFO")
+    
     val pulsar = spark.readStream
       .format("pulsar")
       .option(TopicMulti, s"$topic1,$topic2")
@@ -113,7 +113,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
   test("Admission Control for concurrent topic writes") {
     val topic1 = newTopic()
     val topic2 = newTopic()
-    sparkContext.setLogLevel("INFO")
+    
     val pulsar = spark.readStream
       .format("pulsar")
       .option(TopicMulti, s"$topic1,$topic2")
@@ -150,7 +150,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       admin.topics().createPartitionedTopic(topic, 1)
       require(getLatestOffsets(Set(topic)).size === 1)
     }
-    sparkContext.setLogLevel("INFO")
+    
     val reader = spark.readStream
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
@@ -185,7 +185,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       admin.topics().createPartitionedTopic(topic, 2)
       require(getLatestOffsets(Set(topic)).size === 2)
     }
-    sparkContext.setLogLevel("INFO")
+    
     val reader = spark.readStream
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
@@ -221,7 +221,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       admin.topics().createPartitionedTopic(topic, 1)
       require(getLatestOffsets(Set(topic)).size === 1)
     }
-    sparkContext.setLogLevel("INFO")
+    
     val reader = spark.readStream
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
