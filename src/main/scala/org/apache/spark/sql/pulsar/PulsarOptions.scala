@@ -37,6 +37,8 @@ private[pulsar] object PulsarOptions {
 
   val ServiceUrlOptionKey: String = "service.url"
   val AdminUrlOptionKey: String = "admin.url"
+  val MaxEntriesPerLedger: String =
+    "admin.managedLedgerMaxEntriesPerLedger".toLowerCase(Locale.ROOT)
   val StartingOffsetsOptionKey: String = "startingOffsets".toLowerCase(Locale.ROOT)
   val StartingTime: String = "startingTime".toLowerCase(Locale.ROOT)
   val EndingTime: String = "endingTime".toLowerCase(Locale.ROOT)

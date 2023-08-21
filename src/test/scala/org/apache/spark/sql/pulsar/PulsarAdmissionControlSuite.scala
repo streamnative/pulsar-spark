@@ -24,12 +24,13 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     val topic = newTopic()
     sendMessages(topic, Array("-1"))
     require(getLatestOffsets(Set(topic)).size === 1)
-    
+    sparkContext.setLogLevel("INFO")
     val pulsar = spark.readStream
       .format("pulsar")
       .option(TopicSingle, topic)
       .option(ServiceUrlOptionKey, serviceUrl)
       .option(AdminUrlOptionKey, adminUrl)
+      .option(FailOnDataLossOptionKey, "true")
       .option(MaxBytesPerTrigger, 150)
       .load()
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
@@ -80,12 +81,13 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
   test("Admission Control for multiple topics") {
     val topic1 = newTopic()
     val topic2 = newTopic()
-    
+    sparkContext.setLogLevel("INFO")
     val pulsar = spark.readStream
       .format("pulsar")
       .option(TopicMulti, s"$topic1,$topic2")
       .option(ServiceUrlOptionKey, serviceUrl)
       .option(AdminUrlOptionKey, adminUrl)
+      .option(FailOnDataLossOptionKey, "true")
       .option(MaxBytesPerTrigger, 300)
       .load()
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
@@ -111,12 +113,13 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
   test("Admission Control for concurrent topic writes") {
     val topic1 = newTopic()
     val topic2 = newTopic()
-
+    sparkContext.setLogLevel("INFO")
     val pulsar = spark.readStream
       .format("pulsar")
       .option(TopicMulti, s"$topic1,$topic2")
       .option(ServiceUrlOptionKey, serviceUrl)
       .option(AdminUrlOptionKey, adminUrl)
+      .option(FailOnDataLossOptionKey, "true")
       .option(MaxBytesPerTrigger, 300)
       .load()
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
@@ -147,12 +150,12 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       admin.topics().createPartitionedTopic(topic, 1)
       require(getLatestOffsets(Set(topic)).size === 1)
     }
-
+    sparkContext.setLogLevel("INFO")
     val reader = spark.readStream
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
       .option(AdminUrlOptionKey, adminUrl)
-      .option(FailOnDataLossOptionKey, "false")
+      .option(FailOnDataLossOptionKey, "true")
       .option(MaxBytesPerTrigger, 150)
 
     val pulsar = reader
@@ -182,12 +185,12 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       admin.topics().createPartitionedTopic(topic, 2)
       require(getLatestOffsets(Set(topic)).size === 2)
     }
-
+    sparkContext.setLogLevel("INFO")
     val reader = spark.readStream
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
       .option(AdminUrlOptionKey, adminUrl)
-      .option(FailOnDataLossOptionKey, "false")
+      .option(FailOnDataLossOptionKey, "true")
       .option(MaxBytesPerTrigger, 200)
 
     val pulsar = reader
@@ -214,17 +217,16 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
   test("Add topic-partition after starting stream") {
     val topic = newTopic()
 
-    
     Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
       admin.topics().createPartitionedTopic(topic, 1)
       require(getLatestOffsets(Set(topic)).size === 1)
     }
-
+    sparkContext.setLogLevel("INFO")
     val reader = spark.readStream
       .format("pulsar")
       .option(ServiceUrlOptionKey, serviceUrl)
       .option(AdminUrlOptionKey, adminUrl)
-      .option(FailOnDataLossOptionKey, "false")
+      .option(FailOnDataLossOptionKey, "true")
       .option(MaxBytesPerTrigger, 200)
 
     val pulsar = reader

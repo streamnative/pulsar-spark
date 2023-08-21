@@ -539,6 +539,11 @@ class PulsarAdmissionControlHelper(adminUrl: String)
       ledgers.last.size = stats.currentLedgerSize
       ledgers.last.entries = stats.currentLedgerEntries
     }
+    val partitionIndex = if(topicPartition.contains(PartitionSuffix)) {
+      topicPartition.split(PartitionSuffix)(1).toInt
+    } else {
+      -1
+    }
     var messageId = startMessageId
     var readLimitLeft = readLimit
     ledgers.filter(_.entries != 0).sortBy(_.ledgerId).foreach { ledger =>
@@ -558,7 +563,7 @@ class PulsarAdmissionControlHelper(adminUrl: String)
         readLimitLeft -= bytesLeftInLedger
         messageId = DefaultImplementation
           .getDefaultImplementation
-          .newMessageId(ledger.ledgerId, ledger.entries - 1, -1)
+          .newMessageId(ledger.ledgerId, ledger.entries - 1, partitionIndex)
       } else {
         val numEntriesToRead = Math.max(1, readLimitLeft / avgBytesPerEntries)
         val lastEntryId = if (ledger.ledgerId != startLedgerId) {
@@ -569,7 +574,7 @@ class PulsarAdmissionControlHelper(adminUrl: String)
         val lastEntryRead = Math.min(ledger.entries - 1, lastEntryId)
         messageId = DefaultImplementation
           .getDefaultImplementation
-          .newMessageId(ledger.ledgerId, lastEntryRead, -1)
+          .newMessageId(ledger.ledgerId, lastEntryRead, partitionIndex)
         readLimitLeft = 0
       }
     }
