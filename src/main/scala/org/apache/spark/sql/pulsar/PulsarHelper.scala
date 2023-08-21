@@ -234,19 +234,16 @@ private[pulsar] case class PulsarHelper(
       Map[String, MessageId]()
     }
     val newTopics = topicPartitions.toSet.diff(existingStartOffsets.keySet)
-    logInfo(s"EXISTING TOPIC PARTITIONS: ${existingStartOffsets.keySet.mkString(",")}\n")
-    logInfo(s"ALL TOPIC PARTITIONS: ${topicPartitions.mkString(",")}\n")
     val startPartitionOffsets = existingStartOffsets ++ newTopics.map(topicPartition
       => {
-      logInfo(s"SETTING NEW TOPIC PARTITION: $topicPartition\n")
       topicPartition -> MessageId.earliest
     })
     val offsets = mutable.Map[String, MessageId]()
     offsets ++= startPartitionOffsets
     val numPartitions = startPartitionOffsets.size
     // move all topic partition logic to helper function
+    val readLimit = totalReadLimit / numPartitions
     startPartitionOffsets.keys.foreach { topicPartition =>
-      val readLimit = totalReadLimit / numPartitions
       val startMessageId = startPartitionOffsets.apply(topicPartition)
       offsets += (topicPartition ->
         admissionControlHelper.latestOffsetForTopicPartition(
@@ -546,6 +543,7 @@ class PulsarAdmissionControlHelper(adminUrl: String)
     var messageId = startMessageId
     var readLimitLeft = readLimit
     ledgers.filter(_.entries != 0).sortBy(_.ledgerId).foreach { ledger =>
+      assert(readLimitLeft >= 0)
       if (readLimitLeft == 0) {
         return messageId
       }
@@ -562,7 +560,7 @@ class PulsarAdmissionControlHelper(adminUrl: String)
         messageId = DefaultImplementation
           .getDefaultImplementation
           .newMessageId(ledger.ledgerId, ledger.entries - 1, -1)
-      } else if (readLimitLeft > 0) {
+      } else {
         val numEntriesToRead = Math.max(1, readLimitLeft / avgBytesPerEntries)
         val lastEntryId = if (ledger.ledgerId != startLedgerId) {
           numEntriesToRead - 1

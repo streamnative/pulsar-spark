@@ -132,7 +132,7 @@ class PulsarSourceTest extends StreamTest with SharedSparkSession with PulsarTes
    * `topicAction` can be used to run actions for each topic before inserting data.
    */
   case class AddPulsarDataWithPartition(
-    topics: Set[String],
+    topic: String,
     partition: Option[Int],
     data: Int*)(
     implicit ensureDataInMultiplePartition: Boolean = false,
@@ -141,6 +141,7 @@ class PulsarSourceTest extends StreamTest with SharedSparkSession with PulsarTes
     topicAction: (String, Option[MessageId]) => Unit = (_, _) => {})
     extends AddData {
 
+    val topics = Set(topic)
     override def addData(query: Option[StreamExecution]): (SparkDataStream, Offset) = {
       query match {
         // Make sure no Spark job is running when deleting a topic

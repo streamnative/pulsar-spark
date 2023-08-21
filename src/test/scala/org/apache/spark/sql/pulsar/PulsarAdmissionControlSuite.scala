@@ -135,7 +135,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     testStream(mapped)(
       StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
-      AddPulsarDataWithPartition(Set(topic), Some(0), 1, 2, 3, 4),
+      AddPulsarDataWithPartition(topic, Some(0), 1, 2, 3, 4),
       CheckLastBatch(4),
       AssertOnQuery { query =>
         val recordsRead = query.recentProgress.map(_.numInputRows).sum
@@ -170,9 +170,9 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     testStream(mapped)(
       StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
-      AddPulsarDataWithPartition(Set(topic), Some(0), 1, 2, 3, 4),
+      AddPulsarDataWithPartition(topic, Some(0), 1, 2, 3, 4),
       CheckLastBatch(3, 4),
-      AddPulsarDataWithPartition(Set(topic), Some(1), 5, 6, 7, 8),
+      AddPulsarDataWithPartition(topic, Some(1), 5, 6, 7, 8),
       CheckLastBatch(7, 8),
       AssertOnQuery { query =>
         val recordsRead = query.recentProgress.map(_.numInputRows).sum
@@ -207,14 +207,14 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     testStream(mapped)(
       StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
-      AddPulsarDataWithPartition(Set(topic), Some(0), 1, 2, 3, 4),
+      AddPulsarDataWithPartition(topic, Some(0), 1, 2, 3, 4),
       CheckLastBatch(1, 2, 3, 4),
     )
 
     addPartitions(topic, 2)
 
     testStream(mapped)(
-      AddPulsarDataWithPartition(Set(topic), Some(1), 5, 6, 7, 8),
+      AddPulsarDataWithPartition(topic, Some(1), 5, 6, 7, 8),
       CheckLastBatch(7, 8),
       AssertOnQuery { query =>
         val recordsRead = query.recentProgress.map(_.numInputRows).sum

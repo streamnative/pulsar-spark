@@ -83,6 +83,9 @@ private[pulsar] class PulsarSource(
     readLimit match {
       case ReadMaxBytes(maxBytes) =>
         startingOffset match {
+          // deals with the case where we add a topic-partition after
+          // the stream has started, since adding a new topic-partition
+          // sets startingOffset to null
           case null => pulsarHelper.latestOffsets(initialTopicOffsets, maxBytes)
           case startingOffset => pulsarHelper.latestOffsets(startingOffset, maxBytes)
         }
@@ -93,7 +96,7 @@ private[pulsar] class PulsarSource(
     if (maxBytesPerTrigger == 0L) {
       ReadLimit.allAvailable()
     } else {
-      ReadMaxBytes.apply(maxBytesPerTrigger)
+      ReadMaxBytes(maxBytesPerTrigger)
     }
   }
 
