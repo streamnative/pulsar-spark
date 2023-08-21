@@ -20,19 +20,11 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     super.afterAll()
   }
 
-  /**
-   * Write unit test to create limits, can construct fake ledger statistics
-   * Can call latestOffset() directly from the unit test
-   *
-   * Just need to verify that each microbatch is <= maxBytesPerTrigger (within some threshold)
-   * Can send message of specific size in AddPulsarData here
-   */
-
   test("Check last batch where message size is greater than maxBytesPerTrigger") {
     val topic = newTopic()
     sendMessages(topic, Array("-1"))
     require(getLatestOffsets(Set(topic)).size === 1)
-    sparkContext.setLogLevel("INFO")
+    
     val pulsar = spark.readStream
       .format("pulsar")
       .option(TopicSingle, topic)
@@ -68,7 +60,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     val firstEntry = getEntryId(firstMid)
     require(getLatestOffsets(Set(topic)).size === 1)
     val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl)
-    val offset = admissionControlHelper.latestOffsetForTopic(topic, MessageId.earliest, 1)
+    val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, MessageId.earliest, 1)
     assert(getLedgerId(offset) == firstLedger && getEntryId(offset) == firstEntry)
 
   }
@@ -80,7 +72,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     val secondMid = messageIds.apply(1)._2
     require(getLatestOffsets(Set(topic)).size === 1)
     val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl)
-    val offset = admissionControlHelper.latestOffsetForTopic(topic, firstMid, 1)
+    val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, firstMid, 1)
     assert(getLedgerId(offset) == getLedgerId(secondMid) && getEntryId(offset) == getEntryId(secondMid))
 
   }
@@ -88,7 +80,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
   test("Admission Control for multiple topics") {
     val topic1 = newTopic()
     val topic2 = newTopic()
-
+    
     val pulsar = spark.readStream
       .format("pulsar")
       .option(TopicMulti, s"$topic1,$topic2")
@@ -116,37 +108,118 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     )
   }
 
-  test("Add new topic after stream as started") {
-    val topic1 = newTopic()
-    sendMessages(topic1, Array("-1"))
-    require(getLatestOffsets(Set(topic1)).size === 1)
 
-    val pulsar = spark.readStream
+  test("Admission Control with one topic-partition") {
+    val topic = newTopic()
+
+    
+    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+      admin.topics().createPartitionedTopic(topic, 1)
+      require(getLatestOffsets(Set(topic)).size === 1)
+    }
+
+    val reader = spark.readStream
       .format("pulsar")
-      .option(TopicMulti, topic1)
       .option(ServiceUrlOptionKey, serviceUrl)
       .option(AdminUrlOptionKey, adminUrl)
-      .option(MaxBytesPerTrigger, 300)
+      .option(FailOnDataLossOptionKey, "false")
+      .option(MaxBytesPerTrigger, 150)
+
+    val pulsar = reader
+      .option(TopicSingle, topic)
       .load()
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
+    val mapped = pulsar.map(kv => kv._2.toInt)
 
-    val mapped = pulsar.map(kv => kv._2.toInt + 1)
-
-    val topic2 = newTopic()
-    // Each Int adds 49 bytes to message size, so we expect 3 Ints in each message
     testStream(mapped)(
       StartStream(trigger = ProcessingTime(1000)),
       makeSureGetOffsetCalled,
-      AddPulsarData(Set(topic1), 1, 2, 3),
-      CheckLastBatch(2, 3, 4),
-      AddPulsarData(Set(topic2), 4, 5, 6, 7, 8, 9),
-      CheckLastBatch(8, 9, 10),
+      AddPulsarDataWithPartition(Set(topic), Some(0), 1, 2, 3, 4),
+      CheckLastBatch(4),
       AssertOnQuery { query =>
         val recordsRead = query.recentProgress.map(_.numInputRows).sum
-        recordsRead == 9
+        recordsRead == 4
       }
     )
   }
 
+  test("Admission Control with multiple topic-partitions") {
+    val topic = newTopic()
+
+    
+    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+      admin.topics().createPartitionedTopic(topic, 2)
+      require(getLatestOffsets(Set(topic)).size === 2)
+    }
+
+    val reader = spark.readStream
+      .format("pulsar")
+      .option(ServiceUrlOptionKey, serviceUrl)
+      .option(AdminUrlOptionKey, adminUrl)
+      .option(FailOnDataLossOptionKey, "false")
+      .option(MaxBytesPerTrigger, 200)
+
+    val pulsar = reader
+      .option(TopicSingle, topic)
+      .load()
+      .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
+      .as[(String, String)]
+    val mapped = pulsar.map(kv => kv._2.toInt)
+
+    testStream(mapped)(
+      StartStream(trigger = ProcessingTime(1000)),
+      makeSureGetOffsetCalled,
+      AddPulsarDataWithPartition(Set(topic), Some(0), 1, 2, 3, 4),
+      CheckLastBatch(3, 4),
+      AddPulsarDataWithPartition(Set(topic), Some(1), 5, 6, 7, 8),
+      CheckLastBatch(7, 8),
+      AssertOnQuery { query =>
+        val recordsRead = query.recentProgress.map(_.numInputRows).sum
+        recordsRead == 8
+      }
+    )
+  }
+
+  test("Add topic-partition after starting stream") {
+    val topic = newTopic()
+
+    
+    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+      admin.topics().createPartitionedTopic(topic, 1)
+      require(getLatestOffsets(Set(topic)).size === 1)
+    }
+
+    val reader = spark.readStream
+      .format("pulsar")
+      .option(ServiceUrlOptionKey, serviceUrl)
+      .option(AdminUrlOptionKey, adminUrl)
+      .option(FailOnDataLossOptionKey, "false")
+      .option(MaxBytesPerTrigger, 200)
+
+    val pulsar = reader
+      .option(TopicSingle, topic)
+      .load()
+      .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
+      .as[(String, String)]
+    val mapped = pulsar.map(kv => kv._2.toInt)
+
+    testStream(mapped)(
+      StartStream(trigger = ProcessingTime(1000)),
+      makeSureGetOffsetCalled,
+      AddPulsarDataWithPartition(Set(topic), Some(0), 1, 2, 3, 4),
+      CheckLastBatch(1, 2, 3, 4),
+    )
+
+    addPartitions(topic, 2)
+
+    testStream(mapped)(
+      AddPulsarDataWithPartition(Set(topic), Some(1), 5, 6, 7, 8),
+      CheckLastBatch(7, 8),
+      AssertOnQuery { query =>
+        val recordsRead = query.recentProgress.map(_.numInputRows).sum
+        recordsRead == 4
+      }
+    )
+  }
 }

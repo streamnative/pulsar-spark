@@ -81,7 +81,11 @@ private[pulsar] class PulsarSource(
                             readLimit: ReadLimit): streaming.Offset = {
     initialTopicOffsets
     readLimit match {
-      case ReadMaxBytes(maxBytes) => pulsarHelper.latestOffsets(startingOffset, maxBytes)
+      case ReadMaxBytes(maxBytes) =>
+        startingOffset match {
+          case null => pulsarHelper.latestOffsets(initialTopicOffsets, maxBytes)
+          case startingOffset => pulsarHelper.latestOffsets(startingOffset, maxBytes)
+        }
       case _: ReadAllAvailable => pulsarHelper.fetchLatestOffsets()
     }
   }

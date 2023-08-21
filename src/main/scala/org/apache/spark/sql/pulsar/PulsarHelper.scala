@@ -62,8 +62,9 @@ private[pulsar] case class PulsarHelper(
   private var topics: Seq[String] = _
   private var topicPartitions: Seq[String] = _
 
-  // We can call adminUrl.get because admissionControlHelper will only be called if latestOffset is called
-  // and there should be an exception thrown in PulsarProvider if maxBytes is set,
+  // We can call adminUrl.get because admissionControlHelper
+  // will only be called if latestOffset is called and there should
+  // be an exception thrown in PulsarProvider if maxBytes is set,
   // and adminUrl is not set
   private lazy val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl.get)
 
@@ -236,7 +237,7 @@ private[pulsar] case class PulsarHelper(
     logInfo(s"EXISTING TOPIC PARTITIONS: ${existingStartOffsets.keySet.mkString(",")}\n")
     logInfo(s"ALL TOPIC PARTITIONS: ${topicPartitions.mkString(",")}\n")
     val startPartitionOffsets = existingStartOffsets ++ newTopics.map(topicPartition
-      =>  {
+      => {
       logInfo(s"SETTING NEW TOPIC PARTITION: $topicPartition\n")
       topicPartition -> MessageId.earliest
     })
@@ -247,7 +248,8 @@ private[pulsar] case class PulsarHelper(
     startPartitionOffsets.keys.foreach { topicPartition =>
       val readLimit = totalReadLimit / numPartitions
       val startMessageId = startPartitionOffsets.apply(topicPartition)
-      offsets += (topicPartition -> admissionControlHelper.latestOffsetForTopic(
+      offsets += (topicPartition ->
+        admissionControlHelper.latestOffsetForTopicPartition(
         topicPartition, startMessageId, readLimit))
     }
     SpecificPulsarOffset(offsets.toMap)
@@ -525,10 +527,10 @@ class PulsarAdmissionControlHelper(adminUrl: String)
   private lazy val pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()
 
   import scala.collection.JavaConverters._
-  def latestOffsetForTopic(topicPartition: String,
+
+  def latestOffsetForTopicPartition(topicPartition: String,
                            startMessageId: MessageId,
                            readLimit: Long): MessageId = {
-    logInfo(s"TOPIC PARTITION: $topicPartition\n")
     val startLedgerId = getLedgerId(startMessageId)
     val startEntryId = getEntryId(startMessageId)
     val stats = pulsarAdmin.topics.getInternalStats(topicPartition)
@@ -561,7 +563,7 @@ class PulsarAdmissionControlHelper(adminUrl: String)
           .getDefaultImplementation
           .newMessageId(ledger.ledgerId, ledger.entries - 1, -1)
       } else if (readLimitLeft > 0) {
-        val numEntriesToRead = Math.max(1, readLimit / avgBytesPerEntries)
+        val numEntriesToRead = Math.max(1, readLimitLeft / avgBytesPerEntries)
         val lastEntryId = if (ledger.ledgerId != startLedgerId) {
           numEntriesToRead - 1
         } else {
