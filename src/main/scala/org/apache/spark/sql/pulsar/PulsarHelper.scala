@@ -539,7 +539,7 @@ class PulsarAdmissionControlHelper(adminUrl: String)
       ledgers.last.size = stats.currentLedgerSize
       ledgers.last.entries = stats.currentLedgerEntries
     }
-    val partitionIndex = if(topicPartition.contains(PartitionSuffix)) {
+    val partitionIndex = if (topicPartition.contains(PartitionSuffix)) {
       topicPartition.split(PartitionSuffix)(1).toInt
     } else {
       -1

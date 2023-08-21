@@ -20,6 +20,7 @@ import java.time.{Clock, Duration}
 import java.util.{Map => JMap}
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 import org.scalatest.concurrent.Eventually.{eventually, timeout}
@@ -54,11 +55,15 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
   var serviceUrl: String = null
   var adminUrl: String = null
 
+  val brokerConfigs = mutable.Map[String, String]()
   private val logger: Logger = LoggerFactory.getLogger("pulsar-spark-test-logger")
 
   override def beforeAll(): Unit = {
     pulsarContainer = new PulsarContainer(parse("apachepulsar/pulsar:" + CURRENT_VERSION))
     pulsarContainer.withStartupTimeout(Duration.ofMinutes(5))
+    brokerConfigs.foreach( kv =>
+      pulsarContainer.withEnv("PULSAR_PREFIX_" + kv._1, kv._2)
+    )
     pulsarContainer.start()
 
 
@@ -80,6 +85,7 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
     if (pulsarContainer != null) {
       pulsarContainer.stop()
       pulsarContainer.close()
+      brokerConfigs.clear()
     }
   }
 

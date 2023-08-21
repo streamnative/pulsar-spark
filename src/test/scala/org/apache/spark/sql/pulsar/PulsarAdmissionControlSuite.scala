@@ -12,7 +12,9 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
   import PulsarOptions._
   import testImplicits._
 
+  private val maxEntriesPerLedger = "managedLedgerMaxEntriesPerLedger"
   override def beforeAll(): Unit = {
+    brokerConfigs.put(maxEntriesPerLedger, "1")
     super.beforeAll()
   }
 
