@@ -177,8 +177,7 @@ class PulsarSourceInitialOffsetWriter(sparkSession: SparkSession, metadataPath: 
   // they lose the UserProvidedMessageId type.
   private def markOffsetUserProvided(offsets: SpecificPulsarOffset): SpecificPulsarOffset = {
     val wrappedOffsets = offsets.topicOffsets.map { case (tp, mid) =>
-      if (mid.isInstanceOf[UserProvidedMessageId] || mid == MessageId.earliest ||
-        mid == MessageId.latest) {
+      if (mid.isInstanceOf[UserProvidedMessageId] || mid == MessageId.earliest) {
         (tp, mid)
       }
       else (tp, UserProvidedMessageId(mid))

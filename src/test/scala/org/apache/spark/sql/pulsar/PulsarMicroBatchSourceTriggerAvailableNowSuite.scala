@@ -8,7 +8,7 @@ class PulsarMicroBatchSourceTriggerAvailableNowSuite extends PulsarSourceTest {
   override val defaultTrigger: Trigger =  Trigger.AvailableNow()
   val failOnDataLoss = true
 
-  test(s"assign from latest offsets (failOnDataLoss: $failOnDataLoss)") {
+  test(s"assign from latest offsets: available now") {
     val topic = newTopic()
     testFromLatestOffsets(
       topic,
@@ -17,7 +17,7 @@ class PulsarMicroBatchSourceTriggerAvailableNowSuite extends PulsarSourceTest {
       TopicSingle -> topic)
   }
 
-  test(s"assign from earliest offsets (failOnDataLoss: $failOnDataLoss)") {
+  test(s"assign from earliest offsets: available now") {
     val topic = newTopic()
     testFromEarliestOffsets(
       topic,
@@ -26,7 +26,7 @@ class PulsarMicroBatchSourceTriggerAvailableNowSuite extends PulsarSourceTest {
       TopicSingle -> topic)
   }
 
-  test(s"assign from time (failOnDataLoss: $failOnDataLoss)") {
+  test(s"assign from time: available now") {
     val topic = newTopic()
     testFromTime(
       topic,
@@ -35,7 +35,7 @@ class PulsarMicroBatchSourceTriggerAvailableNowSuite extends PulsarSourceTest {
       TopicSingle -> topic)
   }
 
-  test(s"assign from specific offsets (failOnDataLoss: $failOnDataLoss)") {
+  test(s"assign from specific offsets: available now") {
     val topic = newTopic()
     testFromSpecificOffsets(
       topic,
@@ -44,7 +44,7 @@ class PulsarMicroBatchSourceTriggerAvailableNowSuite extends PulsarSourceTest {
       FailOnDataLossOptionKey -> failOnDataLoss.toString)
   }
 
-  test(s"subscribing topic by name from latest offsets (failOnDataLoss: $failOnDataLoss)") {
+  test(s"subscribing topic by name from latest offsets: available now") {
     val topic = newTopic()
     testFromLatestOffsets(
       topic,
@@ -53,7 +53,7 @@ class PulsarMicroBatchSourceTriggerAvailableNowSuite extends PulsarSourceTest {
       TopicMulti -> topic)
   }
 
-  test(s"subscribing topic by name from earliest offsets (failOnDataLoss: $failOnDataLoss)") {
+  test(s"subscribing topic by name from earliest offsets: available now") {
     val topic = newTopic()
     testFromEarliestOffsets(
       topic,
@@ -62,12 +62,12 @@ class PulsarMicroBatchSourceTriggerAvailableNowSuite extends PulsarSourceTest {
       TopicMulti -> topic)
   }
 
-  test(s"subscribing topic by name from specific offsets (failOnDataLoss: $failOnDataLoss)") {
+  test(s"subscribing topic by name from specific offsets: available now") {
     val topic = newTopic()
     testFromSpecificOffsets(topic, failOnDataLoss = failOnDataLoss, TopicMulti -> topic)
   }
 
-  test(s"subscribing topic by pattern from latest offsets (failOnDataLoss: $failOnDataLoss)") {
+  test(s"subscribing topic by pattern from latest offsets: available now") {
     val topicPrefix = newTopic()
     val topic = topicPrefix + "-suffix"
     testFromLatestOffsets(
@@ -77,7 +77,7 @@ class PulsarMicroBatchSourceTriggerAvailableNowSuite extends PulsarSourceTest {
       TopicPattern -> s"$topicPrefix-.*")
   }
 
-  test(s"subscribing topic by pattern from earliest offsets (failOnDataLoss: $failOnDataLoss)") {
+  test(s"subscribing topic by pattern from earliest offsets: available now") {
     val topicPrefix = newTopic()
     val topic = topicPrefix + "-suffix"
     testFromEarliestOffsets(
@@ -87,7 +87,7 @@ class PulsarMicroBatchSourceTriggerAvailableNowSuite extends PulsarSourceTest {
       TopicPattern -> s"$topicPrefix-.*")
   }
 
-  test(s"subscribing topic by pattern from specific offsets (failOnDataLoss: $failOnDataLoss)") {
+  test(s"subscribing topic by pattern from specific offsets: available now") {
     val topicPrefix = newTopic()
     val topic = topicPrefix + "-suffix"
     testFromSpecificOffsets(
@@ -119,18 +119,18 @@ class PulsarMicroBatchSourceTriggerAvailableNowSuite extends PulsarSourceTest {
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
 
     testStream(mapped)(
-      StopStream,
       AddPulsarData(Set(topic), 2, 3),
-      StartStream(),
-      CheckAnswer(2, 3, 4),
       StopStream,
-      AddPulsarData(Set(topic), 4, 5, 6), // Add data when stream is stopped
       StartStream(),
-      CheckAnswer(2, 3, 4, 5, 6, 7), // Should get the added data
+      CheckAnswer(3, 4),
+      AddPulsarData(Set(topic), 4, 5, 6),
       StopStream,
+      StartStream(),
+      CheckAnswer(3, 4, 5, 6, 7),
       AddPulsarData(Set(topic), 7, 8),
+      StopStream,
       StartStream(),
-      CheckAnswer(2, 3, 4, 5, 6, 7, 8, 9),
+      CheckAnswer(3, 4, 5, 6, 7, 8, 9),
     )
   }
 
@@ -157,16 +157,16 @@ class PulsarMicroBatchSourceTriggerAvailableNowSuite extends PulsarSourceTest {
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
 
     testStream(mapped)(
-      StopStream,
       AddPulsarData(Set(topic), 4, 5, 6), // Add data when stream is stopped
+      StopStream,
       StartStream(),
       CheckAnswer(2, 3, 4, 5, 6, 7),
-      StopStream,
       AddPulsarData(Set(topic), 7, 8),
+      StopStream,
       StartStream(),
       CheckAnswer(2, 3, 4, 5, 6, 7, 8, 9),
-      StopStream,
       AddPulsarData(Set(topic), 9, 10, 11, 12, 13, 14, 15, 16),
+      StopStream,
       StartStream(),
       CheckAnswer(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     )
@@ -200,8 +200,8 @@ class PulsarMicroBatchSourceTriggerAvailableNowSuite extends PulsarSourceTest {
     }
 
     testStream(dfAfter(time0))(
-      StopStream,
       AddPulsarData(Set(topic), 7, 8, 9),
+      StopStream,
       StartStream(),
       CheckAnswer(2, 3, 4, 8, 9, 10)
     )
@@ -234,12 +234,12 @@ class PulsarMicroBatchSourceTriggerAvailableNowSuite extends PulsarSourceTest {
     val mapped = pulsar.map(kv => kv._2.toInt)
 
     testStream(mapped)(
-      StopStream,
       AddPulsarData(Set(topic), 7),
+      StopStream,
       StartStream(),
       CheckAnswer(1, 2, 3, 10, 11, 12, 7),
-      StopStream,
       AddPulsarData(Set(topic), 30, 31, 32, 33, 34),
+      StopStream,
       StartStream(),
       CheckAnswer(1, 2, 3, 10, 11, 12, 7, 30, 31, 32, 33, 34)
     )
