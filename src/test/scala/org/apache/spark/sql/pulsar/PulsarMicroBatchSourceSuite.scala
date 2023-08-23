@@ -88,7 +88,6 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
   }
 
   test("subscribing topic by pattern with topic deletions") {
-    sparkContext.setLogLevel("INFO")
     val topicPrefix = newTopic()
     val topic = topicPrefix + "-seems"
     val topic2 = topicPrefix + "-bad"
