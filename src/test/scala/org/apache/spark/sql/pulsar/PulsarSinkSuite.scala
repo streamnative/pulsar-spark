@@ -13,9 +13,10 @@
  */
 package org.apache.spark.sql.pulsar
 
+import java.sql.Date
 import java.text.SimpleDateFormat
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.{Date, Locale}
+import java.util.Locale
 import scala.reflect.ClassTag
 import org.scalatest.time.SpanSugar._
 import org.apache.pulsar.client.api.Schema
@@ -113,7 +114,7 @@ class PulsarSinkSuite extends StreamTest with PulsarTest with SharedSparkSession
     batchCheck[Date](
       Schema.DATE.getSchemaInfo,
       dateSeq,
-      Encoders.bean(classOf[Date]),
+      Encoders.DATE,
       dateFormat.format(_))
   }
 
@@ -367,9 +368,9 @@ class PulsarSinkSuite extends StreamTest with PulsarTest with SharedSparkSession
 
   test("streaming - write date") {
     val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
-    streamCheck[java.sql.Date](
+    streamCheck[Date](
       Schema.DATE.getSchemaInfo,
-      dateSeq.map(d => new java.sql.Date(d.getTime)),
+      dateSeq,
       Encoders.DATE,
       dateFormat.format(_))
   }

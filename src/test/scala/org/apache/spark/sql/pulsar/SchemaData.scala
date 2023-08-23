@@ -29,7 +29,7 @@ object SchemaData {
   cal.clear()
   val dateSeq = (1 to 5).map { i =>
     cal.set(2019, 0, i)
-    cal.getTime
+    new java.sql.Date(cal.getTime.getTime)
   }
 
   cal.clear()
