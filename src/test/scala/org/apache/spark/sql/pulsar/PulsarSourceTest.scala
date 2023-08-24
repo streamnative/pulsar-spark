@@ -163,8 +163,8 @@ class PulsarSourceTest extends StreamTest with SharedSparkSession with PulsarTes
         "Cannot add data when there is no query for finding the active pulsar source")
 
       val sources = query.get.logicalPlan.collect {
-        case StreamingExecutionRelation(source: PulsarSource, _) => source
-        case StreamingExecutionRelation(source: PulsarMicroBatchReader, _) => source
+        case StreamingExecutionRelation(source: PulsarSource, _, _) => source
+        case StreamingExecutionRelation(source: PulsarMicroBatchReader, _, _) => source
       }.distinct
 
       if (sources.isEmpty) {
