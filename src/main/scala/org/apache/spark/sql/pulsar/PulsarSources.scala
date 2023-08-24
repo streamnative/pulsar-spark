@@ -162,13 +162,27 @@ class PulsarSourceInitialOffsetWriter(sparkSession: SparkSession, metadataPath: 
                         startingOffsets: PerTopicOffset,
                         poolTimeoutMs: Int,
                         reportDataLoss: String => Unit): SpecificPulsarOffset = {
-    get(0).getOrElse {
+    val deserializedOffset = get(0).map(markOffsetUserProvided(_))
+    deserializedOffset.getOrElse {
       val actualOffsets = SpecificPulsarOffset(
         pulsarHelper.actualOffsets(startingOffsets, poolTimeoutMs, reportDataLoss))
       add(0, actualOffsets)
       logInfo(s"Initial Offsets: $actualOffsets")
       actualOffsets
     }
+  }
+
+  // Mark a specific offset as user provided so that first records are not skipped.
+  // This is needed because when initial offsets are deserialized from the metadata log,
+  // they lose the UserProvidedMessageId type.
+  private def markOffsetUserProvided(offsets: SpecificPulsarOffset): SpecificPulsarOffset = {
+    val wrappedOffsets = offsets.topicOffsets.map { case (tp, mid) =>
+      if (mid.isInstanceOf[UserProvidedMessageId] || mid == MessageId.earliest) {
+        (tp, mid)
+      }
+      else (tp, UserProvidedMessageId(mid))
+    }
+    SpecificPulsarOffset(wrappedOffsets)
   }
 }
 
