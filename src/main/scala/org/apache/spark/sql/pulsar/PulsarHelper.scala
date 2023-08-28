@@ -136,6 +136,9 @@ private[pulsar] case class PulsarHelper(
       try {
         val (subscription, _) = extractSubscription(predefinedSubscription, tp)
         val consumer = CachedConsumer.getOrCreate(tp, subscription, client)
+        // We need to do this because the consumer does not attempt to
+        // reconnect after calling .seek().
+        // TODO: Remove this once we have upgraded to a version so that this is no longer needed
         if (!consumer.isConnected) consumer.getLastMessageId
         consumer.seek(mid)
       } catch {
