@@ -22,16 +22,22 @@ import scala.collection.mutable
 import scala.language.postfixOps
 import scala.util.control.NonFatal
 
+import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.{MessageId, PulsarClient}
 import org.apache.pulsar.client.impl.{MessageIdImpl, PulsarClientImpl}
 import org.apache.pulsar.client.impl.schema.BytesSchema
+import org.apache.pulsar.client.internal.DefaultImplementation
 import org.apache.pulsar.common.api.proto.CommandGetTopicsOfNamespace
 import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
 import org.apache.pulsar.shade.com.google.common.util.concurrent.Uninterruptibles
 
 import org.apache.spark.internal.Logging
+import org.apache.spark.sql.connector.read.streaming
+import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit}
 import org.apache.spark.sql.pulsar.PulsarOptions._
+import org.apache.spark.sql.pulsar.PulsarSourceUtils.{getEntryId, getLedgerId}
+import org.apache.spark.sql.pulsar.SpecificPulsarOffset.getTopicOffsets
 import org.apache.spark.sql.types.StructType
 
 /**
@@ -40,6 +46,7 @@ import org.apache.spark.sql.types.StructType
  */
 private[pulsar] case class PulsarHelper(
     serviceUrl: String,
+    adminUrl: Option[String],
     clientConf: ju.Map[String, Object],
     driverGroupIdPrefix: String,
     caseInsensitiveParameters: Map[String, String],
@@ -54,6 +61,12 @@ private[pulsar] case class PulsarHelper(
 
   private var topics: Seq[String] = _
   private var topicPartitions: Seq[String] = _
+
+  // We can call adminUrl.get because admissionControlHelper
+  // will only be called if latestOffset is called and there should
+  // be an exception thrown in PulsarProvider if maxBytes is set,
+  // and adminUrl is not set
+  private lazy val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl.get)
 
   override def close(): Unit = {
     // do nothing
@@ -122,7 +135,9 @@ private[pulsar] case class PulsarHelper(
     offset.foreach { case (tp, mid) =>
       try {
         val (subscription, _) = extractSubscription(predefinedSubscription, tp)
-        CachedConsumer.getOrCreate(tp, subscription, client).seek(mid)
+        val consumer = CachedConsumer.getOrCreate(tp, subscription, client)
+        if (!consumer.isConnected) consumer.getLastMessageId
+        consumer.seek(mid)
       } catch {
         case e: Throwable =>
           throw new RuntimeException(
@@ -205,6 +220,35 @@ private[pulsar] case class PulsarHelper(
     SpecificPulsarOffset(topicPartitions.map { tp =>
       (tp -> fetchLatestOffsetForTopic(tp))
     }.toMap)
+  }
+
+  def latestOffsets(startingOffset: streaming.Offset,
+                    totalReadLimit: Long): SpecificPulsarOffset = {
+    // implement helper inside PulsarHelper in order to use getTopicPartitions
+    val topicPartitions = getTopicPartitions
+    // add new partitions from PulsarAdmin, set to earliest entry and ledger id based on limit
+    // start a reader, get to the earliest offset for new topic partitions
+    val existingStartOffsets = if (startingOffset != null) {
+      getTopicOffsets(startingOffset.asInstanceOf[org.apache.spark.sql.execution.streaming.Offset])
+    } else {
+      Map[String, MessageId]()
+    }
+    val newTopics = topicPartitions.toSet.diff(existingStartOffsets.keySet)
+    val startPartitionOffsets = existingStartOffsets ++ newTopics.map(topicPartition
+      => {
+      topicPartition -> MessageId.earliest
+    })
+    val offsets = mutable.Map[String, MessageId]()
+    val numPartitions = startPartitionOffsets.size
+    // move all topic partition logic to helper function
+    val readLimit = totalReadLimit / numPartitions
+    startPartitionOffsets.keys.foreach { topicPartition =>
+      val startMessageId = startPartitionOffsets.apply(topicPartition)
+      offsets += (topicPartition ->
+        admissionControlHelper.latestOffsetForTopicPartition(
+        topicPartition, startMessageId, readLimit))
+    }
+    SpecificPulsarOffset(offsets.toMap)
   }
 
   def fetchLatestOffsetForTopic(topic: String): MessageId = {
@@ -470,5 +514,70 @@ private[pulsar] case class PulsarHelper(
   private def getLastMessageId(topic: String): MessageId = {
     val (subscriptionName, _) = extractSubscription(predefinedSubscription, topic)
     CachedConsumer.getOrCreate(topic, subscriptionName, client).getLastMessageId
+  }
+}
+
+class PulsarAdmissionControlHelper(adminUrl: String)
+  extends Logging {
+
+  private lazy val pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()
+
+  import scala.collection.JavaConverters._
+
+  def latestOffsetForTopicPartition(topicPartition: String,
+                           startMessageId: MessageId,
+                           readLimit: Long): MessageId = {
+    val startLedgerId = getLedgerId(startMessageId)
+    val startEntryId = getEntryId(startMessageId)
+    val stats = pulsarAdmin.topics.getInternalStats(topicPartition)
+    val ledgers = pulsarAdmin.topics.getInternalStats(topicPartition).ledgers.
+      asScala.filter(_.ledgerId >= startLedgerId).sortBy(_.ledgerId)
+    // The last ledger of the ledgers list doesn't have .size or .entries
+    // properly populated, and the corresponding info is in currentLedgerSize
+    // and currentLedgerEntries
+    if (ledgers.nonEmpty) {
+      ledgers.last.size = stats.currentLedgerSize
+      ledgers.last.entries = stats.currentLedgerEntries
+    }
+    val partitionIndex = if (topicPartition.contains(PartitionSuffix)) {
+      topicPartition.split(PartitionSuffix)(1).toInt
+    } else {
+      -1
+    }
+    var messageId = startMessageId
+    var readLimitLeft = readLimit
+    ledgers.filter(_.entries != 0).sortBy(_.ledgerId).foreach { ledger =>
+      assert(readLimitLeft >= 0)
+      if (readLimitLeft == 0) {
+        return messageId
+      }
+      val avgBytesPerEntries = ledger.size / ledger.entries
+      // approximation of bytes left in ledger to deal with case
+      // where we are at the middle of the ledger
+      val bytesLeftInLedger = if (ledger.ledgerId == startLedgerId) {
+        avgBytesPerEntries * (ledger.entries - startEntryId - 1)
+      } else {
+        ledger.size
+      }
+      if (readLimitLeft > bytesLeftInLedger) {
+        readLimitLeft -= bytesLeftInLedger
+        messageId = DefaultImplementation
+          .getDefaultImplementation
+          .newMessageId(ledger.ledgerId, ledger.entries - 1, partitionIndex)
+      } else {
+        val numEntriesToRead = Math.max(1, readLimitLeft / avgBytesPerEntries)
+        val lastEntryId = if (ledger.ledgerId != startLedgerId) {
+          numEntriesToRead - 1
+        } else {
+          startEntryId + numEntriesToRead
+        }
+        val lastEntryRead = Math.min(ledger.entries - 1, lastEntryId)
+        messageId = DefaultImplementation
+          .getDefaultImplementation
+          .newMessageId(ledger.ledgerId, lastEntryRead, partitionIndex)
+        readLimitLeft = 0
+      }
+    }
+    messageId
   }
 }

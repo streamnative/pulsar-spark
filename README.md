@@ -219,12 +219,21 @@ A possible solution to remove duplicates when reading the written data could be 
 </tr>
 
 <tr>
-  <td>`admin.url` (Deprecated)</td>
+  <td>`admin.url`</td>
   <td>A service HTTP URL of your Pulsar cluster</td>
   <td>No</td>
   <td>None</td>
   <td>Streaming and Batch</td>
-  <td>The Pulsar `serviceHttpUrl` configuration. </td>
+  <td>The Pulsar `serviceHttpUrl` configuration. Only needed when `maxBytesPerTrigger` is specified</td>
+</tr>
+
+<tr>
+  <td>`maxBytesPerTrigger`</td>
+  <td>A long value in unit of number of bytes</td>
+  <td>No</td>
+  <td>None</td>
+  <td>Streaming and Batch</td>
+  <td>A soft limit of the maximum number of bytes we want to process per microbatch. If this is specified, `admin.url` also needs to be specified.</td>
 </tr>
 
 <tr>

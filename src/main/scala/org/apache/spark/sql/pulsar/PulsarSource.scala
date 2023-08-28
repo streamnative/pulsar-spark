@@ -13,18 +13,29 @@
  */
 package org.apache.spark.sql.pulsar
 
+
 import java.{util => ju}
 
+import scala.collection.JavaConverters.asScalaBufferConverter
+import scala.collection.mutable
+
+import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.MessageIdImpl
+import org.apache.pulsar.client.internal.DefaultImplementation
 import org.apache.pulsar.common.schema.SchemaInfo
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
-import org.apache.spark.sql.execution.streaming.{Offset, Source}
+import org.apache.spark.sql.connector.read.streaming
+import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, SupportsAdmissionControl}
+import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset, Source}
+import org.apache.spark.sql.pulsar.PulsarOptions.ServiceUrlOptionKey
+import org.apache.spark.sql.pulsar.SpecificPulsarOffset.getTopicOffsets
 import org.apache.spark.sql.types.StructType
+
 
 private[pulsar] class PulsarSource(
     sqlContext: SQLContext,
@@ -34,11 +45,13 @@ private[pulsar] class PulsarSource(
     metadataPath: String,
     startingOffsets: PerTopicOffset,
     pollTimeoutMs: Int,
+    maxBytesPerTrigger: Long,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
     jsonOptions: JSONOptionsInRead)
     extends Source
-    with Logging {
+    with Logging
+    with SupportsAdmissionControl {
 
   import PulsarSourceUtils._
 
@@ -54,17 +67,37 @@ private[pulsar] class PulsarSource(
 
   private var currentTopicOffsets: Option[Map[String, MessageId]] = None
 
+
   private lazy val pulsarSchema: SchemaInfo = pulsarHelper.getPulsarSchema
 
   override def schema(): StructType = SchemaUtils.pulsarSourceSchema(pulsarSchema)
 
   override def getOffset: Option[Offset] = {
-    // Make sure initialTopicOffsets is initialized
+    throw new UnsupportedOperationException(
+      "latestOffset(Offset, ReadLimit) should be called instead of this method")
+  }
+
+  override def latestOffset(startingOffset: streaming.Offset,
+                            readLimit: ReadLimit): streaming.Offset = {
     initialTopicOffsets
-    val latest = pulsarHelper.fetchLatestOffsets()
-    currentTopicOffsets = Some(latest.topicOffsets)
-    logDebug(s"GetOffset: ${latest.topicOffsets.toSeq.map(_.toString).sorted}")
-    Some(latest.asInstanceOf[Offset])
+    readLimit match {
+      case ReadMaxBytes(maxBytes) =>
+        startingOffset match {
+          // deals with the case where we add a topic-partition after
+          // the stream has started, since adding a new topic-partition
+          // sets startingOffset to null
+          case null => pulsarHelper.latestOffsets(initialTopicOffsets, maxBytes)
+          case startingOffset => pulsarHelper.latestOffsets(startingOffset, maxBytes)
+        }
+      case _: ReadAllAvailable => pulsarHelper.fetchLatestOffsets()
+    }
+  }
+  override def getDefaultReadLimit: ReadLimit = {
+    if (maxBytesPerTrigger == 0L) {
+      ReadLimit.allAvailable()
+    } else {
+      ReadMaxBytes(maxBytesPerTrigger)
+    }
   }
 
   override def getBatch(start: Option[Offset], end: Offset): DataFrame = {
@@ -169,3 +202,7 @@ private[pulsar] class PulsarSource(
 
   }
 }
+
+/** A read limit that admits a soft-max of `maxBytes` per micro-batch. */
+case class ReadMaxBytes(maxBytes: Long) extends ReadLimit
+

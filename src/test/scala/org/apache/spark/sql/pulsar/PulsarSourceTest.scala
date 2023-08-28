@@ -127,6 +127,72 @@ class PulsarSourceTest extends StreamTest with SharedSparkSession with PulsarTes
   }
 
   /**
+   * Add data to Pulsar with partition specified
+   *
+   * `topicAction` can be used to run actions for each topic before inserting data.
+   */
+  case class AddPulsarDataWithPartition(
+    topic: String,
+    partition: Option[Int],
+    data: Int*)(
+    implicit ensureDataInMultiplePartition: Boolean = false,
+    concurrent: Boolean = false,
+    message: String = "",
+    topicAction: (String, Option[MessageId]) => Unit = (_, _) => {})
+    extends AddData {
+
+    val topics = Set(topic)
+    override def addData(query: Option[StreamExecution]): (SparkDataStream, Offset) = {
+      query match {
+        // Make sure no Spark job is running when deleting a topic
+        case Some(m: MicroBatchExecution) => m.processAllAvailable()
+        case _ =>
+      }
+
+      val existingTopics = getAllTopicsSize().toMap
+      val newTopics = topics.diff(existingTopics.keySet)
+      for (newTopic <- newTopics) {
+        topicAction(newTopic, None)
+      }
+      for (existingTopicPartitions <- existingTopics) {
+        topicAction(existingTopicPartitions._1, Some(existingTopicPartitions._2))
+      }
+
+      require(
+        query.nonEmpty,
+        "Cannot add data when there is no query for finding the active pulsar source")
+
+      val sources = query.get.logicalPlan.collect {
+        case StreamingExecutionRelation(source: PulsarSource, _, _) => source
+        case StreamingExecutionRelation(source: PulsarMicroBatchReader, _, _) => source
+      }.distinct
+
+      if (sources.isEmpty) {
+        throw new Exception(
+          "Could not find Pulsar source in the StreamExecution logical plan to add data to")
+      } else if (sources.size > 1) {
+        throw new Exception(
+          "Could not select the Pulsar source in the StreamExecution logical plan as there" +
+            "are multiple Pulsar sources:\n\t" + sources.mkString("\n\t"))
+      }
+      val pulsarSource = sources.head
+      val topic = topics.toSeq(Random.nextInt(topics.size))
+
+      sendMessages(topic, data.map {
+        _.toString
+      }.toArray, partition)
+      val sizes = getLatestOffsets(topics).toSeq
+      val offset = SpecificPulsarOffset(sizes: _*)
+      logInfo(s"Added data, expected offset $offset")
+      (pulsarSource, offset)
+    }
+
+    override def toString: String =
+      s"AddPulsarDataWithPartition(topics = $topics, partition = $partition, " +
+        s"data = $data, message = $message)"
+  }
+
+  /**
    * Add data to Pulsar.
    *
    * `topicAction` can be used to run actions for each topic before inserting data.
