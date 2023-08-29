@@ -262,17 +262,7 @@ private[pulsar] object PulsarProvider extends Logging {
   }
 
   private def getAdminParams(parameters: Map[String, String]): Map[String, String] = {
-    val lowercaseKeyMap = parameters.keySet
-      .filter(_.startsWith(PulsarAdminOptionKeyPrefix))
-      .map { k =>
-        k.drop(PulsarAdminOptionKeyPrefix.length).toString -> parameters(k)
-      }
-      .toMap
-    lowercaseKeyMap.map { case (k, v) =>
-      clientConfKeys.getOrElse(
-        k,
-        throw new IllegalArgumentException(s"$k not supported by pulsar")) -> v
-    }
+    getModuleParams(parameters, PulsarAdminOptionKeyPrefix, clientConfKeys)
   }
 
   private def getProducerParams(parameters: Map[String, String]): Map[String, String] = {
