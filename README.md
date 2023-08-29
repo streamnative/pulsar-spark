@@ -425,6 +425,17 @@ Please check [Pulsar Client Configuration](https://pulsar.apache.org/docs/2.11.x
 </tr>
 
 <tr>
+  <td>`pulsar.admin.*`</td>
+  <td>Pulsar Admin configurations</td>
+  <td>No</td>
+  <td>None</td>
+  <td>Streaming and Batch</td>
+  <td>Admin configurations. Example: "pulsar.admin.tlsAllowInsecureConnection".
+
+Please check [Pulsar Admin Configuration](https://pulsar.apache.org/docs/2.10.x/admin-api-overview/) for more details </td>
+</tr>
+
+<tr>
   <td>`pulsar.reader.*`</td>
   <td>Pulsar Reader configurations</td>
   <td>No</td>
