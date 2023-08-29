@@ -58,7 +58,8 @@ private[pulsar] abstract class PulsarSourceRDDBase(
     val deserializer = new PulsarDeserializer(schemaInfo.si, jsonOptions)
     val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
 
-    lazy val reader = PulsarClientFactory.getOrCreate(SparkEnv.get.conf, clientConf)
+    lazy val reader = PulsarClientFactory
+      .getOrCreate(SparkEnv.get.conf, clientConf)
       .newReader(schema)
       .subscriptionRolePrefix(subscriptionNamePrefix)
       .topic(topic)

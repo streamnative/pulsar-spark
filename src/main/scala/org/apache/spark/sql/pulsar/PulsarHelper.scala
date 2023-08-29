@@ -59,8 +59,8 @@ private[pulsar] case class PulsarHelper(
 
   import scala.collection.JavaConverters._
 
-  protected var client: PulsarClientImpl = PulsarClientFactory
-    .getOrCreate(sparkContext.conf, clientConf)
+  protected var client: PulsarClientImpl =
+    PulsarClientFactory.getOrCreate(sparkContext.conf, clientConf)
 
   private var topics: Seq[String] = _
   private var topicPartitions: Seq[String] = _
