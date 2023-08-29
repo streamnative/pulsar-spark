@@ -47,6 +47,7 @@ import org.apache.spark.sql.types.StructType
 private[pulsar] case class PulsarHelper(
     serviceUrl: String,
     adminUrl: Option[String],
+    adminConf: ju.Map[String, Object],
     clientConf: ju.Map[String, Object],
     driverGroupIdPrefix: String,
     caseInsensitiveParameters: Map[String, String],
@@ -66,7 +67,7 @@ private[pulsar] case class PulsarHelper(
   // will only be called if latestOffset is called and there should
   // be an exception thrown in PulsarProvider if maxBytes is set,
   // and adminUrl is not set
-  private lazy val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl.get)
+  private lazy val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl.get, adminConf)
 
   override def close(): Unit = {
     // do nothing
@@ -520,10 +521,10 @@ private[pulsar] case class PulsarHelper(
   }
 }
 
-class PulsarAdmissionControlHelper(adminUrl: String)
+class PulsarAdmissionControlHelper(adminUrl: String, conf: ju.Map[String, Object])
   extends Logging {
 
-  private lazy val pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()
+  private lazy val pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(adminUrl).loadConf(conf).build()
 
   import scala.collection.JavaConverters._
 

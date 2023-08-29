@@ -22,6 +22,7 @@ private[pulsar] object PulsarOptions {
 
   // option key prefix for different modules
   val PulsarClientOptionKeyPrefix: String = "pulsar.client."
+  val PulsarAdminOptionKeyPrefix: String = "pulsar.admin."
   val PulsarProducerOptionKeyPrefix: String = "pulsar.producer."
   val PulsarReaderOptionKeyPrefix: String = "pulsar.reader."
 

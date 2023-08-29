@@ -1,5 +1,7 @@
 package org.apache.spark.sql.pulsar
 
+import java.{util => ju}
+
 import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.internal.DefaultImplementation
@@ -33,7 +35,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     val firstLedger = getLedgerId(firstMid)
     val firstEntry = getEntryId(firstMid)
     require(getLatestOffsets(Set(topic)).size === 1)
-    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl)
+    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl, new ju.HashMap[String, Object]())
     val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, MessageId.earliest, approxSizeOfInt)
     assert(getLedgerId(offset) == firstLedger && getEntryId(offset) == firstEntry)
   }
@@ -44,7 +46,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     val firstMid = messageIds.head._2
     val secondMid = messageIds.apply(1)._2
     require(getLatestOffsets(Set(topic)).size === 1)
-    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl)
+    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl, new ju.HashMap[String, Object]())
     val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, firstMid, approxSizeOfInt)
     assert(getLedgerId(offset) == getLedgerId(secondMid) && getEntryId(offset) == getEntryId(secondMid))
 
