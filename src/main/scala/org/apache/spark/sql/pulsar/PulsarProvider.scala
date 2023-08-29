@@ -56,7 +56,8 @@ private[pulsar] class PulsarProvider
       parameters: Map[String, String]): (String, StructType) = {
 
     val caseInsensitiveParams = validateStreamOptions(parameters)
-    val (clientConfig, _, adminConfig, serviceUrlConfig, adminUrl) = prepareConfForReader(parameters)
+    val (clientConfig, _, adminConfig,
+      serviceUrlConfig, adminUrl) = prepareConfForReader(parameters)
 
     val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}"
     val inferredSchema = Utils.tryWithResource(
@@ -86,7 +87,9 @@ private[pulsar] class PulsarProvider
     logDebug(s"Creating Pulsar source: $parameters")
 
     val caseInsensitiveParams = validateStreamOptions(parameters)
-    val (clientConfig, readerConfig, adminConfig, serviceUrl, adminUrl) = prepareConfForReader(parameters)
+    val (clientConfig, readerConfig,
+      adminConfig, serviceUrl, adminUrl) = prepareConfForReader(parameters)
+
     logDebug(
       s"Client config: $clientConfig; Reader config: $readerConfig; Service URL: $serviceUrl")
 
@@ -136,7 +139,9 @@ private[pulsar] class PulsarProvider
 
     val subscriptionNamePrefix = getSubscriptionPrefix(parameters, isBatch = true)
 
-    val (clientConfig, readerConfig, adminConfig, serviceUrl, adminUrl) = prepareConfForReader(parameters)
+    val (clientConfig, readerConfig,
+      adminConfig, serviceUrl, adminUrl) = prepareConfForReader(parameters)
+
     val (start, end, schema, pSchema) = Utils.tryWithResource(
       PulsarHelper(
         serviceUrl,
@@ -514,7 +519,8 @@ private[pulsar] object PulsarProvider extends Logging {
   }
 
   private def prepareConfForReader(parameters: Map[String, String])
-      : (ju.Map[String, Object], ju.Map[String, Object], ju.Map[String, Object], String, Option[String]) = {
+      : (ju.Map[String, Object], ju.Map[String, Object],
+        ju.Map[String, Object], String, Option[String]) = {
 
     val serviceUrl = getServiceUrl(parameters)
     val adminUrl = getAdminUrl(parameters)
