@@ -115,11 +115,6 @@ private[pulsar] class PulsarProvider
         "must be specified if maxBytesPerTrigger is specified")
     }
 
-    if (adminUrl.isEmpty && !adminConfig.isEmpty) {
-      throw new IllegalArgumentException("admin.url " +
-        "must be specified if admin options are specified")
-    }
-
     new PulsarSource(
       sqlContext,
       pulsarHelper,
