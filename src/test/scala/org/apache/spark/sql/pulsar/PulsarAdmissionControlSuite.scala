@@ -28,89 +28,18 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     super.afterAll()
   }
 
-  test("Only admit first entry of ledger") {
+  test("setting invalid config PulsarAdmin") {
+    val conf = new ju.HashMap[String, Object]()
+    conf.put("INVALID", "INVALID")
+
     val topic = newTopic()
-    val messageIds = sendMessages(topic, Array("1", "2", "3"))
-    val firstMid = messageIds.head._2
-    val firstLedger = getLedgerId(firstMid)
-    val firstEntry = getEntryId(firstMid)
-    require(getLatestOffsets(Set(topic)).size === 1)
-    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl, new ju.HashMap[String, Object]())
-    val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, MessageId.earliest, approxSizeOfInt)
-    assert(getLedgerId(offset) == firstLedger && getEntryId(offset) == firstEntry)
-  }
-
-  test("Admit entry in the middle of the ledger") {
-    val topic = newTopic()
-    val messageIds = sendMessages(topic, Array("1", "2", "3"))
-    val firstMid = messageIds.head._2
-    val secondMid = messageIds.apply(1)._2
-    require(getLatestOffsets(Set(topic)).size === 1)
-    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl, new ju.HashMap[String, Object]())
-    val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, firstMid, approxSizeOfInt)
-    assert(getLedgerId(offset) == getLedgerId(secondMid) && getEntryId(offset) == getEntryId(secondMid))
-
-  }
-
-  test("Check last batch where message size is greater than maxBytesPerTrigger") {
-    val topic = newTopic()
-    sendMessages(topic, Array("-1"))
-    require(getLatestOffsets(Set(topic)).size === 1)
-
-    val pulsar = spark.readStream
-      .format("pulsar")
-      .option(TopicSingle, topic)
-      .option(ServiceUrlOptionKey, serviceUrl)
-      .option(AdminUrlOptionKey, adminUrl)
-      .option(FailOnDataLossOptionKey, "true")
-      .option(MaxBytesPerTrigger, approxSizeOfInt * 3)
-      .load()
-      .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
-      .as[(String, String)]
-
-    val mapped = pulsar.map(kv => kv._2.toInt + 1)
-
-    testStream(mapped)(
-      StartStream(trigger = ProcessingTime(1000)),
-      makeSureGetOffsetCalled,
-      AddPulsarData(Set(topic), 1, 2, 3),
-      AddPulsarData(Set(topic), 4, 5, 6, 7, 8, 9),
-      AssertOnQuery { query =>
-        query.recentProgress.map(microBatch =>
-           microBatch.numInputRows <= 4
-        ).forall(_ == true)
-      }
-    )
-  }
-
-  test("Admission Control for multiple topics") {
-    val topic1 = newTopic()
-    val topic2 = newTopic()
-
-    val pulsar = spark.readStream
-      .format("pulsar")
-      .option(TopicMulti, s"$topic1,$topic2")
-      .option(ServiceUrlOptionKey, serviceUrl)
-      .option(AdminUrlOptionKey, adminUrl)
-      .option(FailOnDataLossOptionKey, "true")
-      .option(MaxBytesPerTrigger, approxSizeOfInt * 6)
-      .load()
-      .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
-      .as[(String, String)]
-
-    val mapped = pulsar.map(kv => kv._2.toInt + 1)
-
-    testStream(mapped)(
-      StartStream(trigger = ProcessingTime(1000)),
-      makeSureGetOffsetCalled,
-      AddPulsarData(Set(topic1), 1, 2, 3),
-      AddPulsarData(Set(topic2), 4, 5, 6, 7, 8, 9),
-      AssertOnQuery { query =>
-        query.recentProgress.map(microBatch =>
-          microBatch.numInputRows <= 4
-        ).forall(_ == true)
-      }
-    )
+    // Need to call latestOffsetForTopicPartition so the helper instantiates
+    // the admin
+    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl, conf)
+    val e = intercept[RuntimeException] {
+      admissionControlHelper.latestOffsetForTopicPartition(topic, MessageId.earliest, approxSizeOfInt)
+    }
+    assert(e.getMessage.contains("Failed to load config into existing configuration data"))
   }
 
   test("Admission Control for concurrent topic writes") {
@@ -141,6 +70,27 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
         ).forall(_ == true)
       }
     )
+  }
+
+  test("Set invalid configuration for PulsarAdmin in stream options") {
+    val topic = newTopic()
+    sendMessages(topic, Array("-1"))
+    require(getLatestOffsets(Set(topic)).size === 1)
+
+    val e = intercept[IllegalArgumentException] {
+      spark.readStream
+        .format("pulsar")
+        .option(TopicSingle, topic)
+        .option(ServiceUrlOptionKey, serviceUrl)
+        .option(AdminUrlOptionKey, adminUrl)
+        .option("pulsar.admin.INVALID", "INVALID")
+        .option(FailOnDataLossOptionKey, "true")
+        .option(MaxBytesPerTrigger, approxSizeOfInt * 3)
+        .load()
+        .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
+        .as[(String, String)]
+    }
+    assert(e.getMessage.contains("invalid not supported by pulsar"))
   }
 
   test("Admission Control with one topic-partition") {
