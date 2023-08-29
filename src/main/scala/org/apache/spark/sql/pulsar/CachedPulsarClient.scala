@@ -28,7 +28,7 @@ import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.pulsar.PulsarOptions._
 
-private[pulsar] object CachedPulsarClient extends Logging {
+private object CachedPulsarClient extends Logging {
 
   private val defaultCacheExpireTimeout = TimeUnit.MINUTES.toMillis(10)
 

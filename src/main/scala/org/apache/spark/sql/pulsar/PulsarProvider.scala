@@ -67,7 +67,8 @@ private[pulsar] class PulsarProvider
         subscriptionNamePrefix,
         caseInsensitiveParams,
         getAllowDifferentTopicSchemas(parameters),
-        getPredefinedSubscription(parameters))) { pulsarHelper =>
+        getPredefinedSubscription(parameters),
+        sqlContext.sparkContext)) { pulsarHelper =>
       pulsarHelper.getAndCheckCompatible(schema)
     }
 
@@ -97,7 +98,8 @@ private[pulsar] class PulsarProvider
       subscriptionNamePrefix,
       caseInsensitiveParams,
       getAllowDifferentTopicSchemas(parameters),
-      getPredefinedSubscription(parameters))
+      getPredefinedSubscription(parameters),
+      sqlContext.sparkContext)
 
     val pSchema = pulsarHelper.getAndCheckCompatible(schema)
     logDebug(s"Schema from Spark: $schema; Schema from Pulsar: ${pSchema}")
@@ -143,7 +145,8 @@ private[pulsar] class PulsarProvider
         subscriptionNamePrefix,
         caseInsensitiveParams,
         getAllowDifferentTopicSchemas(parameters),
-        getPredefinedSubscription(parameters))) { pulsarHelper =>
+        getPredefinedSubscription(parameters),
+        sqlContext.sparkContext)) { pulsarHelper =>
       val perTopicStarts =
         pulsarHelper.offsetForEachTopic(caseInsensitiveParams, EarliestOffset, StartOptionKey)
       val startingOffset = SpecificPulsarOffset(

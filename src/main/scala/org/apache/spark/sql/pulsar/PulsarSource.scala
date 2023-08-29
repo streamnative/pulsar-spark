@@ -55,7 +55,7 @@ private[pulsar] class PulsarSource(
 
   import PulsarSourceUtils._
 
-  private val sc = sqlContext.sparkContext
+  private def sc = sqlContext.sparkContext
 
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
   private var stopped = false

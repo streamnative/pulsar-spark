@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
 import org.apache.pulsar.client.api.{Message, MessageId, PulsarClientException, Schema}
 import org.apache.pulsar.client.impl.{BatchMessageIdImpl, MessageIdImpl}
 
-import org.apache.spark.{Partition, SparkContext, TaskContext}
+import org.apache.spark.{Partition, SparkContext, SparkEnv, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
@@ -58,8 +58,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
     val deserializer = new PulsarDeserializer(schemaInfo.si, jsonOptions)
     val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
 
-    lazy val reader = CachedPulsarClient
-      .getOrCreate(clientConf)
+    lazy val reader = PulsarClientFactory.getOrCreate(SparkEnv.get.conf, clientConf)
       .newReader(schema)
       .subscriptionRolePrefix(subscriptionNamePrefix)
       .topic(topic)
