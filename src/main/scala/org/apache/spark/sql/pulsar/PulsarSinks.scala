@@ -20,6 +20,7 @@ import scala.util.control.NonFatal
 
 import org.apache.pulsar.client.api.{Producer, PulsarClientException, Schema}
 
+import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{AnalysisException, DataFrame, SparkSession, SQLContext}
 import org.apache.spark.sql.catalyst.expressions
@@ -161,8 +162,8 @@ private[pulsar] object PulsarSinks extends Logging {
       schema: Schema[T]): Producer[T] = {
 
     try {
-      CachedPulsarClient
-        .getOrCreate(clientConf)
+      PulsarClientFactory
+        .getOrCreate(SparkEnv.get.conf, clientConf)
         .newProducer(schema)
         .topic(topic)
         .loadConf(producerConf)

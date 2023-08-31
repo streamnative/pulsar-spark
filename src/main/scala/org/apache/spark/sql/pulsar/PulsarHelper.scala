@@ -32,6 +32,7 @@ import org.apache.pulsar.common.naming.TopicName
 import org.apache.pulsar.common.schema.SchemaInfo
 import org.apache.pulsar.shade.com.google.common.util.concurrent.Uninterruptibles
 
+import org.apache.spark.SparkContext
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.connector.read.streaming
 import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit}
@@ -52,13 +53,15 @@ private[pulsar] case class PulsarHelper(
     driverGroupIdPrefix: String,
     caseInsensitiveParameters: Map[String, String],
     allowDifferentTopicSchemas: Boolean,
-    predefinedSubscription: Option[String])
+    predefinedSubscription: Option[String],
+    sparkContext: SparkContext)
     extends Closeable
     with Logging {
 
   import scala.collection.JavaConverters._
 
-  protected var client: PulsarClientImpl = CachedPulsarClient.getOrCreate(clientConf)
+  protected var client: PulsarClientImpl =
+    PulsarClientFactory.getOrCreate(sparkContext.conf, clientConf)
 
   private var topics: Seq[String] = _
   private var topicPartitions: Seq[String] = _
