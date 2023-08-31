@@ -530,8 +530,7 @@ class PulsarAdmissionControlHelper(adminUrl: String)
     val startLedgerId = getLedgerId(startMessageId)
     val startEntryId = getEntryId(startMessageId)
     val stats = pulsarAdmin.topics.getInternalStats(topicPartition)
-    val ledgers = pulsarAdmin.topics.getInternalStats(topicPartition).ledgers.
-      asScala.filter(_.ledgerId >= startLedgerId).sortBy(_.ledgerId)
+    val ledgers = stats.ledgers.asScala.filter(_.ledgerId >= startLedgerId).sortBy(_.ledgerId)
     // The last ledger of the ledgers list doesn't have .size or .entries
     // properly populated, and the corresponding info is in currentLedgerSize
     // and currentLedgerEntries
