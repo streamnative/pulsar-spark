@@ -56,13 +56,15 @@ private[pulsar] class PulsarProvider
       parameters: Map[String, String]): (String, StructType) = {
 
     val caseInsensitiveParams = validateStreamOptions(parameters)
-    val (clientConfig, _, serviceUrlConfig, adminUrl) = prepareConfForReader(parameters)
+    val (clientConfig, _, adminConfig,
+      serviceUrlConfig, adminUrl) = prepareConfForReader(parameters)
 
     val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}"
     val inferredSchema = Utils.tryWithResource(
       PulsarHelper(
         serviceUrlConfig,
         adminUrl,
+        adminConfig,
         clientConfig,
         subscriptionNamePrefix,
         caseInsensitiveParams,
@@ -85,7 +87,9 @@ private[pulsar] class PulsarProvider
     logDebug(s"Creating Pulsar source: $parameters")
 
     val caseInsensitiveParams = validateStreamOptions(parameters)
-    val (clientConfig, readerConfig, serviceUrl, adminUrl) = prepareConfForReader(parameters)
+    val (clientConfig, readerConfig,
+      adminConfig, serviceUrl, adminUrl) = prepareConfForReader(parameters)
+
     logDebug(
       s"Client config: $clientConfig; Reader config: $readerConfig; Service URL: $serviceUrl")
 
@@ -93,6 +97,7 @@ private[pulsar] class PulsarProvider
     val pulsarHelper = PulsarHelper(
       serviceUrl,
       adminUrl,
+      adminConfig,
       clientConfig,
       subscriptionNamePrefix,
       caseInsensitiveParams,
@@ -134,11 +139,14 @@ private[pulsar] class PulsarProvider
 
     val subscriptionNamePrefix = getSubscriptionPrefix(parameters, isBatch = true)
 
-    val (clientConfig, readerConfig, serviceUrl, adminUrl) = prepareConfForReader(parameters)
+    val (clientConfig, readerConfig,
+      adminConfig, serviceUrl, adminUrl) = prepareConfForReader(parameters)
+
     val (start, end, schema, pSchema) = Utils.tryWithResource(
       PulsarHelper(
         serviceUrl,
         adminUrl,
+        adminConfig,
         clientConfig,
         subscriptionNamePrefix,
         caseInsensitiveParams,
@@ -256,6 +264,10 @@ private[pulsar] object PulsarProvider extends Logging {
         k,
         throw new IllegalArgumentException(s"$k not supported by pulsar")) -> v
     }
+  }
+
+  private def getAdminParams(parameters: Map[String, String]): Map[String, String] = {
+    getModuleParams(parameters, PulsarAdminOptionKeyPrefix, clientConfKeys)
   }
 
   private def getProducerParams(parameters: Map[String, String]): Map[String, String] = {
@@ -507,17 +519,20 @@ private[pulsar] object PulsarProvider extends Logging {
   }
 
   private def prepareConfForReader(parameters: Map[String, String])
-      : (ju.Map[String, Object], ju.Map[String, Object], String, Option[String]) = {
+      : (ju.Map[String, Object], ju.Map[String, Object],
+        ju.Map[String, Object], String, Option[String]) = {
 
     val serviceUrl = getServiceUrl(parameters)
     val adminUrl = getAdminUrl(parameters)
     var clientParams = getClientParams(parameters)
     clientParams += (ServiceUrlOptionKey -> serviceUrl)
     val readerParams = getReaderParams(parameters)
+    val adminParams = getAdminParams(parameters)
 
     (
       paramsToPulsarConf("pulsar.client", clientParams),
       paramsToPulsarConf("pulsar.reader", readerParams),
+      paramsToPulsarConf("pulsar.admin", adminParams),
       serviceUrl, adminUrl)
   }
 

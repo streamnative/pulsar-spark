@@ -1,5 +1,7 @@
 package org.apache.spark.sql.pulsar
 
+import java.{util => ju}
+
 import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.internal.DefaultImplementation
@@ -33,9 +35,23 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     val firstLedger = getLedgerId(firstMid)
     val firstEntry = getEntryId(firstMid)
     require(getLatestOffsets(Set(topic)).size === 1)
-    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl)
+    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl, new ju.HashMap[String, Object]())
     val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, MessageId.earliest, approxSizeOfInt)
     assert(getLedgerId(offset) == firstLedger && getEntryId(offset) == firstEntry)
+  }
+
+  test("setting invalid config PulsarAdmin") {
+    val conf = new ju.HashMap[String, Object]()
+    conf.put("INVALID", "INVALID")
+
+    val topic = newTopic()
+    // Need to call latestOffsetForTopicPartition so the helper instantiates
+    // the admin
+    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl, conf)
+    val e = intercept[RuntimeException] {
+      admissionControlHelper.latestOffsetForTopicPartition(topic, MessageId.earliest, approxSizeOfInt)
+    }
+    assert(e.getMessage.contains("Failed to load config into existing configuration data"))
   }
 
   test("Admit entry in the middle of the ledger") {
@@ -44,7 +60,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
     val firstMid = messageIds.head._2
     val secondMid = messageIds.apply(1)._2
     require(getLatestOffsets(Set(topic)).size === 1)
-    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl)
+    val admissionControlHelper = new PulsarAdmissionControlHelper(adminUrl, new ju.HashMap[String, Object]())
     val offset = admissionControlHelper.latestOffsetForTopicPartition(topic, firstMid, approxSizeOfInt)
     assert(getLedgerId(offset) == getLedgerId(secondMid) && getEntryId(offset) == getEntryId(secondMid))
 
@@ -75,7 +91,7 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
       AddPulsarData(Set(topic), 4, 5, 6, 7, 8, 9),
       AssertOnQuery { query =>
         query.recentProgress.map(microBatch =>
-           microBatch.numInputRows <= 4
+          microBatch.numInputRows <= 4
         ).forall(_ == true)
       }
     )
@@ -139,6 +155,27 @@ class PulsarAdmissionControlSuite extends PulsarSourceTest {
         ).forall(_ == true)
       }
     )
+  }
+
+  test("Set invalid configuration for PulsarAdmin in stream options") {
+    val topic = newTopic()
+    sendMessages(topic, Array("-1"))
+    require(getLatestOffsets(Set(topic)).size === 1)
+
+    val e = intercept[IllegalArgumentException] {
+      spark.readStream
+        .format("pulsar")
+        .option(TopicSingle, topic)
+        .option(ServiceUrlOptionKey, serviceUrl)
+        .option(AdminUrlOptionKey, adminUrl)
+        .option("pulsar.admin.INVALID", "INVALID")
+        .option(FailOnDataLossOptionKey, "true")
+        .option(MaxBytesPerTrigger, approxSizeOfInt * 3)
+        .load()
+        .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
+        .as[(String, String)]
+    }
+    assert(e.getMessage.contains("invalid not supported by pulsar"))
   }
 
   test("Admission Control with one topic-partition") {
