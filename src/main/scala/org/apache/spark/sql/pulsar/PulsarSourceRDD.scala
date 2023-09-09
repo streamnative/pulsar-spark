@@ -38,7 +38,8 @@ private[pulsar] abstract class PulsarSourceRDDBase(
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
-    jsonOptions: JSONOptionsInRead)
+    jsonOptions: JSONOptionsInRead,
+    pulsarClientFactoryClassName: Option[String])
     extends RDD[InternalRow](sc, Nil) {
 
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
@@ -59,7 +60,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
     val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
 
     lazy val reader = PulsarClientFactory
-      .getOrCreate(SparkEnv.get.conf, clientConf)
+      .getOrCreate(pulsarClientFactoryClassName, clientConf)
       .newReader(schema)
       .subscriptionRolePrefix(subscriptionNamePrefix)
       .topic(topic)
@@ -170,7 +171,8 @@ private[pulsar] class PulsarSourceRDD(
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
-    jsonOptions: JSONOptionsInRead)
+    jsonOptions: JSONOptionsInRead,
+    pulsarClientFactoryClassName: Option[String])
     extends PulsarSourceRDDBase(
       sc,
       schemaInfo,
@@ -180,7 +182,8 @@ private[pulsar] class PulsarSourceRDD(
       pollTimeoutMs,
       failOnDataLoss,
       subscriptionNamePrefix,
-      jsonOptions) {
+      jsonOptions,
+      pulsarClientFactoryClassName) {
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
     val part = split.asInstanceOf[PulsarSourceRDDPartition]
@@ -221,7 +224,8 @@ private[pulsar] class PulsarSourceRDD4Batch(
       pollTimeoutMs,
       failOnDataLoss,
       subscriptionNamePrefix,
-      jsonOptions) {
+      jsonOptions,
+      None) {
 
   override def compute(split: Partition, context: TaskContext): Iterator[InternalRow] = {
 

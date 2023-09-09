@@ -163,7 +163,7 @@ private[pulsar] object PulsarSinks extends Logging {
 
     try {
       PulsarClientFactory
-        .getOrCreate(SparkEnv.get.conf, clientConf)
+        .getOrCreate(None, clientConf)
         .newProducer(schema)
         .topic(topic)
         .loadConf(producerConf)
