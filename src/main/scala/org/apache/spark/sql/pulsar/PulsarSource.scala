@@ -179,7 +179,9 @@ private[pulsar] class PulsarSource(
       pollTimeoutMs,
       failOnDataLoss,
       subscriptionNamePrefix,
-      jsonOptions)
+      jsonOptions,
+      sqlContext.sparkContext.conf
+        .getOption(PulsarClientFactory.PulsarClientFactoryClassOption))
 
     logInfo(
       "GetBatch generating RDD of offset range: " +
