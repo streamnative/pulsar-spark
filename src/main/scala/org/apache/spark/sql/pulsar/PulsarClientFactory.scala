@@ -32,12 +32,13 @@ class DefaultPulsarClientFactory extends PulsarClientFactory {
 
 object PulsarClientFactory {
   val PulsarClientFactoryClassOption = "org.apache.spark.sql.pulsar.PulsarClientFactoryClass"
-  def getOrCreate(sparkConf: SparkConf, params: ju.Map[String, Object]): PulsarClientImpl = {
-    getFactory(sparkConf).getOrCreate(params)
+  def getOrCreate(pulsarClientFactoryClassName: Option[String],
+                  params: ju.Map[String, Object]): PulsarClientImpl = {
+    getFactory(pulsarClientFactoryClassName).getOrCreate(params)
   }
 
-  private def getFactory(sparkConf: SparkConf): PulsarClientFactory = {
-    sparkConf.getOption(PulsarClientFactoryClassOption) match {
+  private def getFactory(pulsarClientFactoryClassName: Option[String]): PulsarClientFactory = {
+    pulsarClientFactoryClassName match {
       case Some(factoryClassName) =>
         Utils.classForName(factoryClassName).getConstructor()
           .newInstance().asInstanceOf[PulsarClientFactory]
