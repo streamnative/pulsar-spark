@@ -624,7 +624,3 @@ mvn -Dsuites=org.apache.spark.sql.pulsar.CachedPulsarClientSuite clean install
 This might be handy if test execution is slower, or you get a `java.io.IOException: Too many open files` exception during full suite run.
 
 Once the installation is finished, there is a fat jar generated under both local maven repo and `target` directory.
-
-
-## License
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-spark.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-spark?ref=badge_large)
