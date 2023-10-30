@@ -15,14 +15,18 @@ package org.apache.spark.sql.pulsar
 
 import java.util.concurrent.ConcurrentLinkedQueue
 
+import scala.collection.JavaConverters._
+
 import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.spark.SparkException
 import org.apache.spark.sql.ForeachWriter
-import org.apache.spark.sql.execution.streaming.StreamingExecutionRelation
+import org.apache.spark.sql.execution.streaming.{StreamExecution, StreamingExecutionRelation}
 import org.apache.spark.sql.functions.{count, window}
 import org.apache.spark.sql.pulsar.PulsarOptions.{ServiceUrlOptionKey, TopicPattern}
+import org.apache.spark.sql.streaming.StreamingQueryProgress
 import org.apache.spark.sql.streaming.Trigger.ProcessingTime
 import org.apache.spark.util.Utils
+
 
 class PulsarMicroBatchV1SourceSuite extends PulsarMicroBatchSourceSuiteBase {
   test("V1 Source is used by default") {
@@ -63,8 +67,8 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
 
   test("input row metrics") {
     val topic = newTopic()
+    createTopic(topic, 12)
     sendMessages(topic, Array("-1"))
-    require(getLatestOffsets(Set(topic)).size === 1)
 
     val pulsar = spark.readStream
       .format("pulsar")
@@ -74,6 +78,15 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       .selectExpr("CAST(__key AS STRING)", "CAST(value AS STRING)")
       .as[(String, String)]
 
+    def checkSourceMetrics(
+        progresses: Array[StreamingQueryProgress],
+        numInputRows: Long): Boolean = {
+      val sourceMetrics = progresses.map(_.sources.head.metrics)
+      sourceMetrics.map(_.get("numInputRows").toLong).sum == numInputRows &&
+        sourceMetrics.map(_.get("numInputBytes").toLong).sum >= numInputRows &&
+        progresses.map(_.numInputRows).sum == numInputRows
+    }
+
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
     testStream(mapped)(
       StartStream(trigger = ProcessingTime(1)),
@@ -81,9 +94,20 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       AddPulsarData(Set(topic), 1, 2, 3),
       CheckAnswer(2, 3, 4),
       AssertOnQuery { query =>
-        val recordsRead = query.recentProgress.map(_.numInputRows).sum
-        recordsRead == 3
-      }
+        checkSourceMetrics(query.recentProgress, 3)
+      },
+      AddPulsarData(Set(topic), 4, 5),
+      CheckAnswer(2, 3, 4, 5, 6),
+      AssertOnQuery { query =>
+        checkSourceMetrics(query.recentProgress, 5)
+      },
+      StopStream,
+      StartStream(trigger = ProcessingTime(1)),
+      AddPulsarData(Set(topic), 6),
+      CheckAnswer(2, 3, 4, 5, 6, 7),
+      AssertOnQuery { query =>
+        checkSourceMetrics(query.recentProgress, 1)
+      },
     )
   }
 

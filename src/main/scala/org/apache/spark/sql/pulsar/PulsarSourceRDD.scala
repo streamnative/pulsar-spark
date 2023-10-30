@@ -24,7 +24,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.pulsar.PulsarSourceUtils._
-import org.apache.spark.util.{NextIterator, Utils}
+import org.apache.spark.util.{LongAccumulator, NextIterator, Utils}
 
 private[pulsar] case class PulsarSourceRDDPartition(index: Int, offsetRange: PulsarOffsetRange)
     extends Partition
@@ -53,7 +53,8 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       topic: String,
       startOffset: MessageId,
       endOffset: MessageId,
-      context: TaskContext): Iterator[InternalRow] = {
+      context: TaskContext,
+      rowsBytesAccumulator: Option[LongAccumulator] = None): Iterator[InternalRow] = {
 
     val deserializer = new PulsarDeserializer(schemaInfo.si, jsonOptions)
     val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
@@ -136,6 +137,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
             return null
           }
 
+          rowsBytesAccumulator.foreach(_.add(currentMessage.size()))
           currentId = currentMessage.getMessageId
 
           finished = false
@@ -170,7 +172,8 @@ private[pulsar] class PulsarSourceRDD(
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
-    jsonOptions: JSONOptionsInRead)
+    jsonOptions: JSONOptionsInRead,
+    rowsBytesAccumulator: LongAccumulator)
     extends PulsarSourceRDDBase(
       sc,
       schemaInfo,
@@ -198,7 +201,7 @@ private[pulsar] class PulsarSourceRDD(
       return Iterator.empty
     }
 
-    computeInner(tp, start, end, context)
+    computeInner(tp, start, end, context, Some(rowsBytesAccumulator))
   }
 }
 
