@@ -15,8 +15,9 @@ package org.apache.spark.sql.pulsar
 
 
 import java.{util => ju}
+import java.util.Optional
 
-import scala.collection.JavaConverters.asScalaBufferConverter
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 import org.apache.pulsar.client.admin.PulsarAdmin
@@ -30,11 +31,12 @@ import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.connector.read.streaming
-import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, SupportsAdmissionControl}
+import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, ReportsSourceMetrics, SupportsAdmissionControl}
 import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset, Source}
 import org.apache.spark.sql.pulsar.PulsarOptions.ServiceUrlOptionKey
 import org.apache.spark.sql.pulsar.SpecificPulsarOffset.getTopicOffsets
 import org.apache.spark.sql.types.StructType
+import org.apache.spark.util.LongAccumulator
 
 
 private[pulsar] class PulsarSource(
@@ -51,7 +53,8 @@ private[pulsar] class PulsarSource(
     jsonOptions: JSONOptionsInRead)
     extends Source
     with Logging
-    with SupportsAdmissionControl {
+    with SupportsAdmissionControl
+    with ReportsSourceMetrics {
 
   import PulsarSourceUtils._
 
@@ -67,6 +70,11 @@ private[pulsar] class PulsarSource(
 
   private var currentTopicOffsets: Option[Map[String, MessageId]] = None
 
+  private val rowsBytesAccumulator: LongAccumulator = {
+      val accumulator = new LongAccumulator
+      sqlContext.sparkContext.register(accumulator, "pulsarLatestMicroBatchRowsBytesCounter")
+      accumulator
+  }
 
   private lazy val pulsarSchema: SchemaInfo = pulsarHelper.getPulsarSchema
 
@@ -180,6 +188,7 @@ private[pulsar] class PulsarSource(
       failOnDataLoss,
       subscriptionNamePrefix,
       jsonOptions,
+      rowsBytesAccumulator,
       sqlContext.sparkContext.conf
         .getOption(PulsarClientFactory.PulsarClientFactoryClassOption))
 
@@ -195,13 +204,20 @@ private[pulsar] class PulsarSource(
     pulsarHelper.commitCursorToOffset(off)
   }
 
+  override def metrics(optional: Optional[streaming.Offset]): ju.Map[String, String] = {
+    // This is called during query progress reporting after a batch finishes.
+    val currBatchMetrics = Seq("numInputRows" -> rowsBytesAccumulator.count.toString,
+      "numInputBytes" -> rowsBytesAccumulator.value.toString).toMap.asJava
+    rowsBytesAccumulator.reset()
+    currBatchMetrics
+  }
+
   override def stop(): Unit = synchronized {
     if (!stopped) {
       pulsarHelper.removeCursor()
       pulsarHelper.close()
       stopped = true
     }
-
   }
 }
 
