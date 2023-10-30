@@ -16,6 +16,7 @@ package org.apache.spark.sql.pulsar
 import java.{util => ju}
 import java.util.function.BiConsumer
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 import org.apache.pulsar.client.api.{MessageId, Producer}
@@ -99,8 +100,21 @@ private[pulsar] abstract class PulsarRowWriter(
             s"attribute unsupported type ${t.catalogString}")
     }
 
+    val messagePropertiesExpression = inputSchema
+      .find(_.name == MessagePropertiesName)
+      .getOrElse(Literal(null, MapType(StringType, StringType, valueContainsNull = true)))
+    messagePropertiesExpression.dataType match {
+      case MapType(StringType, StringType, true) => // good
+      case t =>
+        throw new IllegalStateException(
+          MessagePropertiesName +
+            s"attribute unsupported type ${t.catalogString}")
+    }
+
+
     val metaProj = UnsafeProjection.create(
-      Seq(topicExpression, Cast(keyExpression, BinaryType), eventTimeExpression),
+      Seq(topicExpression, Cast(keyExpression, BinaryType), eventTimeExpression,
+        messagePropertiesExpression),
       inputSchema)
 
     val valuesExpression =
@@ -187,6 +201,21 @@ private[pulsar] abstract class PulsarRowWriter(
       val eventTime = metaRow.getLong(2)
       if (eventTime > 0) {
         mb.eventTime(eventTime)
+      }
+    }
+
+    if (!metaRow.isNullAt(3)) {
+      val messageProperties = metaRow.getMap(3)
+      if (null != messageProperties) {
+        val keys = messageProperties.keyArray()
+        val values = messageProperties.valueArray()
+        val messagePropertiesMap = (0 until keys.numElements).map { i =>
+          if (keys.isNullAt(i)) {
+            throw new IllegalStateException("Key cannot be null for message properties.")
+          }
+          keys.getUTF8String(i).toString -> values.getUTF8String(i).toString
+        }.toMap
+        mb.properties(messagePropertiesMap.asJava)
       }
     }
 

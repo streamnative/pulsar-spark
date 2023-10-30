@@ -38,7 +38,8 @@ private[pulsar] abstract class PulsarSourceRDDBase(
     pollTimeoutMs: Int,
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
-    jsonOptions: JSONOptionsInRead)
+    jsonOptions: JSONOptionsInRead,
+    pulsarClientFactoryClassName: Option[String])
     extends RDD[InternalRow](sc, Nil) {
 
   val reportDataLoss = reportDataLossFunc(failOnDataLoss)
@@ -54,13 +55,13 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       startOffset: MessageId,
       endOffset: MessageId,
       context: TaskContext,
-      rowsBytesAccumulator: Option[LongAccumulator] = None): Iterator[InternalRow] = {
+      rowsBytesAccumulator: Option[LongAccumulator]): Iterator[InternalRow] = {
 
     val deserializer = new PulsarDeserializer(schemaInfo.si, jsonOptions)
     val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
 
     lazy val reader = PulsarClientFactory
-      .getOrCreate(SparkEnv.get.conf, clientConf)
+      .getOrCreate(pulsarClientFactoryClassName, clientConf)
       .newReader(schema)
       .subscriptionRolePrefix(subscriptionNamePrefix)
       .topic(topic)
@@ -173,7 +174,8 @@ private[pulsar] class PulsarSourceRDD(
     failOnDataLoss: Boolean,
     subscriptionNamePrefix: String,
     jsonOptions: JSONOptionsInRead,
-    rowsBytesAccumulator: LongAccumulator)
+    rowsBytesAccumulator: LongAccumulator,
+    pulsarClientFactoryClassName: Option[String])
     extends PulsarSourceRDDBase(
       sc,
       schemaInfo,
@@ -183,7 +185,8 @@ private[pulsar] class PulsarSourceRDD(
       pollTimeoutMs,
       failOnDataLoss,
       subscriptionNamePrefix,
-      jsonOptions) {
+      jsonOptions,
+      pulsarClientFactoryClassName) {
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
     val part = split.asInstanceOf[PulsarSourceRDDPartition]
@@ -224,7 +227,8 @@ private[pulsar] class PulsarSourceRDD4Batch(
       pollTimeoutMs,
       failOnDataLoss,
       subscriptionNamePrefix,
-      jsonOptions) {
+      jsonOptions,
+      None) {
 
   override def compute(split: Partition, context: TaskContext): Iterator[InternalRow] = {
 
@@ -237,6 +241,6 @@ private[pulsar] class PulsarSourceRDD4Batch(
       return Iterator.empty
     }
 
-    computeInner(tp, start, end, context)
+    computeInner(tp, start, end, context, None)
   }
 }
