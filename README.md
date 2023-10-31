@@ -288,7 +288,7 @@ A possible solution to remove duplicates when reading the written data could be 
 </tr>
 
 <tr>
-  <td>`poolTimeoutMs`</td>
+  <td>`pollTimeoutMs`</td>
   <td>A number string in unit of milliseconds </td>
   <td>No</td>
   <td>"120000"</td>
