@@ -569,7 +569,7 @@ class PulsarSinkSuite extends StreamTest with PulsarTest with SharedSparkSession
     try {
       val fieldTypes: Array[DataType] = Array(BinaryType)
       val converter = UnsafeProjection.create(fieldTypes)
-      val row = new SpecificInternalRow(fieldTypes)
+      val row = new SpecificInternalRow(fieldTypes.toIndexedSeq)
       row.update(0, data)
       val iter = Seq.fill(1000)(converter.apply(row)).iterator
       writeTask.execute(iter)

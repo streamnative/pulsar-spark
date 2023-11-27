@@ -58,7 +58,7 @@ private[pulsar] case class PulsarHelper(
     extends Closeable
     with Logging {
 
-  import scala.collection.JavaConverters._
+  import scala.jdk.CollectionConverters._
 
   protected var client: PulsarClientImpl =
     PulsarClientFactory.getOrCreate(
@@ -177,7 +177,7 @@ private[pulsar] case class PulsarHelper(
   }
 
   def getAndCheckCompatible(schema: Option[StructType]): StructType = {
-    val si = getPulsarSchema
+    val si = getPulsarSchema()
     val inferredSchema = SchemaUtils.pulsarSourceSchema(si)
     require(
       schema.isEmpty || inferredSchema == schema.get,
@@ -288,10 +288,10 @@ private[pulsar] case class PulsarHelper(
       case Some((TopicSingle, value)) =>
         TopicName.get(value).toString :: Nil
       case Some((TopicMulti, value)) =>
-        value.split(",").map(_.trim).filter(_.nonEmpty).map(TopicName.get(_).toString)
+        value.split(",").toIndexedSeq.map(_.trim).filter(_.nonEmpty).map(TopicName.get(_).toString)
       case Some((TopicPattern, value)) =>
         getTopics(value)
-      case None =>
+      case _ =>
         throw new RuntimeException("Failed to get topics from configurations")
     }
 
@@ -334,6 +334,7 @@ private[pulsar] case class PulsarHelper(
     val shortenedTopicsPattern = Pattern.compile(topicsPattern.split("\\:\\/\\/")(1))
     allTopics.asScala
       .map(TopicName.get(_).toString)
+      .toSeq
       .filter(tp => shortenedTopicsPattern.matcher(tp.split("\\:\\/\\/")(1)).matches())
   }
 
@@ -532,7 +533,7 @@ class PulsarAdmissionControlHelper(adminUrl: String, conf: ju.Map[String, Object
   private lazy val pulsarAdmin =
     PulsarAdmin.builder().serviceHttpUrl(adminUrl).loadConf(conf).build()
 
-  import scala.collection.JavaConverters._
+  import scala.jdk.CollectionConverters._
 
   def latestOffsetForTopicPartition(topicPartition: String,
                            startMessageId: MessageId,

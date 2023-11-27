@@ -17,7 +17,7 @@ package org.apache.spark.sql.pulsar
 import java.{util => ju}
 import java.util.Optional
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 import org.apache.pulsar.client.admin.PulsarAdmin
@@ -76,9 +76,9 @@ private[pulsar] class PulsarSource(
       accumulator
   }
 
-  private lazy val pulsarSchema: SchemaInfo = pulsarHelper.getPulsarSchema
+  private lazy val pulsarSchema: SchemaInfo = pulsarHelper.getPulsarSchema()
 
-  override def schema(): StructType = SchemaUtils.pulsarSourceSchema(pulsarSchema)
+  override def schema: StructType = SchemaUtils.pulsarSourceSchema(pulsarSchema)
 
   override def getOffset: Option[Offset] = {
     throw new UnsupportedOperationException(
@@ -196,7 +196,7 @@ private[pulsar] class PulsarSource(
       "GetBatch generating RDD of offset range: " +
         offsetRanges.sortBy(_.topic).mkString(", "))
 
-    sqlContext.internalCreateDataFrame(rdd.setName("pulsar"), schema(), isStreaming = true)
+    sqlContext.internalCreateDataFrame(rdd.setName("pulsar"), schema, isStreaming = true)
   }
 
   override def commit(end: Offset): Unit = {

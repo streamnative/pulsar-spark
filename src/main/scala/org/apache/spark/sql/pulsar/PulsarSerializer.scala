@@ -16,7 +16,7 @@ package org.apache.spark.sql.pulsar
 import java.nio.ByteBuffer
 import java.util
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import org.apache.pulsar.client.api.schema.Field
 import org.apache.pulsar.client.impl.schema.generic.GenericAvroRecord

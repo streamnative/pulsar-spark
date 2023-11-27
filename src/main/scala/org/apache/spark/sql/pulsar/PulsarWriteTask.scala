@@ -16,7 +16,7 @@ package org.apache.spark.sql.pulsar
 import java.{util => ju}
 import java.util.function.BiConsumer
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 import org.apache.pulsar.client.api.{MessageId, Producer}

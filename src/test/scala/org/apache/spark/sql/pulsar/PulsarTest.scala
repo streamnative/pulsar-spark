@@ -19,7 +19,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.time.{Clock, Duration}
 import java.util.{Map => JMap}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
@@ -108,13 +108,13 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
       val tps = admin.namespaces().getTopics("public/default").asScala
       tps.map { tp =>
         (tp, PulsarSourceUtils.seekableLatestMid(admin.topics().getLastMessageId(tp)))
-      }
+      }.toSeq
     }
   }
 
   /** Java-friendly function for sending messages to the Pulsar */
   def sendMessages(topic: String, messageToFreq: JMap[String, JInt]): Unit = {
-    sendMessages(topic, Map(messageToFreq.asScala.mapValues(_.intValue()).toSeq: _*))
+    sendMessages(topic, Map(messageToFreq.asScala.view.mapValues(_.intValue()).toSeq: _*))
   }
 
   /** Send the messages to the Pulsar */
@@ -154,7 +154,7 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
       producer.close()
       client.close()
     }
-    offsets
+    offsets.toSeq
   }
 
   /** Send the array of messages to the Pulsar using specified partition */
@@ -185,7 +185,7 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
       producer.close()
       client.close()
     }
-    offsets
+    offsets.toSeq
   }
 
   def sendTypedMessages[T: ClassTag](

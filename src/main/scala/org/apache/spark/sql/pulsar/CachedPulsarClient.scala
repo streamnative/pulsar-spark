@@ -16,7 +16,7 @@ package org.apache.spark.sql.pulsar
 import java.{util => ju}
 import java.util.concurrent.{ExecutionException, TimeUnit}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal
 
 import com.google.common.cache._
