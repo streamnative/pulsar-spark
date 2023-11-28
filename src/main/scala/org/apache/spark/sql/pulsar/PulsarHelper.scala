@@ -291,8 +291,10 @@ private[pulsar] case class PulsarHelper(
         value.split(",").toIndexedSeq.map(_.trim).filter(_.nonEmpty).map(TopicName.get(_).toString)
       case Some((TopicPattern, value)) =>
         getTopics(value)
-      case _ =>
+      case None =>
         throw new RuntimeException("Failed to get topics from configurations")
+      case _ =>
+        throw new RuntimeException("Unrecognized topics configuration")
     }
 
     waitForTopicIfNeeded()
