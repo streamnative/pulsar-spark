@@ -16,8 +16,8 @@ package org.apache.spark.sql.pulsar
 import java.io.{Externalizable, ObjectInput, ObjectOutput}
 import java.nio.charset.StandardCharsets
 
-import scala.jdk.CollectionConverters._
 import scala.collection.mutable.ListBuffer
+import scala.jdk.CollectionConverters._
 
 import org.apache.pulsar.client.api.{Schema => PSchema}
 import org.apache.pulsar.client.api.schema.{GenericRecord, GenericSchema}

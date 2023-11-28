@@ -17,8 +17,8 @@ package org.apache.spark.sql.pulsar
 import java.{util => ju}
 import java.util.Optional
 
-import scala.jdk.CollectionConverters._
 import scala.collection.mutable
+import scala.jdk.CollectionConverters._
 
 import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.MessageId
