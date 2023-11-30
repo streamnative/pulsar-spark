@@ -18,7 +18,7 @@ import java.util
 import java.util.Calendar
 
 import scala.beans.BeanProperty
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 object SchemaData {
 

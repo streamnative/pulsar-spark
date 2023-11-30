@@ -23,8 +23,8 @@
   </parent>
 
   <groupId>io.streamnative.connectors</groupId>
-  <artifactId>pulsar-spark-connector_2.12</artifactId>
-  <version>3.4.0-SNAPSHOT</version>
+  <artifactId>pulsar-spark-connector_2.13</artifactId>
+  <version>3.4.1-SNAPSHOT</version>
   <name>StreamNative :: Pulsar Spark Connector</name>
   <url>https://pulsar.apache.org</url>
   <inceptionYear>2019</inceptionYear>
@@ -66,11 +66,11 @@
 
     <!-- dependencies -->
     <!-- latest version from apache pulsar -->
-    <pulsar.version>2.10.2</pulsar.version>
-    <scala.version>2.12.17</scala.version>
-    <scala.binary.version>2.12</scala.binary.version>
+    <pulsar.version>2.10.5</pulsar.version>
+    <scala.version>2.13.12</scala.version>
+    <scala.binary.version>2.13</scala.binary.version>
     <scalatest.version>3.2.14</scalatest.version>
-    <spark.version>3.4.0</spark.version>
+    <spark.version>3.4.1</spark.version>
     <commons-io.version>2.11.0</commons-io.version>
     <testcontainers.version>1.18.3</testcontainers.version>
 
@@ -83,7 +83,7 @@
     <maven-shade-plugin.version>3.4.0</maven-shade-plugin.version>
     <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
     <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
-    <scala-maven-plugin.version>4.7.2</scala-maven-plugin.version>
+    <scala-maven-plugin.version>4.8.1</scala-maven-plugin.version>
     <scalatest-maven-plugin.version>2.2.0</scalatest-maven-plugin.version>
     <scalastyle-maven-plugin.version>1.0.0</scalastyle-maven-plugin.version>
     <nexus-staging-maven-plugin.version>1.6.13</nexus-staging-maven-plugin.version>
@@ -329,7 +329,6 @@
             <arg>-deprecation</arg>
             <arg>-feature</arg>
             <arg>-explaintypes</arg>
-            <arg>-Yno-adapted-args</arg>
           </args>
           <jvmArgs>
             <jvmArg>-Xms1024m</jvmArg>

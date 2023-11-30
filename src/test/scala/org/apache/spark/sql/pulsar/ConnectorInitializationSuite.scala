@@ -22,7 +22,7 @@ class ConnectorInitializationSuite extends SparkFunSuite {
   // This test will fail if an exception is thrown during initialization of
   // the Pulsar Spark connector.
   test("connector initialization test") {
-    val spark = SparkSession.builder
+    val spark = SparkSession.builder()
       .appName("connector initialization test")
       .master("local")
       .getOrCreate()
@@ -33,10 +33,10 @@ class ConnectorInitializationSuite extends SparkFunSuite {
         .option("service.url", "pulsar://testurl") // value not important, but must be set
         .option("admin.url", "http://testurl") // value not important, but must be set
         .option("topic", "testtopic") // value not important, but must be set
-        .load
+        .load()
     } catch {
       case e: java.lang.ExceptionInInitializerError =>
-        fail(e.getException + " was thrown during connector initialization")
+        fail(s"${e.getException} was thrown during connector initialization")
       case e: java.lang.Throwable => logInfo(e.getMessage)
     } finally {
       spark.stop()

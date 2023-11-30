@@ -19,8 +19,8 @@ import java.nio.charset.StandardCharsets
 import java.sql.Timestamp
 import java.util.Date
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
+import scala.jdk.CollectionConverters._
 
 import org.apache.pulsar.client.api.Message
 import org.apache.pulsar.client.impl.schema.generic.GenericAvroRecord

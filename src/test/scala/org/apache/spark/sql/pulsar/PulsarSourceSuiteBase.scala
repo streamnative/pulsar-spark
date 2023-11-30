@@ -208,7 +208,7 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       .start()
     eventually(timeout(streamingTimeout)) {
       assert(
-        spark.table("pulsarColumnTypes").count == 1,
+        spark.table("pulsarColumnTypes").count() == 1,
         s"Unexpected results: ${spark.table("pulsarColumnTypes").collectAsList()}")
     }
     val row = spark.table("pulsarColumnTypes").head()

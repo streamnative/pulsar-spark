@@ -16,8 +16,8 @@ package org.apache.spark.sql.pulsar
 import java.io.{Externalizable, ObjectInput, ObjectOutput}
 import java.nio.charset.StandardCharsets
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
+import scala.jdk.CollectionConverters._
 
 import org.apache.pulsar.client.api.{Schema => PSchema}
 import org.apache.pulsar.client.api.schema.{GenericRecord, GenericSchema}
@@ -132,7 +132,7 @@ private[pulsar] object SchemaUtils {
         mainSchema += StructField("value", t, nullable = typeNullable.nullable)
     }
     mainSchema ++= metaDataFields
-    StructType(mainSchema)
+    StructType(mainSchema.toArray)
   }
 
   def si2SqlType(si: SchemaInfo): TypeNullable = {
@@ -200,7 +200,7 @@ private[pulsar] object SchemaUtils {
           StructField(f.name, typeNullable.dataType, typeNullable.nullable)
         }
 
-        TypeNullable(StructType(fields), nullable = false)
+        TypeNullable(StructType(fields.toArray), nullable = false)
 
       case ARRAY =>
         val typeNullable: TypeNullable =
@@ -242,7 +242,7 @@ private[pulsar] object SchemaUtils {
                 StructField(s"member$i", TypeNullable.dataType, nullable = true)
               }
 
-              TypeNullable(StructType(fields), nullable = false)
+              TypeNullable(StructType(fields.toArray), nullable = false)
           }
         }
       case other => throw new IncompatibleSchemaException(s"Unsupported type $other")

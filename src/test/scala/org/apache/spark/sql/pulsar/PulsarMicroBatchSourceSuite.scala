@@ -15,7 +15,7 @@ package org.apache.spark.sql.pulsar
 
 import java.util.concurrent.ConcurrentLinkedQueue
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.spark.SparkException
@@ -62,7 +62,7 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
       .option(ServiceUrlOptionKey, serviceUrl)
       .option(TopicSingle, topic)
 
-    testStream(reader.load)(makeSureGetOffsetCalled, StopStream, StartStream(), StopStream)
+    testStream(reader.load())(makeSureGetOffsetCalled, StopStream, StartStream(), StopStream)
   }
 
   test("input row metrics") {
@@ -210,9 +210,9 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
 
     val windowedAggregation = pulsar
       .withWatermark("__publishTime", "10 seconds")
-      .groupBy(window($"__publishTime", "5 seconds") as 'window)
-      .agg(count("*") as 'count)
-      .select($"window".getField("start") as 'window, $"count")
+      .groupBy(window($"__publishTime", "5 seconds") as Symbol("window"))
+      .agg(count("*") as Symbol("count"))
+      .select($"window".getField("start") as Symbol("window"), $"count")
 
     val query = windowedAggregation.writeStream
       .format("memory")
