@@ -70,7 +70,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       .loadConf(readerConf)
       .create()
 
-    new NextIterator[InternalRow] {
+    val iter = new NextIterator[InternalRow] {
 
       private var inEnd: Boolean = false
       private var isLast: Boolean = false
@@ -150,7 +150,6 @@ private[pulsar] abstract class PulsarSourceRDDBase(
         } catch {
           case e: PulsarClientException =>
             logError(s"PulsarClient failed to read message from topic $topic", e)
-            close()
             throw e
           case e: Throwable =>
             throw e
@@ -161,6 +160,10 @@ private[pulsar] abstract class PulsarSourceRDDBase(
         reader.close()
       }
     }
+    context.addTaskCompletionListener[Unit] { _ =>
+      iter.closeIfNeeded()
+    }
+    iter
   }
 }
 
