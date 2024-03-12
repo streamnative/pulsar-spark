@@ -346,7 +346,6 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
   "earliest".
   </td>
 </tr>
-
 <tr>
   <td>`endingOffsets`</td>
   <td>The following are valid values:<br>
@@ -375,6 +374,30 @@ You can use `org.apache.spark.sql.pulsar.JsonUtils.topicOffsets(Map[String, Mess
 
     `MessageId.earliest ([8,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,16,-1,-1,-1,-1,-1,-1,-1,-1,-1,1])` is not allowed.
   </td>
+</tr>
+<tr>
+    <td>`startingTime`</td>
+    <td> A number in unit of milliseconds </td>
+    <td>No</td>
+    <td>None</td>
+    <td>batch queries</td>
+    <td>
+       For batch query, You can set a starting offset using milliseconds. <br>
+       The target time of this option is publishTime. <br>
+       Example: `1709254800000` (2024-03-01 01:00:00)
+    </td>
+</tr>
+<tr>
+    <td>`endingTime`</td>
+    <td> A number in unit of milliseconds </td>
+    <td>No</td>
+    <td>None</td>
+    <td>batch queries</td>
+    <td>
+       For batch query, You can set a ending offset using milliseconds. <br>
+       The target time of this option is publishTime. <br>
+       Example: `1709254800000` (2024-03-01 02:00:00)
+    </td>
 </tr>
 
 <tr>
