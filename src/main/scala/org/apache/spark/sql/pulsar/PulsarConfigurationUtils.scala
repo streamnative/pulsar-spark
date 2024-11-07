@@ -23,14 +23,12 @@ import org.apache.pulsar.client.impl.conf.{
   ProducerConfigurationData,
   ReaderConfigurationData
 }
-import org.apache.pulsar.shade.com.fasterxml.jackson.annotation.JsonIgnore
 
 object PulsarConfigurationUtils {
 
   private def nonIgnoredFields[T: ClassTag] = {
     classTag[T].runtimeClass.getDeclaredFields
       .filter(f => !Modifier.isStatic(f.getModifiers))
-      .filter(f => f.getDeclaredAnnotation(classOf[JsonIgnore]) == null)
       .map(_.getName)
   }
 

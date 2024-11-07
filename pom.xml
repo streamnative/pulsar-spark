@@ -66,7 +66,7 @@
 
     <!-- dependencies -->
     <!-- latest version from apache pulsar -->
-    <pulsar.version>2.10.2</pulsar.version>
+    <pulsar.version>3.3.2</pulsar.version>
     <scala.version>2.12.17</scala.version>
     <scala.binary.version>2.12</scala.binary.version>
     <scalatest.version>3.2.14</scalatest.version>
@@ -146,6 +146,11 @@
           <artifactId>log4j-slf4j-impl</artifactId>
         </exclusion>
       </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.bouncycastle</groupId>
+      <artifactId>bcprov-jdk18on</artifactId>
+      <version>1.72</version>
     </dependency>
 
     <dependency>
@@ -390,6 +395,7 @@
                   <include>org.bouncycastle*:*</include>
                   <include>org.lz4*:*</include>
                   <include>commons-io:commons-io:jar:*</include>
+                  <include>io.opentelemetry:*</include>  <!-- Add this -->
                 </includes>
               </artifactSet>
               <filters>
@@ -409,6 +415,10 @@
                 </filter>
               </filters>
               <relocations>
+                <relocation>
+                  <pattern>io.opentelemetry</pattern>
+                  <shadedPattern>org.apache.pulsar.shade.io.opentelemetry</shadedPattern>
+                </relocation>
                 <relocation>
                   <pattern>com.google</pattern>
                   <shadedPattern>org.apache.pulsar.shade.com.google</shadedPattern>
