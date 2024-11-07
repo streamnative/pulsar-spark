@@ -153,6 +153,11 @@
       <artifactId>commons-io</artifactId>
       <version>${commons-io.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.bouncycastle</groupId>
+      <artifactId>bcprov-jdk18on</artifactId>
+      <version>1.72</version>
+    </dependency>
 
     <!-- spark dependency -->
 
