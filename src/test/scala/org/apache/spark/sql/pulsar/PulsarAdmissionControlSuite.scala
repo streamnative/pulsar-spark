@@ -1,10 +1,10 @@
 package org.apache.spark.sql.pulsar
 
 import java.{util => ju}
+
 import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.admin.PulsarAdminException.NotFoundException
 import org.apache.pulsar.client.api.MessageId
-import org.apache.pulsar.client.internal.DefaultImplementation
 
 import org.apache.spark.sql.pulsar.PulsarSourceUtils.{getEntryId, getLedgerId}
 import org.apache.spark.sql.streaming.Trigger.{Once, ProcessingTime}
