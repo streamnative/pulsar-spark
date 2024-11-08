@@ -18,12 +18,8 @@ import java.util.Locale
 
 import scala.reflect._
 
-import org.apache.pulsar.client.impl.conf.{
-  ClientConfigurationData,
-  ProducerConfigurationData,
-  ReaderConfigurationData
-}
-import org.apache.pulsar.shade.com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonIgnore
+import org.apache.pulsar.client.impl.conf.{ClientConfigurationData, ProducerConfigurationData, ReaderConfigurationData}
 
 object PulsarConfigurationUtils {
 
