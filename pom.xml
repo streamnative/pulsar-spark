@@ -428,6 +428,10 @@
                   <pattern>org.lz4</pattern>
                   <shadedPattern>org.apache.pulsar.shade.org.lz4</shadedPattern>
                 </relocation>
+                <relocation>
+                  <pattern>org.bouncycastle</pattern>
+                  <shadedPattern>org.apache.pulsar.shade.org.bouncycastle</shadedPattern>
+                </relocation>
               </relocations>
               <transformers>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
