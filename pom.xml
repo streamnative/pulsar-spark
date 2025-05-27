@@ -395,6 +395,7 @@
                   <include>org.bouncycastle*:*</include>
                   <include>org.lz4*:*</include>
                   <include>commons-io:commons-io:jar:*</include>
+                  <include>io.opentelemetry:*</include> <!-- Add this -->
                 </includes>
               </artifactSet>
               <filters>
@@ -414,6 +415,10 @@
                 </filter>
               </filters>
               <relocations>
+                <relocation>
+                  <pattern>io.opentelemetry</pattern>
+                  <shadedPattern>org.apache.pulsar.shade.io.opentelemetry</shadedPattern>
+                </relocation>
                 <relocation>
                   <pattern>com.google</pattern>
                   <shadedPattern>org.apache.pulsar.shade.com.google</shadedPattern>
