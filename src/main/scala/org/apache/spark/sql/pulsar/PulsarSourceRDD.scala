@@ -170,10 +170,25 @@ private[pulsar] abstract class PulsarSourceRDDBase(
                 processDataLoss(c, p)
               }
             }
+
+          case (c: MessageIdImpl, p: BatchMessageIdImpl) =>
+            if (c.getLedgerId == p.getLedgerId) {
+              if (c.getEntryId != p.getEntryId + 1) {
+                processDataLoss(c, p)
+              } else {
+                // make sure the last message read was the last message
+                // in the previous batch message.
+                if (p.getBatchIndex == p.getBatchSize - 1) {
+                  processDataLoss(c, p)
+                }
+              }
+            }
+
           case (c: MessageIdImpl, p: BatchMessageIdImpl) =>
             if (c.getLedgerId == p.getLedgerId && c.getEntryId != p.getEntryId + 1) {
               processDataLoss(c, p)
             }
+
 
           case (c: MessageIdImpl, p: MessageIdImpl) =>
             // if we are still reading from the same ledger, the next message we read
