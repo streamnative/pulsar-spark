@@ -178,7 +178,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
               } else {
                 // make sure the last message read was the last message
                 // in the previous batch message.
-                if (p.getBatchIndex == p.getBatchSize - 1) {
+                if (p.getBatchIndex != p.getBatchSize - 1) {
                   processDataLoss(c, p)
                 }
               }
