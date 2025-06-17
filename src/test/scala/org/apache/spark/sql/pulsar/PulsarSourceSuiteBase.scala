@@ -21,8 +21,10 @@ import scala.reflect.ClassTag
 import org.apache.pulsar.client.api.{MessageId, Schema}
 import org.apache.pulsar.common.schema.SchemaInfo
 import org.apache.spark.sql.execution.streaming.StreamExecution
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.pulsar.PulsarProvider.getPulsarOffset
-import org.apache.spark.sql.{Encoder, Encoders}
+import org.apache.spark.sql.streaming.{StreamingQuery, Trigger}
+import org.apache.spark.sql.{Encoder, Encoders, Row}
 
 abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
   import PulsarOptions._
@@ -357,6 +359,66 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       AddPulsarTypedData(Set(topic), si.getType, f1Seq),
       CheckAnswer(f1Results: _*)
     )
+  }
+
+  def testDifferentMessageTypes(sendFunc: (String, Int, Int) => Unit): Unit = {
+    val topic = newTopic()
+    val queryName = "test"
+
+    val numMessages = 10
+    var query: StreamingQuery = null
+    try {
+      query = spark.readStream
+        .format("pulsar")
+        .option(StartingOffsetsOptionKey, "earliest")
+        .option(ServiceUrlOptionKey, serviceUrl)
+        .option(FailOnDataLossOptionKey, true)
+        .option(TopicSingle, topic)
+        .load()
+        .select(col("value").cast("STRING"))
+        .writeStream
+        .queryName(queryName)
+        .format("memory")
+        .start()
+      for (i <- 0 until 10) {
+        sendFunc(topic, i, numMessages)
+        query.processAllAvailable()
+        // results will be cumulative
+        checkAnswer(spark.table(queryName), (0 until (i + 1) * numMessages).map(r => Row(r.toString)))
+      }
+    } finally {
+      if (query != null) {
+        query.stop()
+      }
+    }
+  }
+
+  test("test with batched messages") {
+    testDifferentMessageTypes((topic, i, numMessages) => {
+      sendMessages(topic, (i * numMessages until (i + 1) * numMessages).map(_.toString).toArray, None, batched = true)
+    })
+  }
+
+  test("test with non-batched messages") {
+    testDifferentMessageTypes((topic, i, numMessages) => {
+      sendMessages(topic, (i * numMessages until (i + 1) * numMessages).map(_.toString).toArray, None, batched = false)
+    })
+  }
+
+  test("test with batched and non-batched messages") {
+    testDifferentMessageTypes((topic, i, numMessages) => {
+      var sent = 0
+      while (sent < numMessages) {
+        if (sent % 3 == 0) {
+          val messagesToSend = if (numMessages - sent < 2) 1 else 2
+          sendMessages(topic, (i * numMessages + sent until i * numMessages + sent + messagesToSend).map(_.toString).toArray, None, batched = true)
+          sent += 2
+        } else {
+          sendMessages(topic, (i * numMessages + sent until i * numMessages + sent + 1).map(_.toString).toArray, None, batched = false)
+          sent += 1
+        }
+      }
+    })
   }
 
   private def testFromLatestOffsets(
