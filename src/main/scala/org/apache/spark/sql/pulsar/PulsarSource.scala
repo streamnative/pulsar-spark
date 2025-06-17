@@ -114,9 +114,7 @@ private[pulsar] class PulsarSource(
     // Make sure initialTopicOffsets is initialized
     initialTopicOffsets
 
-    logInfo(s"!====== getBatch called with " +
-      s"start = $start (${start.getClass}, " +
-      s"end = $end (${end.getClass})")
+    logInfo(s"getBatch called with start = $start, end = $end")
     val endTopicOffsets = SpecificPulsarOffset.getTopicOffsets(end)
 
     if (currentTopicOffsets.isEmpty) {

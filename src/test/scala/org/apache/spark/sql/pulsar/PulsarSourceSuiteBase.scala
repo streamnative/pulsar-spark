@@ -468,7 +468,6 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     }
   }
 
-
   private def testFromLatestOffsets(
       topic: String,
       addPartitions: Boolean,
