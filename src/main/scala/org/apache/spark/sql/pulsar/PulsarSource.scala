@@ -88,7 +88,7 @@ private[pulsar] class PulsarSource(
   override def latestOffset(startingOffset: streaming.Offset,
                             readLimit: ReadLimit): streaming.Offset = {
     initialTopicOffsets
-    readLimit match {
+    val offset = readLimit match {
       case ReadMaxBytes(maxBytes) =>
         startingOffset match {
           // deals with the case where we add a topic-partition after
@@ -99,6 +99,8 @@ private[pulsar] class PulsarSource(
         }
       case _: ReadAllAvailable => pulsarHelper.fetchLatestOffsets()
     }
+    logDebug(s"Got latest offset $offset with starting offset as ${startingOffset}")
+    offset
   }
   override def getDefaultReadLimit: ReadLimit = {
     if (maxBytesPerTrigger == 0L) {

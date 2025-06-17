@@ -60,6 +60,14 @@ private[pulsar] abstract class PulsarSourceRDDBase(
     val deserializer = new PulsarDeserializer(schemaInfo.si, jsonOptions)
     val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
 
+    if (isTraceEnabled()) {
+      logTrace(
+        s" Start reading from topic ${topic}" +
+        s" with subscription prefix ${subscriptionNamePrefix}" +
+        s" from startOffset: ${startOffset} to endOffset: ${endOffset}"
+      )
+    }
+
     lazy val reader = PulsarClientFactory
       .getOrCreate(pulsarClientFactoryClassName, clientConf)
       .newReader(schema)
@@ -96,18 +104,20 @@ private[pulsar] abstract class PulsarSourceRDDBase(
                 s"Potential Data Loss: intended to start at $startOffset, " +
                   s"actually we get $currentId")
             }
+            if (isTraceEnabled()) {
+              logTrace(s"First message read has id ${currentId}")
+            }
 
             (startOffset, currentId) match {
               case (_: BatchMessageIdImpl, _: BatchMessageIdImpl) =>
               // we seek using a batch message id, we can read next directly in `getNext()`
               case (_: MessageIdImpl, cbmid: BatchMessageIdImpl) =>
-                // we seek using a message id, this is supposed to be read by previous task since
-                // it's inclusive for the last batch (start, end], so we skip this batch
-                val newStart = new MessageIdImpl(
-                  cbmid.getLedgerId,
-                  cbmid.getEntryId + 1,
-                  cbmid.getPartitionIndex)
-                reader.seek(newStart)
+                // We can only really get to this scenario
+                // when producers sent a batched message will a single record.
+                // The reader will read a batched message but the message id
+                // returned by getLastMessageId() will return a MessageIdImpl.
+                assert(cbmid.getBatchIndex == 0,
+                  s"Batch index should be 0, but got ${cbmid.getBatchIndex}")
               case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
               // current entry is a non-batch entry, we can read next directly in `getNext()`
             }
@@ -124,18 +134,91 @@ private[pulsar] abstract class PulsarSourceRDDBase(
           throw e
       }
 
+      private def processDataLoss(
+          currentMessageId: MessageId,
+          previousMessageId: MessageId): Unit = {
+
+        reportDataLoss(
+          s"Unexpected message skipping was detected:" +
+            s" Previous message id was $previousMessageId," +
+            s" however the current message read has id $currentMessageId"
+        )
+      }
+
+      /**
+       * Detect data loss by comparing the current message id with the previous message id.
+       * Make sure invariants are held
+       */
+      private def detectDataLoss(
+          currentMessageId: MessageId,
+          previousMessageId: MessageId): Unit = {
+        (currentMessageId, previousMessageId) match {
+          case (c: BatchMessageIdImpl, p: BatchMessageIdImpl) =>
+            if (c.getLedgerId == p.getLedgerId) {
+              if (c.getEntryId == p.getEntryId) {
+                if (c.getBatchIndex != p.getBatchIndex + 1) {
+                  processDataLoss(c, p)
+                }
+              } else if (c.getEntryId == p.getEntryId + 1) {
+                // if we have moved to ready the next entry
+                // the batch index should be 0, i.e. to first record
+                // in the entry / batch
+                if (c.getBatchIndex != 0) {
+                  processDataLoss(c, p)
+                }
+              } else if (c.getEntryId != p.getEntryId + 1) {
+                processDataLoss(c, p)
+              }
+            }
+
+          case (c: MessageIdImpl, p: BatchMessageIdImpl) =>
+            if (c.getLedgerId == p.getLedgerId) {
+              if (c.getEntryId != p.getEntryId + 1) {
+                processDataLoss(c, p)
+              } else {
+                // make sure the last message read was the last message
+                // in the previous batch message.
+                if (p.getBatchIndex != p.getBatchSize - 1) {
+                  processDataLoss(c, p)
+                }
+              }
+            }
+
+          case (c: MessageIdImpl, p: BatchMessageIdImpl) =>
+            if (c.getLedgerId == p.getLedgerId && c.getEntryId != p.getEntryId + 1) {
+              processDataLoss(c, p)
+            }
+
+
+          case (c: MessageIdImpl, p: MessageIdImpl) =>
+            // if we are still reading from the same ledger, the next message we read
+            // should be the next entry in the ledger
+            if (c.getLedgerId == p.getLedgerId && c.getEntryId != p.getEntryId + 1) {
+              processDataLoss(c, p)
+            }
+        }
+      }
+
       override protected def getNext(): InternalRow = {
         try {
           if (isLast) {
             finished = true
             return null
           }
+          val prevMessage = currentMessage
           currentMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
           if (currentMessage == null) {
             reportDataLoss(
               s"We didn't get enough message as promised from topic $topic, data loss occurs")
             finished = true
             return null
+          }
+
+          // check for any data skipping
+          val currentMessageId = currentMessage.getMessageId
+          if (prevMessage != null) {
+            val previousMessageId = prevMessage.getMessageId
+            detectDataLoss(currentMessageId, previousMessageId)
           }
 
           rowsBytesAccumulator.foreach(_.add(currentMessage.size()))
@@ -145,6 +228,14 @@ private[pulsar] abstract class PulsarSourceRDDBase(
           inEnd = enterEndFunc(currentId)
           if (inEnd) {
             isLast = isLastMessage(currentId)
+          }
+
+          if (isTraceEnabled()) {
+            logTrace(
+              s"Read message:" +
+              s" currentId=${currentId}" +
+              s" isLast:$isLast, inEnd:$inEnd"
+            )
           }
           deserializer.deserialize(currentMessage)
         } catch {
