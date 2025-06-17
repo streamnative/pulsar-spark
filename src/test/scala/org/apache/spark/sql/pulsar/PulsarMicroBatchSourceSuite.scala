@@ -30,110 +30,82 @@ import org.apache.spark.sql.streaming.Trigger.ProcessingTime
 import org.apache.spark.sql.streaming.{StreamingQuery, StreamingQueryProgress, Trigger}
 import org.apache.spark.sql.{ForeachWriter, Row}
 import org.apache.spark.util.Utils
+import org.scalatest.concurrent.Eventually.{eventually, timeout}
+import org.scalatest.time.SpanSugar._
 
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 
 class PulsarSourceTTLSuite extends PulsarSourceTest {
+  import PulsarOptions._
   private val MESSAGE_TTL_SECONDS = 5
 
   override def beforeAll(): Unit = {
-    // Set very short message expiry check interval for faster TTL processing
     brokerConfigs.put("messageExpiryCheckIntervalInMinutes", "1")
     super.beforeAll()
   }
 
-  test("test data loss with topic deletion") {
+  test("test data loss with topic deletion across batches") {
     val inputTopic = newTopic()
     val outputTopic = newTopic()
-
-    logInfo(s"Testing data loss handling with input topic: $inputTopic, output topic: $outputTopic")
+    createNonPartitionedTopic(inputTopic)
+    createNonPartitionedTopic(outputTopic)
 
     var query: StreamingQuery = null
     try {
-      withTempPaths(2) { case Seq(checkpointDir, _) =>
-        def startQuery(): StreamingQuery = {
-          spark.readStream
-            .format("pulsar")
-            .option("startingOffsets", "earliest")
-            .option("service.url", serviceUrl)
-            .option("failOnDataLoss", false) // Don't fail on data loss due to topic deletion
-            .option("topic", inputTopic)
-            .load()
-            .select(col("value").cast("STRING"))
-            .writeStream
-            .trigger(Trigger.AvailableNow())
-            .queryName("data-loss-test-query")
-            .format("pulsar")
-            .option("service.url", serviceUrl)
-            .option("topic", outputTopic)
-            .option("checkpointLocation", checkpointDir.getCanonicalPath)
-            .start()
-        }
-
-        // Phase 1: Process initial messages (0-9)
-        logInfo("Phase 1: Processing initial messages")
-        val initialMessages = (0 until 10).map(_.toString).toArray
-        sendMessages(inputTopic, initialMessages, None, batched = false)
-        
-        query = startQuery()
-        query.processAllAvailable()
-        query.awaitTermination()
-        query.stop()
-        logInfo("Phase 1 completed - initial messages processed")
-
-        // Verify initial messages were processed
-        checkAnswer(
-          spark.read
-            .format("pulsar")
-            .option("service.url", serviceUrl)
-            .option("topic", outputTopic)
-            .load()
-            .select(col("value").cast("STRING")),
-          (0 until 10).map(r => Row(r.toString)))
-
-        // Phase 2: Simulate data loss by deleting and recreating the input topic
-        logInfo("Phase 2: Simulating data loss by deleting input topic")
-        deleteTopic(inputTopic)
-        createNonPartitionedTopic(inputTopic)
-        logInfo("Phase 2 completed - input topic deleted and recreated")
-
-        // Phase 3: Process new messages after data loss (10-19)
-        logInfo("Phase 3: Processing new messages after data loss")
-        val newMessages = (10 until 20).map(_.toString).toArray
-        sendMessages(inputTopic, newMessages, None, batched = false)
-
-        query = startQuery()
-        query.processAllAvailable()
-        query.awaitTermination()
-        query.stop()
-        logInfo("Phase 3 completed - new messages processed")
-
-        // Phase 4: Verify streaming query handled data loss gracefully
-        logInfo("Phase 4: Verifying final results")
-        
-        // Show actual output for debugging
-        logInfo("Current output topic contents:")
-        spark.read
+      withTempPaths(1) { case Seq(checkpointDir) =>
+        query = spark.readStream
+          .format("pulsar")
+          .option("startingOffsets", "earliest")
+          .option("service.url", serviceUrl)
+          .option("failOnDataLoss", false)
+          .option("topic", inputTopic)
+          .load()
+          .select(col("value").cast("STRING"))
+          .writeStream
+          .trigger(Trigger.ProcessingTime("5 seconds"))
+          .queryName("continuous-data-loss-test")
           .format("pulsar")
           .option("service.url", serviceUrl)
           .option("topic", outputTopic)
-          .load()
-          .select(col("value").cast("STRING"))
-          .show(100, false)
+          .option("checkpointLocation", checkpointDir.getCanonicalPath)
+          .start()
 
-        // Verify all messages (old + new) are in output despite data loss
-        checkAnswer(
-          spark.read
+        // Batch 1
+        logInfo("Batch 1: Sending initial messages (0-9)")
+        val batch1Messages = (0 until 10).map(_.toString).toArray
+        sendMessages(inputTopic, batch1Messages, None)
+        
+        eventually(timeout(3.seconds)) {
+          val count = spark.read
             .format("pulsar")
             .option("service.url", serviceUrl)
             .option("topic", outputTopic)
             .load()
-            .select(col("value").cast("STRING")),
-          (0 until 20).map(r => Row(r.toString)))
+            .count()
+          assert(count == 10, s"Expected 10 messages from batch 1, but got $count")
+        }
+
+        // Simulate TTL between batches
+        deleteTopic(inputTopic)
+        createNonPartitionedTopic(inputTopic)
+
+        // Batch 2
+        logInfo("Batch 2: Sending new messages (10-19) after TTL")
+        val batch2Messages = (10 until 20).map(_.toString).toArray
+        sendMessages(inputTopic, batch2Messages, None)
+        eventually(timeout(5.seconds)) {
+          val outputData = spark.read
+            .format("pulsar")
+            .option("service.url", serviceUrl)
+            .option("topic", outputTopic)
+            .load()
+            .select(col("value").cast("STRING"))
           
-        logInfo("Phase 4 completed - all messages verified in output")
-        logInfo("Test completed successfully: streaming query handled data loss gracefully")
+          assert(query.isActive, "Query should still be active after data loss")
+          assert(query.exception.isEmpty, "Query should not have exceptions when failOnDataLoss=false")
+          checkAnswer(outputData, (0 until 20).map(r => Row(r.toString)))
+        }
       }
     } finally {
       if (query != null) {

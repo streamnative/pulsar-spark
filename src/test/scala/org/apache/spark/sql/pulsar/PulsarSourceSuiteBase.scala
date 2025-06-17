@@ -379,57 +379,58 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
           def startQuery(): StreamingQuery = {
             spark.readStream
               .format("pulsar")
-              .option(StartingOffsetsOptionKey, "earliest")
-              .option(ServiceUrlOptionKey, serviceUrl)
-              .option(FailOnDataLossOptionKey, true)
-              .option(TopicSingle, inputTopic)
+              .option("startingOffsets", "earliest")
+              .option("service.url", serviceUrl)
+              .option("failOnDataLoss", true)
+              .option("topic", inputTopic)
               .load()
               .select(col("value").cast("STRING"))
               .writeStream
               .trigger(trigger)
               .queryName(queryName)
               .format("pulsar")
-              .option(ServiceUrlOptionKey, serviceUrl)
-              .option(TopicSingle, outputTopic)
+              .option("service.url", serviceUrl)
+              .option("topic", outputTopic)
               .option("checkpointLocation", checkpointDir.getCanonicalPath)
               .start()
           }
 
-          if (trigger.getClass.getName.contains("AvailableNowTrigger")) {
-            // ===== TEST OUTPUT FOR o.a.s.sql.pulsar.PulsarMicroBatchV1SourceSuite: 'test with batched and non-batched messages with trigger: AvailableNowTrigger' =====
-            logInfo("Starting query with AvailableNowTrigger")
-            for (i <- 0 until 10) {
-              sendFunc(inputTopic, i, numMessages)
-              query = startQuery()
-              query.processAllAvailable()
-              logInfo("!--- done with processAllAvailable")
-              query.awaitTermination()
-              logInfo("!--- done with awaitTermination")
-              // results will be cumulative
-
-              checkAnswer(
-                spark.read.format("pulsar")
-                  .option(ServiceUrlOptionKey, serviceUrl)
-                  .option(TopicSingle, outputTopic)
-                  .load().select(col("value").cast("STRING")),
-                (0 until (i + 1) * numMessages).map(r => Row(r.toString))
-              )
-              logInfo(s"====================== FINISHED ITERATION $i ======================")
-            }
-          } else {
+        if (trigger.getClass.getName.contains("AvailableNowTrigger")) {
+          // ===== TEST OUTPUT FOR o.a.s.sql.pulsar.PulsarMicroBatchV1SourceSuite: 
+          // 'test with batched and non-batched messages with trigger: AvailableNowTrigger' =====
+          logInfo("Starting query with AvailableNowTrigger")
+          for (i <- 0 until 10) {
+            sendFunc(inputTopic, i, numMessages)
             query = startQuery()
-            for (i <- 0 until 10) {
+            query.processAllAvailable()
+            logInfo("!--- done with processAllAvailable")
+            query.awaitTermination()
+            logInfo("!--- done with awaitTermination")
+            // results will be cumulative
+            checkAnswer(
+              spark.read.format("pulsar")
+                .option("service.url", serviceUrl)
+                .option("topic", outputTopic)
+                .load().select(col("value").cast("STRING")),
+              (0 until (i + 1) * numMessages).map(r => Row(r.toString))
+            )
+            logInfo(s"Successfully completed iteration $i")
+          }
+        } else {
+          logInfo(s"Testing with continuous trigger: ${trigger.getClass.getSimpleName}")
+          query = startQuery()
+          for (i <- 0 until 10) {
               sendFunc(inputTopic, i, numMessages)
               query.processAllAvailable()
               // results will be cumulative
               checkAnswer(spark.read.format("pulsar")
-                .option(ServiceUrlOptionKey, serviceUrl)
-                .option(TopicSingle, outputTopic)
+                .option("service.url", serviceUrl)
+                .option("topic", outputTopic)
                 .load().select(col("value").cast("STRING")),
                 (0 until (i + 1) * numMessages).map(r => Row(r.toString)))
-              logInfo(s"====================== FINISHED ITERATION $i ======================")
-            }
+              logInfo(s"Completed batch $i")
           }
+        }
       }
     } finally {
       if (query != null) {

@@ -233,13 +233,6 @@ private[pulsar] abstract class PulsarSourceRDDBase(
             }
           }
 
-          // check for any data skipping
-          val currentMessageId = currentMessage.getMessageId
-          if (prevMessage != null) {
-            val previousMessageId = prevMessage.getMessageId
-            detectDataLoss(currentMessageId, previousMessageId)
-          }
-
           rowsBytesAccumulator.foreach(_.add(currentMessage.size()))
           currentId = currentMessage.getMessageId
 
