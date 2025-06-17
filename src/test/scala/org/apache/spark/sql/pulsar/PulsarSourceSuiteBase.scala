@@ -13,6 +13,8 @@
  */
 package org.apache.spark.sql.pulsar
 
+import org.apache.pulsar.client.admin.PulsarAdmin
+
 import java.nio.charset.StandardCharsets.UTF_8
 import java.sql.Date
 import java.text.SimpleDateFormat
@@ -21,8 +23,12 @@ import scala.reflect.ClassTag
 import org.apache.pulsar.client.api.{MessageId, Schema}
 import org.apache.pulsar.common.schema.SchemaInfo
 import org.apache.spark.sql.execution.streaming.StreamExecution
+import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.pulsar.PulsarProvider.getPulsarOffset
-import org.apache.spark.sql.{Encoder, Encoders}
+import org.apache.spark.sql.streaming.{StreamingQuery, Trigger}
+import org.apache.spark.sql.{Encoder, Encoders, Row}
+import org.apache.spark.util.Utils
 
 abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
   import PulsarOptions._
@@ -358,6 +364,110 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       CheckAnswer(f1Results: _*)
     )
   }
+
+  def testDifferentMessageTypes(trigger: Trigger, sendFunc: (String, Int, Int) => Unit): Unit = {
+    val inputTopic = newTopic()
+    val outputTopic = newTopic()
+
+    val queryName = "test"
+
+    val numMessages = 10
+    var query: StreamingQuery = null
+    try {
+      withTempPaths(1) {
+        case Seq(checkpointDir) =>
+          def startQuery(): StreamingQuery = {
+            spark.readStream
+              .format("pulsar")
+              .option(StartingOffsetsOptionKey, "earliest")
+              .option(ServiceUrlOptionKey, serviceUrl)
+              .option(FailOnDataLossOptionKey, true)
+              .option(TopicSingle, inputTopic)
+              .load()
+              .select(col("value").cast("STRING"))
+              .writeStream
+              .trigger(trigger)
+              .queryName(queryName)
+              .format("pulsar")
+              .option(ServiceUrlOptionKey, serviceUrl)
+              .option(TopicSingle, outputTopic)
+              .option("checkpointLocation", checkpointDir.getCanonicalPath)
+              .start()
+          }
+
+          if (trigger.getClass.getName.contains("AvailableNowTrigger")) {
+            // ===== TEST OUTPUT FOR o.a.s.sql.pulsar.PulsarMicroBatchV1SourceSuite: 'test with batched and non-batched messages with trigger: AvailableNowTrigger' =====
+            logInfo("Starting query with AvailableNowTrigger")
+            for (i <- 0 until 10) {
+              sendFunc(inputTopic, i, numMessages)
+              query = startQuery()
+              query.processAllAvailable()
+              logInfo("!--- done with processAllAvailable")
+              query.awaitTermination()
+              logInfo("!--- done with awaitTermination")
+              // results will be cumulative
+
+              checkAnswer(
+                spark.read.format("pulsar")
+                  .option(ServiceUrlOptionKey, serviceUrl)
+                  .option(TopicSingle, outputTopic)
+                  .load().select(col("value").cast("STRING")),
+                (0 until (i + 1) * numMessages).map(r => Row(r.toString))
+              )
+              logInfo(s"====================== FINISHED ITERATION $i ======================")
+            }
+          } else {
+            query = startQuery()
+            for (i <- 0 until 10) {
+              sendFunc(inputTopic, i, numMessages)
+              query.processAllAvailable()
+              // results will be cumulative
+              checkAnswer(spark.read.format("pulsar")
+                .option(ServiceUrlOptionKey, serviceUrl)
+                .option(TopicSingle, outputTopic)
+                .load().select(col("value").cast("STRING")),
+                (0 until (i + 1) * numMessages).map(r => Row(r.toString)))
+              logInfo(s"====================== FINISHED ITERATION $i ======================")
+            }
+          }
+      }
+    } finally {
+      if (query != null) {
+        query.stop()
+      }
+    }
+  }
+
+  List(Trigger.ProcessingTime(0), Trigger.AvailableNow()).foreach { trigger =>
+    test("test with batched messages with trigger: " + trigger) {
+      testDifferentMessageTypes(trigger, (topic, i, numMessages) => {
+        sendMessages(topic, (i * numMessages until (i + 1) * numMessages).map(_.toString).toArray, None, batched = true)
+      })
+    }
+
+    test("test with non-batched messages with trigger: " + trigger) {
+      testDifferentMessageTypes(trigger, (topic, i, numMessages) => {
+        sendMessages(topic, (i * numMessages until (i + 1) * numMessages).map(_.toString).toArray, None, batched = false)
+      })
+    }
+
+    test("test with batched and non-batched messages with trigger: " + trigger) {
+      testDifferentMessageTypes(trigger, (topic, i, numMessages) => {
+        var sent = 0
+        while (sent < numMessages) {
+          if (sent % 3 == 0) {
+            val messagesToSend = if (numMessages - sent < 2) 1 else 2
+            sendMessages(topic, (i * numMessages + sent until i * numMessages + sent + messagesToSend).map(_.toString).toArray, None, batched = true)
+            sent += 2
+          } else {
+            sendMessages(topic, (i * numMessages + sent until i * numMessages + sent + 1).map(_.toString).toArray, None, batched = false)
+            sent += 1
+          }
+        }
+      })
+    }
+  }
+
 
   private def testFromLatestOffsets(
       topic: String,

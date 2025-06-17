@@ -60,6 +60,15 @@ private[pulsar] abstract class PulsarSourceRDDBase(
     val deserializer = new PulsarDeserializer(schemaInfo.si, jsonOptions)
     val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
 
+    logError(
+      s"===== computeInner startOffset: ${startOffset} (${startOffset.getClass})" +
+      s" endOffset: ${endOffset} (${endOffset.getClass})" +
+      s" creating reader with clientConf: ${clientConf}" +
+      s" schema: ${schema}" +
+      s" readerConf: ${readerConf}" +
+      s" subscriptionNamePrefix: ${subscriptionNamePrefix}"
+    )
+
     lazy val reader = PulsarClientFactory
       .getOrCreate(pulsarClientFactoryClassName, clientConf)
       .newReader(schema)
@@ -75,6 +84,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       private var inEnd: Boolean = false
       private var isLast: Boolean = false
       private val enterEndFunc: (MessageId => Boolean) = enteredEnd(endOffset)
+      private var potentialDataSkippingHappened: Boolean = false
 
       var currentMessage: Message[_] = _
       var currentId: MessageId = _
@@ -92,22 +102,25 @@ private[pulsar] abstract class PulsarSourceRDDBase(
             if (startOffset != MessageId.earliest && !messageIdRoughEquals(
                 currentId,
                 startOffset)) {
+              potentialDataSkippingHappened = true
               reportDataLoss(
                 s"Potential Data Loss: intended to start at $startOffset, " +
                   s"actually we get $currentId")
             }
+            logError(s"!====== check the currentId in the initialization " +
+              s"- currentId: ${currentId} (${currentId.getClass})" +
+              s" startOffset: ${startOffset} (${startOffset.getClass})")
 
             (startOffset, currentId) match {
               case (_: BatchMessageIdImpl, _: BatchMessageIdImpl) =>
               // we seek using a batch message id, we can read next directly in `getNext()`
               case (_: MessageIdImpl, cbmid: BatchMessageIdImpl) =>
-                // we seek using a message id, this is supposed to be read by previous task since
-                // it's inclusive for the last batch (start, end], so we skip this batch
-                val newStart = new MessageIdImpl(
-                  cbmid.getLedgerId,
-                  cbmid.getEntryId + 1,
-                  cbmid.getPartitionIndex)
-                reader.seek(newStart)
+                // We can only really get to this scenario
+                // when producers sent a batched message will a single record.
+                // The reader will read a batched message but the message id
+                // returned by getLastMessageId() will return a MessageIdImpl.
+                assert(cbmid.getBatchIndex == 0,
+                  s"batch index should be 0, but got ${cbmid.getBatchIndex}")
               case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
               // current entry is a non-batch entry, we can read next directly in `getNext()`
             }
@@ -124,18 +137,101 @@ private[pulsar] abstract class PulsarSourceRDDBase(
           throw e
       }
 
+      private def processDataLoss(
+          currentMessageId: MessageId,
+          previousMessageId: MessageId): Unit = {
+
+        reportDataLoss(
+          s"!====== Data loss occurred due to message skipping:" +
+          s" $previousMessageId (${previousMessageId.getClass})" +
+          s" -> $currentMessageId (${currentMessageId.getClass})"
+        )
+      }
+
+      /**
+       * Detect data loss by comparing the current message id with the previous message id.
+       * Make sure invariants are held
+       */
+      private def detectDataLoss(
+          currentMessageId: MessageId,
+          previousMessageId: MessageId): Unit = {
+        (currentMessageId, previousMessageId) match {
+          case (c: BatchMessageIdImpl, p: BatchMessageIdImpl) =>
+            if (c.getLedgerId == p.getLedgerId) {
+              if (c.getEntryId == p.getEntryId) {
+                if (c.getBatchIndex != p.getBatchIndex + 1) {
+                  processDataLoss(c, p)
+                }
+              } else if (c.getEntryId == p.getEntryId + 1) {
+                // if we have moved to ready the next entry
+                // the batch index should be 0, i.e. to first record
+                // in the entry / batch
+                if (c.getBatchIndex != 0) {
+                  processDataLoss(c, p)
+                }
+              } else if (c.getEntryId != p.getEntryId + 1) {
+                processDataLoss(c, p)
+              }
+            }
+
+          case (c: MessageIdImpl, p: BatchMessageIdImpl) =>
+            if (c.getLedgerId == p.getLedgerId) {
+              if (c.getEntryId != p.getEntryId + 1) {
+                processDataLoss(c, p)
+              } else {
+                // make sure the last message read was the last message
+                // in the previous batch message.
+                if (p.getBatchIndex != p.getBatchSize - 1) {
+                  processDataLoss(c, p)
+                }
+              }
+            }
+
+          case (c: MessageIdImpl, p: BatchMessageIdImpl) =>
+            if (c.getLedgerId == p.getLedgerId && c.getEntryId != p.getEntryId + 1) {
+              processDataLoss(c, p)
+            }
+
+          case (c: MessageIdImpl, p: MessageIdImpl) =>
+            // if we are still reading from the same ledger, the next message we read
+            // should be the next entry in the ledger
+            if (c.getLedgerId == p.getLedgerId && c.getEntryId != p.getEntryId + 1) {
+              processDataLoss(c, p)
+            }
+        }
+      }
+
       override protected def getNext(): InternalRow = {
         try {
           if (isLast) {
             finished = true
             return null
           }
-          currentMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
-          if (currentMessage == null) {
-            reportDataLoss(
-              s"We didn't get enough message as promised from topic $topic, data loss occurs")
-            finished = true
-            return null
+
+          if (potentialDataSkippingHappened) {
+            potentialDataSkippingHappened = false
+            if (currentMessage == null) {
+              reportDataLoss(
+                s"We didn't get enough message as promised from topic $topic, data loss occurs")
+              finished = true
+              return null
+            }
+            // we don't skip the message, just return the current message
+          } else {
+            val prevMessage = currentMessage
+            currentMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
+            if (currentMessage == null) {
+              reportDataLoss(
+                s"We didn't get enough message as promised from topic $topic, data loss occurs")
+              finished = true
+              return null
+            }
+            // check for any data skipping
+            val currentMessageId = currentMessage.getMessageId
+            if (prevMessage != null) {
+              val previousMessageId = prevMessage.getMessageId
+              detectDataLoss(currentMessageId, previousMessageId)
+            }
           }
 
           rowsBytesAccumulator.foreach(_.add(currentMessage.size()))
@@ -146,6 +242,12 @@ private[pulsar] abstract class PulsarSourceRDDBase(
           if (inEnd) {
             isLast = isLastMessage(currentId)
           }
+
+          logError(
+            s"!====== check the currentId in the getNext:" +
+            s" currentId=${currentId}, class: ${currentId.getClass}" +
+              s" isLast:$isLast, inEnd:$inEnd"
+          )
           deserializer.deserialize(currentMessage)
         } catch {
           case e: PulsarClientException =>

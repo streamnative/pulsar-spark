@@ -34,6 +34,12 @@ private[pulsar] case class SpecificPulsarOffset(topicOffsets: Map[String, Messag
     with PerTopicOffset {
 
   override val json = JsonUtils.topicOffsets(topicOffsets)
+
+  override def toString: String = {
+    s"SpecificPulsarOffset(${topicOffsets.map { case (topic, offset) =>
+      s"$topic: ${offset.toString} (${offset.getClass}"
+    }.mkString(", ")})"
+  }
 }
 
 private[pulsar] case class SpecificPulsarTime(topicTimes: Map[String, Long])
