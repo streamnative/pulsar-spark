@@ -60,14 +60,13 @@ private[pulsar] abstract class PulsarSourceRDDBase(
     val deserializer = new PulsarDeserializer(schemaInfo.si, jsonOptions)
     val schema: Schema[_] = SchemaUtils.getPSchema(schemaInfo.si)
 
-    logError(
-      s"===== computeInner startOffset: ${startOffset} (${startOffset.getClass})" +
-      s" endOffset: ${endOffset} (${endOffset.getClass})" +
-      s" creating reader with clientConf: ${clientConf}" +
-      s" schema: ${schema}" +
-      s" readerConf: ${readerConf}" +
-      s" subscriptionNamePrefix: ${subscriptionNamePrefix}"
-    )
+    if (isTraceEnabled()) {
+      logTrace(
+        s" Start reading from topic ${topic}" +
+        s" with subscription prefix ${subscriptionNamePrefix}" +
+        s" from startOffset: ${startOffset} to endOffset: ${endOffset}"
+      )
+    }
 
     lazy val reader = PulsarClientFactory
       .getOrCreate(pulsarClientFactoryClassName, clientConf)
@@ -107,9 +106,9 @@ private[pulsar] abstract class PulsarSourceRDDBase(
                 s"Potential Data Loss: intended to start at $startOffset, " +
                   s"actually we get $currentId")
             }
-            logError(s"!====== check the currentId in the initialization " +
-              s"- currentId: ${currentId} (${currentId.getClass})" +
-              s" startOffset: ${startOffset} (${startOffset.getClass})")
+            if (isTraceEnabled()) {
+              logTrace(s"First message read has id ${currentId}")
+            }
 
             (startOffset, currentId) match {
               case (_: BatchMessageIdImpl, _: BatchMessageIdImpl) =>
@@ -120,7 +119,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
                 // The reader will read a batched message but the message id
                 // returned by getLastMessageId() will return a MessageIdImpl.
                 assert(cbmid.getBatchIndex == 0,
-                  s"batch index should be 0, but got ${cbmid.getBatchIndex}")
+                  s"Batch index should be 0, but got ${cbmid.getBatchIndex}")
               case (smid: MessageIdImpl, cmid: MessageIdImpl) =>
               // current entry is a non-batch entry, we can read next directly in `getNext()`
             }
@@ -142,9 +141,9 @@ private[pulsar] abstract class PulsarSourceRDDBase(
           previousMessageId: MessageId): Unit = {
 
         reportDataLoss(
-          s"!====== Data loss occurred due to message skipping:" +
-          s" $previousMessageId (${previousMessageId.getClass})" +
-          s" -> $currentMessageId (${currentMessageId.getClass})"
+          s"Unexpected message skipping was detected:" +
+            s" Previous message id was $previousMessageId," +
+            s" however the current message read has id $currentMessageId"
         )
       }
 
@@ -234,6 +233,13 @@ private[pulsar] abstract class PulsarSourceRDDBase(
             }
           }
 
+          // check for any data skipping
+          val currentMessageId = currentMessage.getMessageId
+          if (prevMessage != null) {
+            val previousMessageId = prevMessage.getMessageId
+            detectDataLoss(currentMessageId, previousMessageId)
+          }
+
           rowsBytesAccumulator.foreach(_.add(currentMessage.size()))
           currentId = currentMessage.getMessageId
 
@@ -243,11 +249,13 @@ private[pulsar] abstract class PulsarSourceRDDBase(
             isLast = isLastMessage(currentId)
           }
 
-          logError(
-            s"!====== check the currentId in the getNext:" +
-            s" currentId=${currentId}, class: ${currentId.getClass}" +
+          if (isTraceEnabled()) {
+            logTrace(
+              s"Read message:" +
+              s" currentId=${currentId}" +
               s" isLast:$isLast, inEnd:$inEnd"
-          )
+            )
+          }
           deserializer.deserialize(currentMessage)
         } catch {
           case e: PulsarClientException =>

@@ -99,11 +99,7 @@ private[pulsar] class PulsarSource(
         }
       case _: ReadAllAvailable => pulsarHelper.fetchLatestOffsets()
     }
-    logError(s"!====== check the latest offset:" +
-      s" offset=$offset (${offset.getClass})" +
-      s" startingOffset: ${startingOffset}" +
-      s" (${if (startingOffset != null) startingOffset.getClass else null})," +
-      s" readLimit=$readLimit")
+    logDebug(s"Got latest offset $offset with starting offset as ${startingOffset}")
     offset
   }
   override def getDefaultReadLimit: ReadLimit = {
