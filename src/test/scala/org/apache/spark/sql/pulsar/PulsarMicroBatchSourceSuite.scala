@@ -1,14 +1,12 @@
 /**
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
+ * except in compliance with the License. You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
+ * Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+ * either express or implied. See the License for the specific language governing permissions and
  * limitations under the License.
  */
 package org.apache.spark.sql.pulsar
@@ -18,15 +16,155 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import scala.jdk.CollectionConverters._
 
 import org.apache.pulsar.client.admin.PulsarAdmin
+import org.apache.pulsar.common.naming.NamespaceName
+import org.apache.pulsar.common.policies.data.RetentionPolicies
 import org.apache.spark.SparkException
 import org.apache.spark.sql.ForeachWriter
 import org.apache.spark.sql.execution.streaming.{StreamExecution, StreamingExecutionRelation}
-import org.apache.spark.sql.functions.{count, window}
+import org.apache.spark.sql.functions.{col, count, window}
 import org.apache.spark.sql.pulsar.PulsarOptions.{ServiceUrlOptionKey, TopicPattern}
 import org.apache.spark.sql.streaming.StreamingQueryProgress
 import org.apache.spark.sql.streaming.Trigger.ProcessingTime
+import org.apache.spark.sql.streaming.{StreamingQuery, StreamingQueryProgress, Trigger}
+import org.apache.spark.sql.{ForeachWriter, Row}
 import org.apache.spark.util.Utils
 
+import java.util.UUID
+import java.util.concurrent.ConcurrentLinkedQueue
+
+class PulsarSourceTTLSuite extends PulsarSourceTest {
+  import PulsarOptions._
+
+  override def beforeAll(): Unit = {
+    brokerConfigs.put("messageExpiryCheckIntervalInMinutes", "1")
+    // brokerConfigs.put("brokerDeleteInactiveTopicsEnabled", "false")
+    super.beforeAll()
+  }
+
+  test("test data loss") {
+    Utils.tryWithResource(PulsarAdmin.builder().serviceHttpUrl(adminUrl).build()) { admin =>
+      logInfo("!--- setting namespace message TTL")
+
+      val namespaceWithTTL = NamespaceName.get("public", "test")
+      admin.namespaces().createNamespace("public/test")
+      admin.namespaces().setNamespaceMessageTTL("public/test", 5)
+      admin.namespaces().setRetention("public/default", new RetentionPolicies(-1, -1))
+
+      val inputTopic =
+        namespaceWithTTL.getPersistentTopicName("input-" + UUID.randomUUID().toString)
+      val outputTopic = newTopic()
+
+      logInfo(
+        s"Creating Pulsar source serviceUrl: ${serviceUrl} adminUrl: ${adminUrl} input topic: ${inputTopic} output topic: ${outputTopic}")
+
+      val queryName = "test"
+      val numMessages = 10
+      var query: StreamingQuery = null
+      try {
+        withTempPaths(2) { case Seq(checkpointDir, checkpointDir2) =>
+          def startQuery(): StreamingQuery = {
+            spark.readStream
+              .format("pulsar")
+              .option(StartingOffsetsOptionKey, "earliest")
+              .option(ServiceUrlOptionKey, serviceUrl)
+              .option(FailOnDataLossOptionKey, false)
+              .option(TopicSingle, inputTopic)
+              .load()
+              .select(col("value").cast("STRING"))
+              .writeStream
+              .trigger(Trigger.AvailableNow())
+              .queryName(queryName)
+              .format("pulsar")
+              .option(ServiceUrlOptionKey, serviceUrl)
+              .option(TopicSingle, outputTopic)
+              .option("checkpointLocation", checkpointDir.getCanonicalPath)
+              .start()
+          }
+
+          logInfo("Starting query with AvailableNowTrigger")
+          sendMessages(inputTopic, (0 until 10).map(_.toString).toArray, None, batched = false)
+          query = startQuery()
+          query.processAllAvailable()
+          logInfo("!--- done with processAllAvailable")
+          query.awaitTermination()
+          logInfo("!--- done with awaitTermination")
+
+          checkAnswer(
+            spark.read
+              .format("pulsar")
+              .option(ServiceUrlOptionKey, serviceUrl)
+              .option(TopicSingle, outputTopic)
+              .load()
+              .select(col("value").cast("STRING")),
+            (0 until 10).map(r => Row(r.toString)))
+
+          logInfo("!--- wait for messages to expire")
+          // read until messages are not there
+
+//            eventually(timeout(3.minutes)) {
+//              Thread.sleep(10000)
+//              val backlogSize = admin.topics().getInternalStats(inputTopic).totalSize
+//              logInfo("!--- backlogSize: " + backlogSize)
+//              assert(backlogSize == 0)
+////              val df = spark.read.format("pulsar")
+////                .option(ServiceUrlOptionKey, serviceUrl)
+////                .option(TopicSingle, inputTopic)
+////                .load()
+////              val count = df.count()
+////              logInfo(s"!--- count: ${count}")
+////              assert(count == 0)
+//            }
+          Thread.sleep(60000 * 2)
+          val count = spark.read
+            .format("pulsar")
+            .option(ServiceUrlOptionKey, serviceUrl)
+            .option(TopicSingle, inputTopic)
+            .load()
+            .count()
+          assert(count == 0)
+
+          logInfo("!--- done waiting for messages to expire")
+
+//            spark.read.format("pulsar")
+//              .option(ServiceUrlOptionKey, serviceUrl)
+//              .option(TopicSingle, inputTopic)
+//              .load().select(col("value").cast("STRING")).show(100000, false)
+
+          sendMessages(inputTopic, (10 until 20).map(_.toString).toArray, None, batched = false)
+
+          query = startQuery()
+
+          query.processAllAvailable()
+          logInfo("!--- done with processAllAvailable")
+          query.awaitTermination()
+          logInfo("!--- done with awaitTermination")
+
+          spark.read
+            .format("pulsar")
+            .option(ServiceUrlOptionKey, serviceUrl)
+            .option(TopicSingle, outputTopic)
+            .load()
+            .select(col("value").cast("STRING"))
+            .show(100000, false)
+
+          checkAnswer(
+            spark.read
+              .format("pulsar")
+              .option(ServiceUrlOptionKey, serviceUrl)
+              .option(TopicSingle, outputTopic)
+              .load()
+              .select(col("value").cast("STRING")),
+            (0 until 20).map(r => Row(r.toString)))
+        }
+      } finally {
+        if (query != null) {
+          query.stop()
+        }
+      }
+    }
+  }
+
+}
 
 class PulsarMicroBatchV1SourceSuite extends PulsarMicroBatchSourceSuiteBase {
   test("V1 Source is used by default") {
@@ -41,11 +179,10 @@ class PulsarMicroBatchV1SourceSuite extends PulsarMicroBatchSourceSuiteBase {
     testStream(pulsar)(
       makeSureGetOffsetCalled,
       AssertOnQuery { query =>
-        query.logicalPlan.collect {
-          case StreamingExecutionRelation(_: PulsarSource, _, _) => true
+        query.logicalPlan.collect { case StreamingExecutionRelation(_: PulsarSource, _, _) =>
+          true
         }.nonEmpty
-      }
-    )
+      })
   }
 }
 
@@ -83,8 +220,8 @@ abstract class PulsarMicroBatchSourceSuiteBase extends PulsarSourceSuiteBase {
         numInputRows: Long): Boolean = {
       val sourceMetrics = progresses.map(_.sources.head.metrics)
       sourceMetrics.map(_.get("numInputRows").toLong).sum == numInputRows &&
-        sourceMetrics.map(_.get("numInputBytes").toLong).sum >= numInputRows &&
-        progresses.map(_.numInputRows).sum == numInputRows
+      sourceMetrics.map(_.get("numInputBytes").toLong).sum >= numInputRows &&
+      progresses.map(_.numInputRows).sum == numInputRows
     }
 
     val mapped = pulsar.map(kv => kv._2.toInt + 1)
