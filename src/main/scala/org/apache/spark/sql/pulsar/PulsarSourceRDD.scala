@@ -191,6 +191,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
               processDataLoss(c, p)
             }
 
+
           case (c: MessageIdImpl, p: MessageIdImpl) =>
             // if we are still reading from the same ledger, the next message we read
             // should be the next entry in the ledger
