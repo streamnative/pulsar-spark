@@ -83,7 +83,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       private var inEnd: Boolean = false
       private var isLast: Boolean = false
       private val enterEndFunc: (MessageId => Boolean) = enteredEnd(endOffset)
-      private var potentialDataSkippingHappened: Boolean = false
+      private var startOffsetMismatchDetected: Boolean = false
 
       var currentMessage: Message[_] = _
       var currentId: MessageId = _
@@ -101,7 +101,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
             if (startOffset != MessageId.earliest && !messageIdRoughEquals(
                 currentId,
                 startOffset)) {
-              potentialDataSkippingHappened = true
+              startOffsetMismatchDetected = true
               reportDataLoss(
                 s"Potential Data Loss: intended to start at $startOffset, " +
                   s"actually we get $currentId")
@@ -207,15 +207,16 @@ private[pulsar] abstract class PulsarSourceRDDBase(
             return null
           }
 
-          if (potentialDataSkippingHappened) {
-            potentialDataSkippingHappened = false
+          if (startOffsetMismatchDetected) {
+            startOffsetMismatchDetected = false
+            // The message at startOffset is probably cleaned up or removed. 
+            // we don't skip the message, just return the current message.
             if (currentMessage == null) {
               reportDataLoss(
                 s"We didn't get enough message as promised from topic $topic, data loss occurs")
               finished = true
               return null
             }
-            // we don't skip the message, just return the current message
           } else {
             val prevMessage = currentMessage
             currentMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
