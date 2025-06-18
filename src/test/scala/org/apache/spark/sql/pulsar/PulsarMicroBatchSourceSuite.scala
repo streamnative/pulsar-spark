@@ -45,6 +45,16 @@ class PulsarSourceTTLSuite extends PulsarSourceTest {
     super.beforeAll()
   }
 
+  private def verifyOutputDataFromTopic(outputTopic: String, expectedRange: Range): Unit = {
+    val outputData = spark.read
+      .format("pulsar")
+      .option("service.url", serviceUrl)
+      .option("topic", outputTopic)
+      .load()
+      .select(col("value").cast("STRING"))
+    checkAnswer(outputData, expectedRange.map(r => Row(r.toString)))
+  }
+
   test("test data loss with topic deletion across batches") {
     val inputTopic = newTopic()
     val outputTopic = newTopic()
@@ -77,13 +87,7 @@ class PulsarSourceTTLSuite extends PulsarSourceTest {
         sendMessages(inputTopic, batch1Messages, None)
         
         eventually(timeout(3.seconds)) {
-          val count = spark.read
-            .format("pulsar")
-            .option("service.url", serviceUrl)
-            .option("topic", outputTopic)
-            .load()
-            .count()
-          assert(count == 10, s"Expected 10 messages from batch 1, but got $count")
+          verifyOutputDataFromTopic(outputTopic, 0 until 10)
         }
 
         // Simulate TTL between batches
@@ -95,16 +99,10 @@ class PulsarSourceTTLSuite extends PulsarSourceTest {
         val batch2Messages = (10 until 20).map(_.toString).toArray
         sendMessages(inputTopic, batch2Messages, None)
         eventually(timeout(5.seconds)) {
-          val outputData = spark.read
-            .format("pulsar")
-            .option("service.url", serviceUrl)
-            .option("topic", outputTopic)
-            .load()
-            .select(col("value").cast("STRING"))
-          
+          // Do not skip the first message of Batch 2 (10). 
+          verifyOutputDataFromTopic(outputTopic, 0 until 20)
           assert(query.isActive, "Query should still be active after data loss")
           assert(query.exception.isEmpty, "Query should not have exceptions when failOnDataLoss=false")
-          checkAnswer(outputData, (0 until 20).map(r => Row(r.toString)))
         }
       }
     } finally {
@@ -113,7 +111,6 @@ class PulsarSourceTTLSuite extends PulsarSourceTest {
       }
     }
   }
-
 }
 
 class PulsarMicroBatchV1SourceSuite extends PulsarMicroBatchSourceSuiteBase {
