@@ -18,15 +18,100 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import scala.jdk.CollectionConverters._
 
 import org.apache.pulsar.client.admin.PulsarAdmin
+import org.apache.pulsar.common.naming.NamespaceName
+import org.apache.pulsar.common.policies.data.RetentionPolicies
 import org.apache.spark.SparkException
 import org.apache.spark.sql.ForeachWriter
 import org.apache.spark.sql.execution.streaming.{StreamExecution, StreamingExecutionRelation}
-import org.apache.spark.sql.functions.{count, window}
+import org.apache.spark.sql.functions.{col, count, window}
 import org.apache.spark.sql.pulsar.PulsarOptions.{ServiceUrlOptionKey, TopicPattern}
 import org.apache.spark.sql.streaming.StreamingQueryProgress
 import org.apache.spark.sql.streaming.Trigger.ProcessingTime
+import org.apache.spark.sql.streaming.{StreamingQuery, StreamingQueryProgress, Trigger}
+import org.apache.spark.sql.{ForeachWriter, Row}
 import org.apache.spark.util.Utils
+import org.scalatest.concurrent.Eventually.{eventually, timeout}
+import org.scalatest.time.SpanSugar._
 
+import java.util.UUID
+import java.util.concurrent.ConcurrentLinkedQueue
+
+class PulsarSourceTTLSuite extends PulsarSourceTest {
+  import PulsarOptions._
+  private val MESSAGE_TTL_SECONDS = 5
+
+  override def beforeAll(): Unit = {
+    brokerConfigs.put("messageExpiryCheckIntervalInMinutes", "1")
+    super.beforeAll()
+  }
+
+  private def verifyOutputDataFromTopic(outputTopic: String, expectedRange: Range): Unit = {
+    val outputData = spark.read
+      .format("pulsar")
+      .option("service.url", serviceUrl)
+      .option("topic", outputTopic)
+      .load()
+      .select(col("value").cast("STRING"))
+    checkAnswer(outputData, expectedRange.map(r => Row(r.toString)))
+  }
+
+  test("test data loss with topic deletion across batches") {
+    val inputTopic = newTopic()
+    val outputTopic = newTopic()
+    createNonPartitionedTopic(inputTopic)
+    createNonPartitionedTopic(outputTopic)
+
+    var query: StreamingQuery = null
+    try {
+      withTempPaths(1) { case Seq(checkpointDir) =>
+        query = spark.readStream
+          .format("pulsar")
+          .option("startingOffsets", "earliest")
+          .option("service.url", serviceUrl)
+          .option("failOnDataLoss", false)
+          .option("topic", inputTopic)
+          .load()
+          .select(col("value").cast("STRING"))
+          .writeStream
+          .trigger(Trigger.ProcessingTime("5 seconds"))
+          .queryName("continuous-data-loss-test")
+          .format("pulsar")
+          .option("service.url", serviceUrl)
+          .option("topic", outputTopic)
+          .option("checkpointLocation", checkpointDir.getCanonicalPath)
+          .start()
+
+        // Batch 1
+        logInfo("Batch 1: Sending initial messages (0-9)")
+        val batch1Messages = (0 until 10).map(_.toString).toArray
+        sendMessages(inputTopic, batch1Messages, None)
+        
+        eventually(timeout(3.seconds)) {
+          verifyOutputDataFromTopic(outputTopic, 0 until 10)
+        }
+
+        // Simulate TTL between batches
+        deleteTopic(inputTopic)
+        createNonPartitionedTopic(inputTopic)
+
+        // Batch 2
+        logInfo("Batch 2: Sending new messages (10-19) after TTL")
+        val batch2Messages = (10 until 20).map(_.toString).toArray
+        sendMessages(inputTopic, batch2Messages, None)
+        eventually(timeout(5.seconds)) {
+          // Do not skip the first message of Batch 2 (10). 
+          verifyOutputDataFromTopic(outputTopic, 0 until 20)
+          assert(query.isActive, "Query should still be active after data loss")
+          assert(query.exception.isEmpty, "Query should not have exceptions when failOnDataLoss=false")
+        }
+      }
+    } finally {
+      if (query != null) {
+        query.stop()
+      }
+    }
+  }
+}
 
 class PulsarMicroBatchV1SourceSuite extends PulsarMicroBatchSourceSuiteBase {
   test("V1 Source is used by default") {
@@ -41,11 +126,10 @@ class PulsarMicroBatchV1SourceSuite extends PulsarMicroBatchSourceSuiteBase {
     testStream(pulsar)(
       makeSureGetOffsetCalled,
       AssertOnQuery { query =>
-        query.logicalPlan.collect {
-          case StreamingExecutionRelation(_: PulsarSource, _, _) => true
+        query.logicalPlan.collect { case StreamingExecutionRelation(_: PulsarSource, _, _) =>
+          true
         }.nonEmpty
-      }
-    )
+      })
   }
 }
 
