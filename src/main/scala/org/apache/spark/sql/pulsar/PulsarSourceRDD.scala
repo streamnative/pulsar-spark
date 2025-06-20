@@ -83,6 +83,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
       private var inEnd: Boolean = false
       private var isLast: Boolean = false
       private val enterEndFunc: (MessageId => Boolean) = enteredEnd(endOffset)
+      private var startOffsetMismatchDetected: Boolean = false
 
       var currentMessage: Message[_] = _
       var currentId: MessageId = _
@@ -100,6 +101,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
             if (startOffset != MessageId.earliest && !messageIdRoughEquals(
                 currentId,
                 startOffset)) {
+              startOffsetMismatchDetected = true
               reportDataLoss(
                 s"Potential Data Loss: intended to start at $startOffset, " +
                   s"actually we get $currentId")
@@ -205,20 +207,32 @@ private[pulsar] abstract class PulsarSourceRDDBase(
             finished = true
             return null
           }
-          val prevMessage = currentMessage
-          currentMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
-          if (currentMessage == null) {
-            reportDataLoss(
-              s"We didn't get enough message as promised from topic $topic, data loss occurs")
-            finished = true
-            return null
-          }
 
-          // check for any data skipping
-          val currentMessageId = currentMessage.getMessageId
-          if (prevMessage != null) {
-            val previousMessageId = prevMessage.getMessageId
-            detectDataLoss(currentMessageId, previousMessageId)
+          if (startOffsetMismatchDetected) {
+            startOffsetMismatchDetected = false
+            // The message at startOffset is probably cleaned up or removed.
+            // we don't skip the message, just return the current message.
+            if (currentMessage == null) {
+              reportDataLoss(
+                s"We didn't get enough message as promised from topic $topic, data loss occurs")
+              finished = true
+              return null
+            }
+          } else {
+            val prevMessage = currentMessage
+            currentMessage = reader.readNext(pollTimeoutMs, TimeUnit.MILLISECONDS)
+            if (currentMessage == null) {
+              reportDataLoss(
+                s"We didn't get enough message as promised from topic $topic, data loss occurs")
+              finished = true
+              return null
+            }
+            // check for any data skipping
+            val currentMessageId = currentMessage.getMessageId
+            if (prevMessage != null) {
+              val previousMessageId = prevMessage.getMessageId
+              detectDataLoss(currentMessageId, previousMessageId)
+            }
           }
 
           rowsBytesAccumulator.foreach(_.add(currentMessage.size()))
