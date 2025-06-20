@@ -25,6 +25,8 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.pulsar.PulsarProvider.getPulsarOffset
 import org.apache.spark.sql.streaming.{StreamingQuery, Trigger}
 import org.apache.spark.sql.{Encoder, Encoders, Row}
+import org.scalatest.concurrent.Eventually.{eventually, timeout}
+import org.scalatest.time.SpanSugar._
 
 abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
   import PulsarOptions._
@@ -368,6 +370,12 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
     val numMessages = 10
     var query: StreamingQuery = null
     try {
+      createNonPartitionedTopic(topic)
+      
+      // Send an initial message to ensure the topic is ready and has data. 
+      sendMessages(topic, Array("bootstrap"), None, batched = false)
+      Thread.sleep(100)
+      
       query = spark.readStream
         .format("pulsar")
         .option(StartingOffsetsOptionKey, "earliest")
@@ -383,9 +391,14 @@ abstract class PulsarSourceSuiteBase extends PulsarSourceTest {
       for (i <- 0 until 10) {
         sendFunc(topic, i, numMessages)
         query.processAllAvailable()
-        // results will be cumulative
-        checkAnswer(spark.table(queryName), (0 until (i + 1) * numMessages).map(r => Row(r.toString)))
+        // results will be cumulative - account for the bootstrap message
+        val expectedData = "bootstrap" +: (0 until (i + 1) * numMessages).map(_.toString)
+        checkAnswer(spark.table(queryName), expectedData.map(r => Row(r)))
       }
+    } catch {
+      case e: Exception =>
+        logError(s"Test failed for topic $topic", e)
+        throw e
     } finally {
       if (query != null) {
         query.stop()
