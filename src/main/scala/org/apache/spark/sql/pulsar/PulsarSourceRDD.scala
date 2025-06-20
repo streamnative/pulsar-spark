@@ -210,7 +210,7 @@ private[pulsar] abstract class PulsarSourceRDDBase(
 
           if (startOffsetMismatchDetected) {
             startOffsetMismatchDetected = false
-            // The message at startOffset is probably cleaned up or removed. 
+            // The message at startOffset is probably cleaned up or removed.
             // we don't skip the message, just return the current message.
             if (currentMessage == null) {
               reportDataLoss(
