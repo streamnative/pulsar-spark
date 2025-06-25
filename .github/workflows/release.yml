@@ -34,7 +34,7 @@ jobs:
         with:
           nexus_username: ${{ secrets.SONATYPE_USERNAME }}
           nexus_password: ${{ secrets.SONATYPE_PASSWORD }}
-          server_id: ossrh
+          server_id: central
           maven_profiles: release
           maven_goals_phases: clean deploy
           maven_args: -DskipTests
