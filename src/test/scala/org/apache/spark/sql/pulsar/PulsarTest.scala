@@ -49,7 +49,7 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
   self: SparkFunSuite =>
   import PulsarOptions._
 
-  val CURRENT_VERSION = "4.0.5"
+  val CURRENT_VERSION = "2.10.2"
 
   var pulsarContainer: PulsarContainer = null
   var serviceUrl: String = null

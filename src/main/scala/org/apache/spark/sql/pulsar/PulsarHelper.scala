@@ -311,10 +311,8 @@ private[pulsar] case class PulsarHelper(
   private def getTopics(topicsPattern: String): Seq[String] = {
     val dest = TopicName.get(topicsPattern)
     val allTopics: ju.List[String] = client.getLookup
-      .getTopicsUnderNamespace(
-        // passing an empty topicsHash because we don't cache the GetTopicsResponse
-        dest.getNamespaceObject, CommandGetTopicsOfNamespace.Mode.ALL, topicsPattern, "")
-      .get().getTopics
+      .getTopicsUnderNamespace(dest.getNamespaceObject, CommandGetTopicsOfNamespace.Mode.ALL)
+      .get()
 
     val allNonPartitionedTopics: ju.List[String] = allTopics.asScala
       .filter(t => !TopicName.get(t).isPartitioned)
@@ -350,9 +348,7 @@ private[pulsar] case class PulsarHelper(
       while (waitList.nonEmpty) {
         val topic = waitList.head
         try {
-          // setting metadataAutoCreationEnabled to false, and useFallbackForNonPIP344Brokers
-          // to true to conform to non-breaking behavior.
-          client.getPartitionedTopicMetadata(topic, false, true).get()
+          client.getPartitionedTopicMetadata(topic).get()
           waitList -= topic
         } catch {
           case NonFatal(_) =>
