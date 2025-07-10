@@ -74,6 +74,7 @@
     <commons-io.version>2.19.0</commons-io.version>
     <testcontainers.version>1.18.3</testcontainers.version>
     <bouncycastle.version>1.78</bouncycastle.version>
+    <jackson.version>2.15.2</jackson.version>
 
     <!-- plugin dependencies -->
     <maven.version>3.5.4</maven.version>
@@ -92,6 +93,23 @@
 
   <!-- dependencies for all modules -->
   <dependencies>
+    <!-- Jackson dependencies - ensure version consistency for tests -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-annotations</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+
     <!-- pulsar dependency -->
     <dependency>
       <groupId>org.apache.pulsar</groupId>
