@@ -367,7 +367,7 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
       case e @ (_: RuntimeException | _: JsonProcessingException | _: MalformedInputException) =>
         // JSON parser currently doesn't support partial results for corrupted records.
         // For such records, all fields other than the meta fields are set to `null`.
-        throw BadRecordException(() => recordLiteral(record), () => None, e)
+        throw BadRecordException(() => recordLiteral(record), () => Array.empty[InternalRow], e)
       case e: CharConversionException if options.encoding.isEmpty =>
         val msg =
           """JSON parser cannot handle a character in its input.
@@ -375,7 +375,7 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
             |""".stripMargin + e.getMessage
         val wrappedCharException = new CharConversionException(msg)
         wrappedCharException.initCause(e)
-        throw BadRecordException(() => recordLiteral(record), () => None, wrappedCharException)
+        throw BadRecordException(() => recordLiteral(record), () => Array.empty[InternalRow], wrappedCharException)
     }
   }
 }

@@ -15,16 +15,14 @@ package org.apache.spark.sql.pulsar
 
 import java.{util => ju}
 import java.util.concurrent.TimeUnit
-
 import scala.util.control.NonFatal
-
 import org.apache.pulsar.client.api.{Producer, PulsarClientException, Schema}
-
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{AnalysisException, DataFrame, SparkSession, SQLContext}
+import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SparkSession}
 import org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Literal}
+import org.apache.spark.sql.catalyst.types.DataTypeUtils
 import org.apache.spark.sql.execution.QueryExecution
 import org.apache.spark.sql.execution.streaming.Sink
 import org.apache.spark.sql.types._
@@ -44,7 +42,7 @@ private[pulsar] class PulsarSink(
   override def toString: String = "PulsarSink"
 
   override def addBatch(batchId: Long, data: DataFrame): Unit = {
-    PulsarSinks.validateQuery(data.schema.toAttributes, topic)
+    PulsarSinks.validateQuery(DataTypeUtils.toAttributes(data.schema), topic)
 
     if (batchId <= latestBatchId) {
       logInfo(s"Skipping already committed batch $batchId")
