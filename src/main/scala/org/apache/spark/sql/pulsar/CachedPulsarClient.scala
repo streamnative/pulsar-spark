@@ -44,7 +44,6 @@ private[pulsar] object CachedPulsarClient extends Logging {
       val clientConf =
         PulsarConfigUpdater("pulsarClientCache", config.asScala.toMap, PulsarOptions.FilteredKeys)
           .rebuild()
-      logInfo(s"Client Conf = ${clientConf}")
 
       val builder = PulsarClient.builder()
       try {
