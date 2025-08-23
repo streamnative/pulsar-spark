@@ -76,18 +76,12 @@ private[pulsar] case class PulsarConfigUpdater(
     map
   }
 
-  private val HideCompletelyLimit = 6
-  private val ShowFractionOfHiddenValue = 1.0 / 3.0
   private val CompletelyHiddenMessage = "...<completely hidden>..."
 
   private def printConfigValue(key: String, maybeVal: Option[Object]): String = {
     val value = maybeVal.map(_.toString).getOrElse("")
     if (keysToHideInLog.contains(key)) {
-      if (value.length < HideCompletelyLimit) {
-        return CompletelyHiddenMessage
-      } else {
-        return s"${value.take((value.length * ShowFractionOfHiddenValue).toInt)}..."
-      }
+      return CompletelyHiddenMessage
     }
 
     value
