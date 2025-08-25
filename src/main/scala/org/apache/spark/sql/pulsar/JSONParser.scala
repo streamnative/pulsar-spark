@@ -375,7 +375,8 @@ class JacksonRecordParser(schema: DataType, val options: JSONOptions) extends Lo
             |""".stripMargin + e.getMessage
         val wrappedCharException = new CharConversionException(msg)
         wrappedCharException.initCause(e)
-        throw BadRecordException(() => recordLiteral(record), () => Array.empty[InternalRow], wrappedCharException)
+        throw BadRecordException(() => recordLiteral(record),
+          () => Array.empty[InternalRow], wrappedCharException)
     }
   }
 }

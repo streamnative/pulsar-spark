@@ -15,11 +15,13 @@ package org.apache.spark.sql.pulsar
 
 import java.{util => ju}
 import java.util.concurrent.TimeUnit
+
 import scala.util.control.NonFatal
+
 import org.apache.pulsar.client.api.{Producer, PulsarClientException, Schema}
-import org.apache.spark.SparkEnv
+
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SparkSession}
+import org.apache.spark.sql.{AnalysisException, DataFrame, SparkSession, SQLContext}
 import org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Literal}
 import org.apache.spark.sql.catalyst.types.DataTypeUtils
