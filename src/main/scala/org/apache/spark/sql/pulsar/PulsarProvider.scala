@@ -23,6 +23,7 @@ import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{AnalysisException, DataFrame, SaveMode, SparkSession, SQLContext}
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
+import org.apache.spark.sql.catalyst.types.DataTypeUtils
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.execution.streaming.{Sink, Source}
 import org.apache.spark.sql.pulsar.PulsarSourceUtils.reportDataLossFunc
@@ -206,7 +207,7 @@ private[pulsar] class PulsarProvider
     val caseInsensitiveParams = validateSinkOptions(parameters)
 
     val (clientConfig, producerConfig, topic) = prepareConfForProducer(parameters)
-    PulsarSinks.validateQuery(data.schema.toAttributes, topic)
+    PulsarSinks.validateQuery(DataTypeUtils.toAttributes(data.schema), topic)
 
     PulsarSinks.write(
       sqlContext.sparkSession,
