@@ -21,7 +21,7 @@ import org.apache.pulsar.common.naming.TopicName
 
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{AnalysisException, DataFrame, SaveMode, SparkSession, SQLContext}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession, SQLContext}
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
 import org.apache.spark.sql.catalyst.types.DataTypeUtils
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
@@ -197,10 +197,7 @@ private[pulsar] class PulsarProvider
       data: DataFrame): BaseRelation = {
     mode match {
       case SaveMode.Overwrite | SaveMode.Ignore =>
-        throw new AnalysisException(
-          s"Save mode $mode not allowed for Pulsar. "
-            + s"Allowed save mode are ${SaveMode.Append} and "
-            + s"${SaveMode.ErrorIfExists} (default).")
+        throw PulsarExceptions.pulsarProviderInvalidSaveMode(mode.toString)
       case _ => // good
     }
 

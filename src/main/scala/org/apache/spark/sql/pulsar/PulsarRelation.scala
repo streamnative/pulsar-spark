@@ -19,6 +19,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
+import org.apache.spark.sql.classic.ClassicConversions.castToImpl
 import org.apache.spark.sql.sources.{BaseRelation, TableScan}
 import org.apache.spark.sql.types.StructType
 
@@ -91,6 +92,6 @@ private[pulsar] class PulsarRelation(
       failOnDataLoss,
       subscriptionNamePrefix,
       jsonOptions)
-    sqlContext.internalCreateDataFrame(rdd.setName("pulsar"), schema).rdd
+      castToImpl(sqlContext).internalCreateDataFrame(rdd.setName("pulsar"), schema).rdd
   }
 }

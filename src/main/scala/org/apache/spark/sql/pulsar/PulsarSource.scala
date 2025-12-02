@@ -13,28 +13,23 @@
  */
 package org.apache.spark.sql.pulsar
 
-
 import java.{util => ju}
 import java.util.Optional
 
-import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 
-import org.apache.pulsar.client.admin.PulsarAdmin
 import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.MessageIdImpl
-import org.apache.pulsar.client.internal.DefaultImplementation
 import org.apache.pulsar.common.schema.SchemaInfo
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JSONOptionsInRead
+import org.apache.spark.sql.classic.ClassicConversions.castToImpl
 import org.apache.spark.sql.connector.read.streaming
-import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, ReportsSourceMetrics, SupportsAdmissionControl}
-import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset, Source}
-import org.apache.spark.sql.pulsar.PulsarOptions.ServiceUrlOptionKey
-import org.apache.spark.sql.pulsar.SpecificPulsarOffset.getTopicOffsets
+import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReportsSourceMetrics, SupportsAdmissionControl}
+import org.apache.spark.sql.execution.streaming.{Offset, Source}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.util.LongAccumulator
 
@@ -122,7 +117,7 @@ private[pulsar] class PulsarSource(
     }
 
     if (start.isDefined && start.get == end) {
-      return sqlContext.internalCreateDataFrame(
+      return castToImpl(sqlContext).internalCreateDataFrame(
         sqlContext.sparkContext.emptyRDD[InternalRow].setName("empty"),
         schema,
         isStreaming = true)
@@ -198,7 +193,8 @@ private[pulsar] class PulsarSource(
       "GetBatch generating RDD of offset range: " +
         offsetRanges.sortBy(_.topic).mkString(", "))
 
-    sqlContext.internalCreateDataFrame(rdd.setName("pulsar"), schema, isStreaming = true)
+    castToImpl(sqlContext)
+      .internalCreateDataFrame(rdd.setName("pulsar"), schema, isStreaming = true)
   }
 
   override def commit(end: Offset): Unit = {

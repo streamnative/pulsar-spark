@@ -8,8 +8,8 @@ Unified data processing with [Apache Pulsar](https://pulsar.apache.org) and [Apa
 ## Prerequisites
 
 - Java 8 or later
-- Spark 3.4.0 or later
-- Pulsar 2.10.2 or later
+- Spark 4.0.1 or later
+- Pulsar 3.0 or later
 
 ## Preparations
 

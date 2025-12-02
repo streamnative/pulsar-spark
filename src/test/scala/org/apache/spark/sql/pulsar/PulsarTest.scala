@@ -61,7 +61,7 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
   override def beforeAll(): Unit = {
     pulsarContainer = new PulsarContainer(parse("apachepulsar/pulsar:" + CURRENT_VERSION))
     pulsarContainer.withStartupTimeout(Duration.ofMinutes(5))
-    brokerConfigs.foreach( kv =>
+    brokerConfigs.foreach(kv =>
       pulsarContainer.withEnv("PULSAR_PREFIX_" + kv._1, kv._2)
     )
     pulsarContainer.start()

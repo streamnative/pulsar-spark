@@ -32,8 +32,9 @@ import org.apache.pulsar.common.schema.SchemaType
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.physical.AllTuples
 import org.apache.spark.sql.catalyst.util.stackTraceToString
+import org.apache.spark.sql.classic.ClassicConversions.castToImpl
 import org.apache.spark.sql.connector.read.streaming.SparkDataStream
-import org.apache.spark.sql.execution.datasources.v2.StreamingDataSourceV2Relation
+import org.apache.spark.sql.execution.datasources.v2.StreamingDataSourceV2ScanRelation
 import org.apache.spark.sql.execution.streaming.sources.MemorySink
 import org.apache.spark.sql.execution.streaming._
 import org.apache.spark.sql.connector.read.streaming.{Offset => OffsetV2}
@@ -100,9 +101,9 @@ class PulsarSourceTest extends StreamTest with SharedSparkSession with PulsarTes
         "Cannot add data when there is no query for finding the active pulsar source")
 
       val sources = query.get.logicalPlan.collect {
-          case StreamingExecutionRelation(source: PulsarSource, _, _) => source
-          case StreamingExecutionRelation(source: PulsarMicroBatchReader, _, _) => source
-        }.distinct
+        case StreamingExecutionRelation(source: PulsarSource, _, _) => source
+        case StreamingExecutionRelation(source: PulsarMicroBatchReader, _, _) => source
+      }.distinct
 
       if (sources.isEmpty) {
         throw new Exception(
@@ -225,9 +226,9 @@ class PulsarSourceTest extends StreamTest with SharedSparkSession with PulsarTes
         "Cannot add data when there is no query for finding the active pulsar source")
 
       val sources = query.get.logicalPlan.collect {
-          case StreamingExecutionRelation(source: PulsarSource, _, _) => source
-          case StreamingExecutionRelation(source: PulsarMicroBatchReader, _, _) => source
-        }.distinct
+        case StreamingExecutionRelation(source: PulsarSource, _, _) => source
+        case StreamingExecutionRelation(source: PulsarMicroBatchReader, _, _) => source
+      }.distinct
 
       if (sources.isEmpty) {
         throw new Exception(
@@ -257,7 +258,7 @@ class PulsarSourceTest extends StreamTest with SharedSparkSession with PulsarTes
 
   protected def newTopic(): String = TopicName.get(s"topic-${topicId.getAndIncrement()}").toString
 
-  override def testStream(_stream: Dataset[_], outputMode: OutputMode, extraOptions: Map[String,String])(
+  override def testStream(_stream: Dataset[_], outputMode: OutputMode, extraOptions: Map[String,String], sink: MemorySink)(
     actions: StreamAction*): Unit = synchronized {
     import org.apache.spark.sql.streaming.util.StreamManualClock
 
@@ -266,7 +267,7 @@ class PulsarSourceTest extends StreamTest with SharedSparkSession with PulsarTes
     // and it may not work correctly when multiple `testStream`s run concurrently.
 
     val stream = _stream.toDF()
-    val sparkSession = stream.sparkSession // use the session in DF, not the default session
+    val sparkSession = castToImpl(stream.sparkSession) // use the session in DF, not the default session
     var pos = 0
     var currentStream: StreamExecution = null
     var lastStream: StreamExecution = null
@@ -638,7 +639,7 @@ class PulsarSourceTest extends StreamTest with SharedSparkSession with PulsarTes
               plan
                 .collect {
                   case r: StreamingExecutionRelation => r.source
-                  case r: StreamingDataSourceV2Relation => r.stream
+                  case r: StreamingDataSourceV2ScanRelation => r.stream
                 }
                 .zipWithIndex
                 .find(_._1 == source)

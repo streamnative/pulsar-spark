@@ -1,0 +1,39 @@
+{
+  "PULSAR_PROVIDER_INVALID_SAVE_MODE": {
+    "message": [
+      "SaveMode <saveMode> is not supported for Pulsar. Please use either SaveMode.Append or SaveMode.ErrorIfExists (default)."
+    ]
+  },
+  "PULSAR_SINK_UNSUPPORTED_DATA_TYPE": {
+    "message": [
+      "The specified data type <dataType> is not supported by Pulsar sink yet."
+    ]
+  },
+  "PULSAR_SINK_INVALID_SCHEMA_TYPE": {
+    "message": [
+      "Schema should have at least one non-key/non-topic field"
+    ]
+  },
+  "PULSAR_SINK_TOPIC_ATTRIBUTE_NAME_MISSING": {
+    "message": [
+      "Topic option is required when no <topicAttributeName> is specified. Use the <topicSingle> option for setting a topic."
+    ]
+  },
+  "PULSAR_SINK_ATTRIBUTE_TYPE_MISMATCH": {
+    "message": [
+      "Type mismatch: Attribute <attributeName> must be the following types: <expectedTypes>."
+    ]
+  },
+  "PULSAR_SINK_PRODUCER_CREATION_FAILURE": {
+    "message": [
+      "Failed to create producer for topic <topic>.",
+      "Details: <details>"
+    ]
+  },
+  "PULSAR_SINK_INCOMPATIBLE_SCHEMA": {
+    "message": [
+      "Cannot write incompatible data to topic <topic>.",
+      "Details: <details>"
+    ]
+  }
+}

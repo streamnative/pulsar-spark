@@ -21,7 +21,7 @@ import scala.util.control.NonFatal
 import org.apache.pulsar.client.api.{Producer, PulsarClientException, Schema}
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{AnalysisException, DataFrame, SparkSession, SQLContext}
+import org.apache.spark.sql.{DataFrame, SparkSession, SQLContext}
 import org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Literal}
 import org.apache.spark.sql.catalyst.types.DataTypeUtils
@@ -68,10 +68,11 @@ private[pulsar] object PulsarSinks extends Logging {
     valuesDT.map { dt =>
       dt match {
         case CalendarIntervalType =>
-          throw new AnalysisException("CalendarIntervalType not supported by pulsar sink yet")
+          throw PulsarExceptions.pulsarSinkUnsupportedDataType("CalendarIntervalType")
         case u: UserDefinedType[_] =>
-          throw new AnalysisException(s"$u not supported by pulsar sink yet")
-        case o: ObjectType => throw new AnalysisException(s"$o not supported by pulsar sink yet")
+          throw PulsarExceptions.pulsarSinkUnsupportedDataType(u.toString)
+        case o: ObjectType =>
+          throw PulsarExceptions.pulsarSinkUnsupportedDataType(o.toString)
         case st: StructType => checkForUnsupportedType(st.fields.map(_.dataType).toSeq)
         case _ => // spark types we are able to handle right now
       }
@@ -83,16 +84,14 @@ private[pulsar] object PulsarSinks extends Logging {
       .find(_.name == TopicAttributeName)
       .getOrElse(topic match {
         case Some(topicValue) => Literal(UTF8String.fromString(topicValue), StringType)
-        case None =>
-          throw new AnalysisException(
-            s"topic option required when no " +
-              s"'$TopicAttributeName' attribute is present. Use the " +
-              s"$TopicSingle option for setting a topic.")
+        case None => throw PulsarExceptions.pulsarSinkTopicAttributeNameMissing(
+          TopicAttributeName, TopicSingle)
       })
       .dataType match {
       case StringType => // good
       case _ =>
-        throw new AnalysisException(s"Topic type must be a ${StringType.catalogString}")
+        throw PulsarExceptions.pulsarSinkAttributeTypeMismatch(
+          PulsarOptions.TopicAttributeName, List(StringType.catalogString))
     }
 
     schema
@@ -101,9 +100,9 @@ private[pulsar] object PulsarSinks extends Logging {
       .dataType match {
       case StringType | BinaryType => // good
       case _ =>
-        throw new AnalysisException(
-          s"${PulsarOptions.KeyAttributeName} attribute type " +
-            s"must be a ${StringType.catalogString} or ${BinaryType.catalogString}")
+        throw PulsarExceptions.pulsarSinkAttributeTypeMismatch(
+          PulsarOptions.KeyAttributeName,
+          List(StringType.catalogString, BinaryType.catalogString))
     }
 
     schema
@@ -112,9 +111,9 @@ private[pulsar] object PulsarSinks extends Logging {
       .dataType match {
       case LongType | TimestampType => // good
       case _ =>
-        throw new AnalysisException(
-          s"${PulsarOptions.EventTimeName} attribute type " +
-            s"must be a ${LongType.catalogString} or ${TimestampType.catalogString}")
+        throw  PulsarExceptions.pulsarSinkAttributeTypeMismatch(
+          PulsarOptions.EventTimeName,
+          List(LongType.catalogString, TimestampType.catalogString))
     }
 
     schema
@@ -130,7 +129,7 @@ private[pulsar] object PulsarSinks extends Logging {
       schema.filter(n => !PulsarOptions.MetaFieldNames.contains(n.name))
 
     if (valuesExpression.length == 0) {
-      throw new AnalysisException("Schema should have at least one non-key/non-topic field")
+      PulsarExceptions.pulsarSinkInvalidSchema
     }
 
     checkForUnsupportedType(valuesExpression.map(_.dataType))
@@ -173,15 +172,9 @@ private[pulsar] object PulsarSinks extends Logging {
         .create()
     } catch {
       case e: PulsarClientException.IncompatibleSchemaException =>
-        throw new AnalysisException(
-          s"Cannot write incompatible data to topic $topic. " +
-            s"Details: ${e.getMessage}",
-          cause = Some(e))
+        throw PulsarExceptions.pulsarSinkIncompatibleSchema(topic, e)
       case NonFatal(e) =>
-        throw new AnalysisException(
-          s"Cannot create pulsar producer for topic $topic. " +
-            s"Details: ${e.getMessage}",
-          cause = Some(e))
+        throw PulsarExceptions.pulsarSinkProducerCreationFailure(topic, e)
     }
   }
 

@@ -149,13 +149,13 @@ class PulsarSinkSuite extends StreamTest with PulsarTest with SharedSparkSession
 
   test("batch - null topic field value, and no topic option") {
     val df = Seq[(String, String)](null.asInstanceOf[String] -> "1").toDF("topic", "value")
-    val ex = intercept[AnalysisException] {
+    val ex = intercept[PulsarIllegalArgumentException] {
       df.write
         .format("pulsar")
         .option(ServiceUrlOptionKey, serviceUrl)
         .save()
     }
-    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains("topic option required"))
+    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains("topic option is required"))
   }
 
   test("batch - unsupported save modes") {
@@ -163,7 +163,7 @@ class PulsarSinkSuite extends StreamTest with PulsarTest with SharedSparkSession
     val df = Seq[(String, String)](null.asInstanceOf[String] -> "1").toDF("topic", "value")
 
     // Test bad save mode Ignore
-    var ex = intercept[AnalysisException] {
+    var ex = intercept[PulsarIllegalArgumentException] {
       df.write
         .format("pulsar")
         .option(ServiceUrlOptionKey, serviceUrl)
@@ -171,10 +171,10 @@ class PulsarSinkSuite extends StreamTest with PulsarTest with SharedSparkSession
         .save()
     }
     assert(
-      ex.getMessage.toLowerCase(Locale.ROOT).contains(s"save mode ignore not allowed for pulsar"))
+      ex.getMessage.toLowerCase(Locale.ROOT).contains(s"savemode ignore is not supported for pulsar"))
 
     // Test bad save mode Overwrite
-    ex = intercept[AnalysisException] {
+    ex = intercept[PulsarIllegalArgumentException] {
       df.write
         .format("pulsar")
         .option(ServiceUrlOptionKey, serviceUrl)
@@ -184,7 +184,7 @@ class PulsarSinkSuite extends StreamTest with PulsarTest with SharedSparkSession
     assert(
       ex.getMessage
         .toLowerCase(Locale.ROOT)
-        .contains(s"save mode overwrite not allowed for pulsar"))
+        .contains(s"savemode overwrite is not supported for pulsar"))
   }
 
   test("streaming - write to pulsar with topic field") {
@@ -468,7 +468,7 @@ class PulsarSinkSuite extends StreamTest with PulsarTest with SharedSparkSession
     assert(
       ex.getMessage
         .toLowerCase(Locale.ROOT)
-        .contains("key attribute type must be a string or binary"))
+        .contains("type mismatch: attribute __key must be the following types: string,binary"))
 
     try {
       ex = intercept[StreamingQueryException] {
@@ -487,7 +487,7 @@ class PulsarSinkSuite extends StreamTest with PulsarTest with SharedSparkSession
     assert(
       ex.getMessage
         .toLowerCase(Locale.ROOT)
-        .contains("__eventtime attribute type must be a bigint or timestamp"))
+        .contains("type mismatch: attribute __eventtime must be the following types: bigint,timestamp"))
   }
 
   test("batch - write to pulsar with producer conf case sensitive") {

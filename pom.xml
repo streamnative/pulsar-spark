@@ -24,7 +24,7 @@
 
   <groupId>io.streamnative.connectors</groupId>
   <artifactId>pulsar-spark-connector_2.13</artifactId>
-  <version>3.5.6-SNAPSHOT</version>
+  <version>4.0.1-SNAPSHOT</version>
   <name>StreamNative :: Pulsar Spark Connector</name>
   <url>https://pulsar.apache.org</url>
   <inceptionYear>2019</inceptionYear>
@@ -67,14 +67,14 @@
     <!-- dependencies -->
     <!-- latest version from apache pulsar -->
     <pulsar.version>4.0.5</pulsar.version>
-    <scala.version>2.13.12</scala.version>
+    <scala.version>2.13.16</scala.version>
     <scala.binary.version>2.13</scala.binary.version>
     <scalatest.version>3.2.14</scalatest.version>
-    <spark.version>3.5.6</spark.version>
+    <spark.version>4.0.1</spark.version>
     <commons-io.version>2.19.0</commons-io.version>
     <testcontainers.version>1.18.3</testcontainers.version>
     <bouncycastle.version>1.78</bouncycastle.version>
-    <jackson.version>2.15.2</jackson.version>
+    <jackson.version>2.18.5</jackson.version>
 
     <!-- plugin dependencies -->
     <maven.version>3.5.4</maven.version>
@@ -89,6 +89,28 @@
     <scalatest-maven-plugin.version>2.2.0</scalatest-maven-plugin.version>
     <scalastyle-maven-plugin.version>1.0.0</scalastyle-maven-plugin.version>
     <nexus-staging-maven-plugin.version>1.6.13</nexus-staging-maven-plugin.version>
+
+    <!-- SPARK-36796 for JDK-17 test-->
+    <extraJavaTestArgs>
+      -XX:+IgnoreUnrecognizedVMOptions
+      --add-modules=jdk.incubator.vector
+      --add-opens=java.base/java.lang=ALL-UNNAMED
+      --add-opens=java.base/java.lang.invoke=ALL-UNNAMED
+      --add-opens=java.base/java.lang.reflect=ALL-UNNAMED
+      --add-opens=java.base/java.io=ALL-UNNAMED
+      --add-opens=java.base/java.net=ALL-UNNAMED
+      --add-opens=java.base/java.nio=ALL-UNNAMED
+      --add-opens=java.base/java.util=ALL-UNNAMED
+      --add-opens=java.base/java.util.concurrent=ALL-UNNAMED
+      --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED
+      --add-opens=java.base/jdk.internal.ref=ALL-UNNAMED
+      --add-opens=java.base/sun.nio.ch=ALL-UNNAMED
+      --add-opens=java.base/sun.nio.cs=ALL-UNNAMED
+      --add-opens=java.base/sun.security.action=ALL-UNNAMED
+      --add-opens=java.base/sun.util.calendar=ALL-UNNAMED
+      -Djdk.reflect.useDirectMethodHandle=false
+      -Dio.netty.tryReflectionSetAccessible=true
+    </extraJavaTestArgs>
   </properties>
 
   <!-- dependencies for all modules -->
@@ -379,6 +401,7 @@
           <systemProperties>
             <log4j.configuration>file:src/test/resources/log4j.properties</log4j.configuration>
           </systemProperties>
+          <argLine>${extraJavaTestArgs}</argLine>
         </configuration>
         <executions>
           <execution>
