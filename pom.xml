@@ -56,9 +56,9 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <project.scm.id>snbot-github</project.scm.id>
-    <javac.target>1.8</javac.target>
-    <maven.compiler.source>1.8</maven.compiler.source>
-    <maven.compiler.target>1.8</maven.compiler.target>
+    <javac.target>17</javac.target>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
     <redirectTestOutputToFile>true</redirectTestOutputToFile>
     <testRetryCount>2</testRetryCount>
     <!-- for now, not running scalafmt as part of default verify pipeline -->
@@ -371,7 +371,7 @@
         <configuration>
           <scalaVersion>${scala.version}</scalaVersion>
           <args>
-            <arg>-target:jvm-1.8</arg>
+            <arg>-target:jvm-17</arg>
             <arg>-unchecked</arg>
             <arg>-deprecation</arg>
             <arg>-feature</arg>
