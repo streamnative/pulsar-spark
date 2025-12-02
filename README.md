@@ -7,7 +7,7 @@ Unified data processing with [Apache Pulsar](https://pulsar.apache.org) and [Apa
 
 ## Prerequisites
 
-- Java 8 or later
+- Java 17 or later
 - Spark 4.0.1 or later
 - Pulsar 3.0 or later
 
@@ -626,7 +626,7 @@ $ cd pulsar-spark
 $ mvn clean install -DskipTests
 ```
 
-If you get the following error during compilation, try running Maven with Java 8:  
+If you get the following error during compilation, try running Maven with Java 17:  
 ```
 [ERROR] [Error] : Source option 6 is no longer supported. Use 7 or later.
 [ERROR] [Error] : Target option 6 is no longer supported. Use 7 or later.
