@@ -466,10 +466,6 @@
                   <shadedPattern>org.apache.pulsar.shade.com.google</shadedPattern>
                 </relocation>
                 <relocation>
-                  <pattern>javax.xml</pattern>
-                  <shadedPattern>org.apache.pulsar.shade.javax.xml</shadedPattern>
-                </relocation>
-                <relocation>
                   <pattern>org.apache.avro</pattern>
                   <shadedPattern>org.apache.pulsar.shade.org.apache.avro</shadedPattern>
                 </relocation>
