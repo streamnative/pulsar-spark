@@ -20,7 +20,7 @@ import java.util.Locale
 import scala.reflect.ClassTag
 import org.apache.pulsar.client.api.{MessageId, Schema}
 import org.apache.pulsar.common.schema.SchemaInfo
-import org.apache.spark.sql.execution.streaming.StreamExecution
+import org.apache.spark.sql.execution.streaming.runtime.StreamExecution
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.pulsar.PulsarProvider.getPulsarOffset
 import org.apache.spark.sql.streaming.{StreamingQuery, Trigger}

@@ -22,7 +22,7 @@ import org.apache.pulsar.common.naming.NamespaceName
 import org.apache.pulsar.common.policies.data.RetentionPolicies
 import org.apache.spark.SparkException
 import org.apache.spark.sql.ForeachWriter
-import org.apache.spark.sql.execution.streaming.{StreamExecution, StreamingExecutionRelation}
+import org.apache.spark.sql.execution.streaming.runtime.{StreamExecution, StreamingExecutionRelation}
 import org.apache.spark.sql.functions.{col, count, window}
 import org.apache.spark.sql.pulsar.PulsarOptions.{ServiceUrlOptionKey, TopicPattern}
 import org.apache.spark.sql.streaming.StreamingQueryProgress
