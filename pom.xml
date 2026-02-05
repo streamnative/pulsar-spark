@@ -24,7 +24,7 @@
 
   <groupId>io.streamnative.connectors</groupId>
   <artifactId>pulsar-spark-connector_2.13</artifactId>
-  <version>4.0.1-SNAPSHOT</version>
+  <version>4.1.1-SNAPSHOT</version>
   <name>StreamNative :: Pulsar Spark Connector</name>
   <url>https://pulsar.apache.org</url>
   <inceptionYear>2019</inceptionYear>
@@ -67,14 +67,14 @@
     <!-- dependencies -->
     <!-- latest version from apache pulsar -->
     <pulsar.version>4.0.5</pulsar.version>
-    <scala.version>2.13.16</scala.version>
+    <scala.version>2.13.17</scala.version>
     <scala.binary.version>2.13</scala.binary.version>
     <scalatest.version>3.2.14</scalatest.version>
-    <spark.version>4.0.1</spark.version>
+    <spark.version>4.1.1</spark.version>
     <commons-io.version>2.19.0</commons-io.version>
     <testcontainers.version>1.18.3</testcontainers.version>
     <bouncycastle.version>1.78</bouncycastle.version>
-    <jackson.version>2.18.5</jackson.version>
+    <jackson.version>2.20.0</jackson.version>
 
     <!-- plugin dependencies -->
     <maven.version>3.5.4</maven.version>
@@ -113,23 +113,33 @@
     </extraJavaTestArgs>
   </properties>
 
+  <!-- Use Jackson BOM to manage versions (Spark 4.1.1 uses Jackson 2.20.0) -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>${jackson.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <!-- dependencies for all modules -->
   <dependencies>
-    <!-- Jackson dependencies - ensure version consistency for tests -->
+    <!-- Jackson dependencies managed by BOM -->
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-core</artifactId>
-      <version>${jackson.version}</version>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-      <version>${jackson.version}</version>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-annotations</artifactId>
-      <version>${jackson.version}</version>
     </dependency>
 
     <!-- pulsar dependency -->

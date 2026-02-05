@@ -24,7 +24,8 @@ import org.apache.spark.{SparkContext, SparkEnv}
 import org.apache.spark.internal.Logging
 import org.apache.spark.scheduler.ExecutorCacheTaskLocation
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.execution.streaming.{HDFSMetadataLog, SerializedOffset}
+import org.apache.spark.sql.execution.streaming.checkpointing.HDFSMetadataLog
+import org.apache.spark.sql.execution.streaming.runtime.SerializedOffset
 import org.apache.spark.storage.BlockManager
 
 private[pulsar] object PulsarSourceUtils extends Logging {

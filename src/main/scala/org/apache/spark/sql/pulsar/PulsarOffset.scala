@@ -17,7 +17,8 @@ import org.apache.pulsar.client.api.MessageId
 import org.apache.pulsar.client.impl.MessageIdImpl
 
 import org.apache.spark.sql.connector.read.streaming.PartitionOffset
-import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset}
+import org.apache.spark.sql.execution.streaming.Offset
+import org.apache.spark.sql.execution.streaming.runtime.SerializedOffset
 
 private[pulsar] sealed trait PulsarOffset
 

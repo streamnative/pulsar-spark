@@ -35,8 +35,10 @@ import org.apache.spark.sql.catalyst.util.stackTraceToString
 import org.apache.spark.sql.classic.ClassicConversions.castToImpl
 import org.apache.spark.sql.connector.read.streaming.SparkDataStream
 import org.apache.spark.sql.execution.datasources.v2.StreamingDataSourceV2ScanRelation
+import org.apache.spark.sql.execution.streaming.Offset
+import org.apache.spark.sql.execution.streaming.operators.stateful.StatefulOperator
 import org.apache.spark.sql.execution.streaming.sources.MemorySink
-import org.apache.spark.sql.execution.streaming._
+import org.apache.spark.sql.execution.streaming.runtime.{MicroBatchExecution, MemoryStream, StreamExecution, StreamingExecutionRelation, StreamingQueryWrapper}
 import org.apache.spark.sql.connector.read.streaming.{Offset => OffsetV2}
 import org.apache.spark.sql.streaming.StreamingQueryListener.{QueryProgressEvent, QueryStartedEvent, QueryTerminatedEvent}
 import org.apache.spark.sql.streaming.{OutputMode, StreamTest, StreamingQueryException, StreamingQueryListener}

@@ -15,15 +15,11 @@ package org.apache.spark.sql.pulsar
 
 import org.apache.pulsar.client.impl.MessageIdImpl
 
-import org.apache.spark.sql.execution.streaming.{
-  LongOffset,
-  OffsetSeq,
-  OffsetSeqLog,
-  SerializedOffset
-}
+import org.apache.spark.sql.execution.streaming.Offset
+import org.apache.spark.sql.execution.streaming.checkpointing.{OffsetSeq, OffsetSeqLog}
+import org.apache.spark.sql.execution.streaming.runtime.{LongOffset, SerializedOffset}
 import org.apache.spark.sql.streaming.OffsetSuite
 import org.apache.spark.sql.test.SharedSparkSession
-import org.apache.spark.sql.execution.streaming.Offset
 
 import java.io.File
 
