@@ -8,8 +8,29 @@ Unified data processing with [Apache Pulsar](https://pulsar.apache.org) and [Apa
 ## Prerequisites
 
 - Java 17 or later
-- Spark 4.0.1 or later
+- Spark 4.1.1 or later
 - Pulsar 3.0 or later
+
+## Version Compatibility Matrix
+
+The following table shows the tested and supported version combinations:
+
+| Connector Version | Spark Version | Pulsar Client | Pulsar Service | Scala Version | Status |
+|-------------------|---------------|---------------|----------------|---------------|--------|
+| 4.1.1.x           | 4.1.1         | 4.0.5         | 3.0 - 4.x      | 2.13.17       | Current |
+| 4.0.1.x           | 4.0.1         | 4.0.5         | 3.0 - 4.x      | 2.13.16       | Stable |
+| 3.5.6.x           | 3.5.6         | 4.0.5         | 3.0 - 4.x      | 2.13          | Stable |
+| 3.5.2.x           | 3.5.2         | 4.0.5         | 3.0 - 4.x      | 2.13          | Stable |
+| 3.4.1.x           | 3.4.1         | 2.10.5        | 2.10 - 3.x     | 2.13          | Legacy |
+| 3.4.0.x           | 3.4.0         | 2.10.2        | 2.10 - 3.x     | 2.13          | Legacy |
+
+**Notes**:
+- **Connector Version**: Follows the Spark major.minor version pattern
+- **Pulsar Client**: The version of Pulsar client library bundled with the connector
+- **Pulsar Service**: Compatible Pulsar broker/service versions
+- Each connector version is built and tested against the specific Spark version listed
+- Pulsar client 4.x provides the best compatibility with Pulsar service 3.0+ clusters
+- For Pulsar 2.x clusters, use connector versions 3.4.x with Pulsar client 2.x
 
 ## Preparations
 
