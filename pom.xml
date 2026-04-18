@@ -73,7 +73,7 @@
     <spark.version>4.1.1</spark.version>
     <commons-io.version>2.19.0</commons-io.version>
     <testcontainers.version>1.18.3</testcontainers.version>
-    <bouncycastle.version>1.78</bouncycastle.version>
+    <bouncycastle.version>1.84</bouncycastle.version>
     <jackson.version>2.20.0</jackson.version>
 
     <!-- plugin dependencies -->
