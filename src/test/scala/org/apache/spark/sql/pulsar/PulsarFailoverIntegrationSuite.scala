@@ -31,8 +31,6 @@ class PulsarFailoverIntegrationSuite extends PulsarSourceTest {
       .selectExpr("CAST(value AS STRING)")
       .as[String]
 
-    testStream(pulsar)(
-      makeSureGetOffsetCalled,
-      CheckAnswer("1", "2", "3"))
+    testStream(pulsar)(makeSureGetOffsetCalled, CheckAnswer("1", "2", "3"))
   }
 }
