@@ -13,10 +13,10 @@
  */
 package org.apache.spark.sql.pulsar
 
+import java.{util => ju}
 import java.time.Duration
 import java.util.Locale
 import java.util.concurrent.TimeUnit
-import java.{util => ju}
 
 import scala.jdk.CollectionConverters._
 
