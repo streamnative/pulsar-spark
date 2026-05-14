@@ -67,6 +67,25 @@ class PulsarFailoverConfigSuite extends SparkFunSuite {
     assert(error.getMessage.contains("positive"))
   }
 
+  test("documented option keys parse case-insensitively") {
+    val config = PulsarFailoverConfig
+      .fromParams(
+        Map(
+          PulsarFailoverPrimaryServiceUrlDisplayKey.toUpperCase(java.util.Locale.ROOT) ->
+            primaryUrl,
+          PulsarFailoverDelayMsDisplayKey -> "5000",
+          PulsarFailoverSwitchBackDelayMsDisplayKey -> "10000",
+          PulsarFailoverCheckIntervalMsDisplayKey -> "15000",
+          s"${PulsarFailoverSecondaryPrefix}0.serviceUrl" -> secondary0Url))
+      .get
+
+    assert(config.primaryServiceUrl === primaryUrl)
+    assert(config.failoverDelay === Duration.ofMillis(5000))
+    assert(config.switchBackDelay === Duration.ofMillis(10000))
+    assert(config.checkInterval === Duration.ofMillis(15000))
+    assert(config.secondaries.map(_.serviceUrl) === Seq(secondary0Url))
+  }
+
   test("full config parses durations, policy, auth and tls per secondary") {
     val config = PulsarFailoverConfig
       .fromParams(
@@ -135,7 +154,14 @@ class PulsarFailoverConfigSuite extends SparkFunSuite {
   test("toServiceUrlProvider builds AutoClusterFailover provider") {
     val config = PulsarFailoverConfig(
       primaryUrl,
-      Seq(SecondaryClusterConfig(secondary0Url, None, None, None, None)),
+      Seq(
+        SecondaryClusterConfig(
+          secondary0Url,
+          Some("org.apache.pulsar.client.impl.auth.AuthenticationToken" -> "token:secondary"),
+          Some("/cert0.pem"),
+          Some("/truststore0.jks"),
+          Some("password0")),
+        SecondaryClusterConfig(secondary1Url, None, None, None, None)),
       Duration.ofMillis(5000),
       Duration.ofMillis(10000),
       Duration.ofMillis(15000),
@@ -145,10 +171,22 @@ class PulsarFailoverConfigSuite extends SparkFunSuite {
 
     val failover = provider.asInstanceOf[org.apache.pulsar.client.impl.AutoClusterFailover]
     assert(failover.getPrimary === primaryUrl)
-    assert(failover.getSecondary === Seq(secondary0Url).asJava)
+    assert(failover.getSecondary === Seq(secondary0Url, secondary1Url).asJava)
     assert(failover.getFailoverPolicy === FailoverPolicy.ORDER)
     assert(failover.getFailoverDelayNs === Duration.ofMillis(5000).toNanos)
     assert(failover.getSwitchBackDelayNs === Duration.ofMillis(10000).toNanos)
     assert(failover.getIntervalMs === 15000L)
+    assert(failover.getSecondaryAuthentications.size() === 2)
+    assert(failover.getSecondaryAuthentications.get(secondary0Url) !== null)
+    assert(failover.getSecondaryAuthentications.get(secondary1Url) === null)
+    assert(
+      failover.getSecondaryTlsTrustCertsFilePaths.asScala.toMap ===
+        Map(secondary0Url -> "/cert0.pem", secondary1Url -> null))
+    assert(
+      failover.getSecondaryTlsTrustStorePaths.asScala.toMap ===
+        Map(secondary0Url -> "/truststore0.jks", secondary1Url -> null))
+    assert(
+      failover.getSecondaryTlsTrustStorePasswords.asScala.toMap ===
+        Map(secondary0Url -> "password0", secondary1Url -> null))
   }
 }
