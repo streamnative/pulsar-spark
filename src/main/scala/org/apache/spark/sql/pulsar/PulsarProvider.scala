@@ -57,8 +57,8 @@ private[pulsar] class PulsarProvider
       parameters: Map[String, String]): (String, StructType) = {
 
     val caseInsensitiveParams = validateStreamOptions(parameters)
-    val (clientConfig, _, adminConfig,
-      serviceUrlConfig, adminUrl) = prepareConfForReader(parameters)
+    val (clientConfig, _, adminConfig, serviceUrlConfig, adminUrl) = prepareConfForReader(
+      parameters)
 
     val subscriptionNamePrefix = s"spark-pulsar-${UUID.randomUUID}"
     val inferredSchema = Utils.tryWithResource(
@@ -89,8 +89,8 @@ private[pulsar] class PulsarProvider
     logDebug(s"Creating Pulsar source: $parameters")
 
     val caseInsensitiveParams = validateStreamOptions(parameters)
-    val (clientConfig, readerConfig,
-      adminConfig, serviceUrl, adminUrl) = prepareConfForReader(parameters)
+    val (clientConfig, readerConfig, adminConfig, serviceUrl, adminUrl) = prepareConfForReader(
+      parameters)
 
     logDebug(
       s"Client config: $clientConfig; Reader config: $readerConfig; Service URL: $serviceUrl")
@@ -117,8 +117,9 @@ private[pulsar] class PulsarProvider
 
     val maxBytes = maxBytesPerTrigger(caseInsensitiveParams)
     if (adminUrl.isEmpty && maxBytes != 0L) {
-      throw new IllegalArgumentException("admin.url " +
-        "must be specified if maxBytesPerTrigger is specified")
+      throw new IllegalArgumentException(
+        "admin.url " +
+          "must be specified if maxBytesPerTrigger is specified")
     }
 
     new PulsarSource(
@@ -142,8 +143,8 @@ private[pulsar] class PulsarProvider
 
     val subscriptionNamePrefix = getSubscriptionPrefix(parameters, isBatch = true)
 
-    val (clientConfig, readerConfig,
-      adminConfig, serviceUrl, adminUrl) = prepareConfForReader(parameters)
+    val (clientConfig, readerConfig, adminConfig, serviceUrl, adminUrl) = prepareConfForReader(
+      parameters)
 
     val (start, end, schema, pSchema) = Utils.tryWithResource(
       PulsarHelper(
@@ -392,7 +393,8 @@ private[pulsar] object PulsarProvider extends Logging {
   }
 
   private def getServiceUrl(parameters: Map[String, String]): String = {
-    PulsarFailoverConfig.primaryServiceUrl(parameters)
+    PulsarFailoverConfig
+      .primaryServiceUrl(parameters)
       .getOrElse(parameters(ServiceUrlOptionKey))
   }
 
@@ -416,10 +418,8 @@ private[pulsar] object PulsarProvider extends Logging {
 
   private def maxBytesPerTrigger(caseInsensitiveParams: Map[String, String]): Long =
     caseInsensitiveParams
-      .getOrElse(
-        PulsarOptions.MaxBytesPerTrigger,
-        0L.toString
-      ).toLong
+      .getOrElse(PulsarOptions.MaxBytesPerTrigger, 0L.toString)
+      .toLong
 
   private def validateGeneralOptions(
       caseInsensitiveParams: Map[String, String]): Map[String, String] = {
@@ -429,7 +429,7 @@ private[pulsar] object PulsarProvider extends Logging {
         caseInsensitiveParams.get(ServiceUrlOptionKey).foreach { serviceUrl =>
           require(
             serviceUrl == config.primaryServiceUrl,
-            s"$ServiceUrlOptionKey must match $PulsarFailoverPrimaryServiceUrlOptionKey " +
+            s"$ServiceUrlOptionKey must match $PulsarFailoverPrimaryServiceUrlDisplayKey " +
               "when Pulsar failover is enabled")
         }
       case None =>
@@ -527,7 +527,7 @@ private[pulsar] object PulsarProvider extends Logging {
         caseInsensitiveParams.get(ServiceUrlOptionKey).foreach { serviceUrl =>
           require(
             serviceUrl == config.primaryServiceUrl,
-            s"$ServiceUrlOptionKey must match $PulsarFailoverPrimaryServiceUrlOptionKey " +
+            s"$ServiceUrlOptionKey must match $PulsarFailoverPrimaryServiceUrlDisplayKey " +
               "when Pulsar failover is enabled")
         }
       case None =>
@@ -548,9 +548,12 @@ private[pulsar] object PulsarProvider extends Logging {
     caseInsensitiveParams
   }
 
-  private def prepareConfForReader(parameters: Map[String, String])
-      : (ju.Map[String, Object], ju.Map[String, Object],
-        ju.Map[String, Object], String, Option[String]) = {
+  private def prepareConfForReader(parameters: Map[String, String]): (
+      ju.Map[String, Object],
+      ju.Map[String, Object],
+      ju.Map[String, Object],
+      String,
+      Option[String]) = {
 
     val serviceUrl = getServiceUrl(parameters)
     val adminUrl = getAdminUrl(parameters)
@@ -563,7 +566,8 @@ private[pulsar] object PulsarProvider extends Logging {
       paramsToPulsarConf("pulsar.client", clientParams),
       paramsToPulsarConf("pulsar.reader", readerParams),
       paramsToPulsarConf("pulsar.admin", adminParams),
-      serviceUrl, adminUrl)
+      serviceUrl,
+      adminUrl)
   }
 
   private def prepareConfForProducer(parameters: Map[String, String])

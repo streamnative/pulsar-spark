@@ -78,7 +78,7 @@ private[pulsar] object PulsarFailoverConfig {
 
   /** Returns Some(...) if any pulsar.failover.* key is present, else None. */
   def fromParams(params: ju.Map[String, Object]): Option[PulsarFailoverConfig] = {
-    fromParams(params.asScala.toMap.map { case (k, v) => k -> Option(v).map(_.toString).orNull })
+    fromParams(params.asScala.toMap.collect { case (k, v) if v != null => k -> v.toString })
   }
 
   /** Returns Some(...) if any pulsar.failover.* key is present, else None. */
@@ -93,10 +93,14 @@ private[pulsar] object PulsarFailoverConfig {
 
     validateKnownKeys(failoverParams.keySet)
 
+    if (!failoverParams.contains(PulsarFailoverPrimaryServiceUrlOptionKey)) {
+      return None
+    }
+
     val primary = requiredNonEmpty(
       failoverParams,
       PulsarFailoverPrimaryServiceUrlOptionKey,
-      s"$PulsarFailoverPrimaryServiceUrlOptionKey must be specified when Pulsar failover " +
+      s"$PulsarFailoverPrimaryServiceUrlDisplayKey must be specified when Pulsar failover " +
         "is enabled")
 
     val secondaries = parseSecondaries(failoverParams)
@@ -107,39 +111,41 @@ private[pulsar] object PulsarFailoverConfig {
           "is needed")
     }
 
-    Some(PulsarFailoverConfig(
-      primary,
-      secondaries,
-      parsePositiveDuration(
-        failoverParams,
-        PulsarFailoverDelayMsOptionKey,
-        DefaultFailoverDelayMs),
-      parsePositiveDuration(
-        failoverParams,
-        PulsarFailoverSwitchBackDelayMsOptionKey,
-        DefaultSwitchBackDelayMs),
-      parsePositiveDuration(
-        failoverParams,
-        PulsarFailoverCheckIntervalMsOptionKey,
-        DefaultCheckIntervalMs),
-      parsePolicy(failoverParams)))
+    Some(
+      PulsarFailoverConfig(
+        primary,
+        secondaries,
+        parsePositiveDuration(
+          failoverParams,
+          PulsarFailoverDelayMsOptionKey,
+          DefaultFailoverDelayMs),
+        parsePositiveDuration(
+          failoverParams,
+          PulsarFailoverSwitchBackDelayMsOptionKey,
+          DefaultSwitchBackDelayMs),
+        parsePositiveDuration(
+          failoverParams,
+          PulsarFailoverCheckIntervalMsOptionKey,
+          DefaultCheckIntervalMs),
+        parsePolicy(failoverParams)))
   }
 
   /** Build a ServiceUrlProvider from this config. */
   def toServiceUrlProvider(cfg: PulsarFailoverConfig): ServiceUrlProvider = {
     val secondaryServiceUrls = cfg.secondaries.map(_.serviceUrl).asJava
-    val secondaryAuth = completeSecondaryMap[org.apache.pulsar.client.api.Authentication](
-      cfg.secondaries) { secondary =>
-      secondary.auth.map { case (pluginClassName, authParams) =>
-        AuthenticationFactory.create(pluginClassName, authParams)
+    val secondaryAuth =
+      completeSecondaryMap[org.apache.pulsar.client.api.Authentication](cfg.secondaries) {
+        secondary =>
+          secondary.auth.map { case (pluginClassName, authParams) =>
+            AuthenticationFactory.create(pluginClassName, authParams)
+          }
       }
-    }
-    val secondaryTlsTrustCertsFilePath = completeSecondaryMap[String](cfg.secondaries)(
-      _.tlsTrustCertsFilePath)
-    val secondaryTlsTrustStorePath = completeSecondaryMap[String](cfg.secondaries)(
-      _.tlsTrustStorePath)
-    val secondaryTlsTrustStorePassword = completeSecondaryMap[String](cfg.secondaries)(
-      _.tlsTrustStorePassword)
+    val secondaryTlsTrustCertsFilePath =
+      completeSecondaryMap[String](cfg.secondaries)(_.tlsTrustCertsFilePath)
+    val secondaryTlsTrustStorePath =
+      completeSecondaryMap[String](cfg.secondaries)(_.tlsTrustStorePath)
+    val secondaryTlsTrustStorePassword =
+      completeSecondaryMap[String](cfg.secondaries)(_.tlsTrustStorePassword)
 
     val builder = AutoClusterFailover
       .builder()
@@ -158,8 +164,7 @@ private[pulsar] object PulsarFailoverConfig {
     builder.build()
   }
 
-  private def completeSecondaryMap[T >: Null](
-      secondaries: Seq[SecondaryClusterConfig])(
+  private def completeSecondaryMap[T >: Null](secondaries: Seq[SecondaryClusterConfig])(
       value: SecondaryClusterConfig => Option[T]): Option[Map[String, T]] = {
     val values = secondaries.map(secondary => secondary.serviceUrl -> value(secondary))
     if (values.exists(_._2.isDefined)) {
@@ -187,10 +192,11 @@ private[pulsar] object PulsarFailoverConfig {
     keys.foreach {
       case key if TopLevelKeys.contains(key) =>
       case key if parseSecondaryKey(key).exists { case (_, name) =>
-        SecondaryKeys.contains(name)
-      } =>
+            SecondaryKeys.contains(name)
+          } =>
       case key =>
-        throw new IllegalArgumentException(s"Unsupported Pulsar failover option: $key")
+        throw new IllegalArgumentException(
+          s"Unsupported Pulsar failover option: ${displayKey(key)}")
     }
   }
 
@@ -210,11 +216,14 @@ private[pulsar] object PulsarFailoverConfig {
   }
 
   private def parseSecondaries(params: Map[String, String]): Seq[SecondaryClusterConfig] = {
-    val grouped = params.toSeq.flatMap { case (key, value) =>
-      parseSecondaryKey(key).map { case (index, name) => index -> (name -> value) }
-    }.groupBy(_._1).map { case (index, entries) =>
-      index -> entries.map(_._2).toMap
-    }
+    val grouped = params.toSeq
+      .flatMap { case (key, value) =>
+        parseSecondaryKey(key).map { case (index, name) => index -> (name -> value) }
+      }
+      .groupBy(_._1)
+      .map { case (index, entries) =>
+        index -> entries.map(_._2).toMap
+      }
 
     if (grouped.isEmpty) {
       return Seq.empty
@@ -227,7 +236,7 @@ private[pulsar] object PulsarFailoverConfig {
       throw new IllegalArgumentException(
         s"Pulsar failover secondary indexes must start at 0 and be continuous; " +
           s"configured indexes: ${indexes.mkString(",")}, missing indexes: " +
-          missing.mkString(","))
+          (if (missing.nonEmpty) missing.mkString(",") else "before 0"))
     }
 
     indexes.map { index =>
@@ -271,12 +280,12 @@ private[pulsar] object PulsarFailoverConfig {
         } catch {
           case _: NumberFormatException =>
             throw new IllegalArgumentException(
-              s"$key must be a positive milliseconds value: $value")
+              s"${displayKey(key)} must be a positive milliseconds value: $value")
         }
       case None => defaultMs
     }
     if (millis <= 0) {
-      throw new IllegalArgumentException(s"$key must be positive, but was $millis")
+      throw new IllegalArgumentException(s"${displayKey(key)} must be positive, but was $millis")
     }
     Duration.ofMillis(millis)
   }
@@ -304,5 +313,31 @@ private[pulsar] object PulsarFailoverConfig {
 
   private def nonEmpty(params: Map[String, String], key: String): Option[String] = {
     params.get(key).map(_.trim).filter(_.nonEmpty)
+  }
+
+  private def displayKey(key: String): String = {
+    key match {
+      case PulsarFailoverPrimaryServiceUrlOptionKey => PulsarFailoverPrimaryServiceUrlDisplayKey
+      case PulsarFailoverDelayMsOptionKey => PulsarFailoverDelayMsDisplayKey
+      case PulsarFailoverSwitchBackDelayMsOptionKey => PulsarFailoverSwitchBackDelayMsDisplayKey
+      case PulsarFailoverCheckIntervalMsOptionKey => PulsarFailoverCheckIntervalMsDisplayKey
+      case PulsarFailoverPolicyOptionKey => PulsarFailoverPolicyOptionKey
+      case secondaryKey =>
+        parseSecondaryKey(secondaryKey) match {
+          case Some((index, SecondaryServiceUrl)) =>
+            s"${PulsarFailoverSecondaryDisplayPrefix}$index.serviceUrl"
+          case Some((index, SecondaryAuthPluginClassName)) =>
+            s"${PulsarFailoverSecondaryDisplayPrefix}$index.authPluginClassName"
+          case Some((index, SecondaryAuthParams)) =>
+            s"${PulsarFailoverSecondaryDisplayPrefix}$index.authParams"
+          case Some((index, SecondaryTlsTrustCertsFilePath)) =>
+            s"${PulsarFailoverSecondaryDisplayPrefix}$index.tlsTrustCertsFilePath"
+          case Some((index, SecondaryTlsTrustStorePath)) =>
+            s"${PulsarFailoverSecondaryDisplayPrefix}$index.tlsTrustStorePath"
+          case Some((index, SecondaryTlsTrustStorePassword)) =>
+            s"${PulsarFailoverSecondaryDisplayPrefix}$index.tlsTrustStorePassword"
+          case _ => secondaryKey
+        }
+    }
   }
 }

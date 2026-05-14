@@ -45,7 +45,9 @@ private[pulsar] object CachedPulsarClient extends Logging {
         .map(_.primaryServiceUrl)
         .getOrElse(config.get(PulsarOptions.ServiceUrlOptionKey).toString)
       val configWithoutFailover = config.asScala.toMap.filterNot { case (key, _) =>
-        key.toLowerCase(java.util.Locale.ROOT).startsWith(PulsarFailoverOptionKeyPrefix)
+        val normalizedKey = key.toLowerCase(java.util.Locale.ROOT)
+        normalizedKey.startsWith(PulsarFailoverOptionKeyPrefix) ||
+        failoverConfig.isDefined && normalizedKey == ServiceUrlOptionKey
       }
       val clientConf =
         PulsarConfigUpdater(
@@ -62,7 +64,7 @@ private[pulsar] object CachedPulsarClient extends Logging {
               .map(_.toString)
             if (serviceUrlFromConfig.exists(_ != failover.primaryServiceUrl)) {
               logWarning(
-                s"$ServiceUrlOptionKey differs from $PulsarFailoverPrimaryServiceUrlOptionKey; " +
+                s"$ServiceUrlOptionKey differs from $PulsarFailoverPrimaryServiceUrlDisplayKey; " +
                   s"using ${failover.primaryServiceUrl} for Pulsar client failover")
             }
             builder.serviceUrlProvider(PulsarFailoverConfig.toServiceUrlProvider(failover))

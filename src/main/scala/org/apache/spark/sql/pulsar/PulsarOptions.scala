@@ -40,15 +40,22 @@ private[pulsar] object PulsarOptions {
   val ServiceUrlOptionKey: String = "service.url"
   val AdminUrlOptionKey: String = "admin.url"
 
+  val PulsarFailoverPrimaryServiceUrlDisplayKey: String =
+    s"${PulsarFailoverOptionKeyPrefix}primary.serviceUrl"
   val PulsarFailoverPrimaryServiceUrlOptionKey: String =
     s"${PulsarFailoverOptionKeyPrefix}primaryserviceurl"
   val PulsarFailoverSecondaryPrefix: String = s"${PulsarFailoverOptionKeyPrefix}secondary."
   val PulsarFailoverSecondaryDisplayPrefix: String = PulsarFailoverSecondaryPrefix
   val PulsarFailoverDelayMsOptionKey: String = s"${PulsarFailoverOptionKeyPrefix}failoverdelayms"
+  val PulsarFailoverDelayMsDisplayKey: String = s"${PulsarFailoverOptionKeyPrefix}failoverDelayMs"
   val PulsarFailoverSwitchBackDelayMsOptionKey: String =
     s"${PulsarFailoverOptionKeyPrefix}switchbackdelayms"
+  val PulsarFailoverSwitchBackDelayMsDisplayKey: String =
+    s"${PulsarFailoverOptionKeyPrefix}switchBackDelayMs"
   val PulsarFailoverCheckIntervalMsOptionKey: String =
     s"${PulsarFailoverOptionKeyPrefix}checkintervalms"
+  val PulsarFailoverCheckIntervalMsDisplayKey: String =
+    s"${PulsarFailoverOptionKeyPrefix}checkIntervalMs"
   val PulsarFailoverPolicyOptionKey: String = s"${PulsarFailoverOptionKeyPrefix}policy"
 
   val StartingOffsetsOptionKey: String = "startingOffsets".toLowerCase(Locale.ROOT)

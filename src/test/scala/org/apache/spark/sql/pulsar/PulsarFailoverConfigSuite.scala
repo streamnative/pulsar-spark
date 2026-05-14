@@ -15,6 +15,8 @@ package org.apache.spark.sql.pulsar
 
 import java.time.Duration
 
+import scala.jdk.CollectionConverters._
+
 import org.apache.pulsar.client.api.AutoClusterFailoverBuilder.FailoverPolicy
 
 import org.apache.spark.SparkFunSuite
@@ -41,10 +43,11 @@ class PulsarFailoverConfigSuite extends SparkFunSuite {
 
   test("secondary indexes must start from 0 and be continuous") {
     val error = intercept[IllegalArgumentException] {
-      PulsarFailoverConfig.fromParams(Map(
-        PulsarFailoverPrimaryServiceUrlOptionKey -> primaryUrl,
-        s"${PulsarFailoverSecondaryPrefix}0.serviceUrl" -> secondary0Url,
-        s"${PulsarFailoverSecondaryPrefix}2.serviceUrl" -> secondary1Url))
+      PulsarFailoverConfig.fromParams(
+        Map(
+          PulsarFailoverPrimaryServiceUrlOptionKey -> primaryUrl,
+          s"${PulsarFailoverSecondaryPrefix}0.serviceUrl" -> secondary0Url,
+          s"${PulsarFailoverSecondaryPrefix}2.serviceUrl" -> secondary1Url))
     }
 
     assert(error.getMessage.contains("continuous"))
@@ -53,66 +56,80 @@ class PulsarFailoverConfigSuite extends SparkFunSuite {
 
   test("non-positive duration fails") {
     val error = intercept[IllegalArgumentException] {
-      PulsarFailoverConfig.fromParams(Map(
-        PulsarFailoverPrimaryServiceUrlOptionKey -> primaryUrl,
-        s"${PulsarFailoverSecondaryPrefix}0.serviceUrl" -> secondary0Url,
-        PulsarFailoverDelayMsOptionKey -> "0"))
+      PulsarFailoverConfig.fromParams(
+        Map(
+          PulsarFailoverPrimaryServiceUrlOptionKey -> primaryUrl,
+          s"${PulsarFailoverSecondaryPrefix}0.serviceUrl" -> secondary0Url,
+          PulsarFailoverDelayMsOptionKey -> "0"))
     }
 
-    assert(error.getMessage.contains(PulsarFailoverDelayMsOptionKey))
+    assert(error.getMessage.contains(PulsarFailoverDelayMsDisplayKey))
     assert(error.getMessage.contains("positive"))
   }
 
   test("full config parses durations, policy, auth and tls per secondary") {
-    val config = PulsarFailoverConfig.fromParams(Map(
-      PulsarFailoverPrimaryServiceUrlOptionKey -> primaryUrl,
-      PulsarFailoverDelayMsOptionKey -> "5000",
-      PulsarFailoverSwitchBackDelayMsOptionKey -> "10000",
-      PulsarFailoverCheckIntervalMsOptionKey -> "15000",
-      PulsarFailoverPolicyOptionKey -> "order",
-      s"${PulsarFailoverSecondaryPrefix}0.serviceUrl" -> secondary0Url,
-      s"${PulsarFailoverSecondaryPrefix}0.authPluginClassName" -> "plugin0",
-      s"${PulsarFailoverSecondaryPrefix}0.authParams" -> "params0",
-      s"${PulsarFailoverSecondaryPrefix}0.tlsTrustCertsFilePath" -> "/cert0.pem",
-      s"${PulsarFailoverSecondaryPrefix}0.tlsTrustStorePath" -> "/truststore0.jks",
-      s"${PulsarFailoverSecondaryPrefix}0.tlsTrustStorePassword" -> "password0",
-      s"${PulsarFailoverSecondaryPrefix}1.serviceUrl" -> secondary1Url,
-      s"${PulsarFailoverSecondaryPrefix}1.authPluginClassName" -> "plugin1",
-      s"${PulsarFailoverSecondaryPrefix}1.authParams" -> "params1",
-      s"${PulsarFailoverSecondaryPrefix}1.tlsTrustCertsFilePath" -> "/cert1.pem",
-      s"${PulsarFailoverSecondaryPrefix}1.tlsTrustStorePath" -> "/truststore1.jks",
-      s"${PulsarFailoverSecondaryPrefix}1.tlsTrustStorePassword" -> "password1")).get
+    val config = PulsarFailoverConfig
+      .fromParams(
+        Map(
+          PulsarFailoverPrimaryServiceUrlOptionKey -> primaryUrl,
+          PulsarFailoverDelayMsOptionKey -> "5000",
+          PulsarFailoverSwitchBackDelayMsOptionKey -> "10000",
+          PulsarFailoverCheckIntervalMsOptionKey -> "15000",
+          PulsarFailoverPolicyOptionKey -> "order",
+          s"${PulsarFailoverSecondaryPrefix}0.serviceUrl" -> secondary0Url,
+          s"${PulsarFailoverSecondaryPrefix}0.authPluginClassName" -> "plugin0",
+          s"${PulsarFailoverSecondaryPrefix}0.authParams" -> "params0",
+          s"${PulsarFailoverSecondaryPrefix}0.tlsTrustCertsFilePath" -> "/cert0.pem",
+          s"${PulsarFailoverSecondaryPrefix}0.tlsTrustStorePath" -> "/truststore0.jks",
+          s"${PulsarFailoverSecondaryPrefix}0.tlsTrustStorePassword" -> "password0",
+          s"${PulsarFailoverSecondaryPrefix}1.serviceUrl" -> secondary1Url,
+          s"${PulsarFailoverSecondaryPrefix}1.authPluginClassName" -> "plugin1",
+          s"${PulsarFailoverSecondaryPrefix}1.authParams" -> "params1",
+          s"${PulsarFailoverSecondaryPrefix}1.tlsTrustCertsFilePath" -> "/cert1.pem",
+          s"${PulsarFailoverSecondaryPrefix}1.tlsTrustStorePath" -> "/truststore1.jks",
+          s"${PulsarFailoverSecondaryPrefix}1.tlsTrustStorePassword" -> "password1"))
+      .get
 
     assert(config.primaryServiceUrl === primaryUrl)
     assert(config.failoverDelay === Duration.ofMillis(5000))
     assert(config.switchBackDelay === Duration.ofMillis(10000))
     assert(config.checkInterval === Duration.ofMillis(15000))
     assert(config.policy === FailoverPolicy.ORDER)
-    assert(config.secondaries === Seq(
-      SecondaryClusterConfig(
-        secondary0Url,
-        Some("plugin0" -> "params0"),
-        Some("/cert0.pem"),
-        Some("/truststore0.jks"),
-        Some("password0")),
-      SecondaryClusterConfig(
-        secondary1Url,
-        Some("plugin1" -> "params1"),
-        Some("/cert1.pem"),
-        Some("/truststore1.jks"),
-        Some("password1"))))
+    assert(
+      config.secondaries === Seq(
+        SecondaryClusterConfig(
+          secondary0Url,
+          Some("plugin0" -> "params0"),
+          Some("/cert0.pem"),
+          Some("/truststore0.jks"),
+          Some("password0")),
+        SecondaryClusterConfig(
+          secondary1Url,
+          Some("plugin1" -> "params1"),
+          Some("/cert1.pem"),
+          Some("/truststore1.jks"),
+          Some("password1"))))
   }
 
   test("secondary auth plugin and params must be configured together") {
     val error = intercept[IllegalArgumentException] {
-      PulsarFailoverConfig.fromParams(Map(
-        PulsarFailoverPrimaryServiceUrlOptionKey -> primaryUrl,
-        s"${PulsarFailoverSecondaryPrefix}0.serviceUrl" -> secondary0Url,
-        s"${PulsarFailoverSecondaryPrefix}0.authPluginClassName" -> "plugin0"))
+      PulsarFailoverConfig.fromParams(
+        Map(
+          PulsarFailoverPrimaryServiceUrlOptionKey -> primaryUrl,
+          s"${PulsarFailoverSecondaryPrefix}0.serviceUrl" -> secondary0Url,
+          s"${PulsarFailoverSecondaryPrefix}0.authPluginClassName" -> "plugin0"))
     }
 
     assert(error.getMessage.contains("authPluginClassName"))
     assert(error.getMessage.contains("authParams"))
+  }
+
+  test("stray failover options do not enable failover without primary service url") {
+    assert(
+      PulsarFailoverConfig
+        .fromParams(
+          Map(ServiceUrlOptionKey -> primaryUrl, PulsarFailoverDelayMsOptionKey -> "5000"))
+        .isEmpty)
   }
 
   test("toServiceUrlProvider builds AutoClusterFailover provider") {
@@ -126,7 +143,12 @@ class PulsarFailoverConfigSuite extends SparkFunSuite {
 
     val provider = PulsarFailoverConfig.toServiceUrlProvider(config)
 
-    assert(provider.getClass.getName.contains("AutoClusterFailover"))
-    assert(provider.getServiceUrl === primaryUrl)
+    val failover = provider.asInstanceOf[org.apache.pulsar.client.impl.AutoClusterFailover]
+    assert(failover.getPrimary === primaryUrl)
+    assert(failover.getSecondary === Seq(secondary0Url).asJava)
+    assert(failover.getFailoverPolicy === FailoverPolicy.ORDER)
+    assert(failover.getFailoverDelayNs === Duration.ofMillis(5000).toNanos)
+    assert(failover.getSwitchBackDelayNs === Duration.ofMillis(10000).toNanos)
+    assert(failover.getIntervalMs === 15000L)
   }
 }
