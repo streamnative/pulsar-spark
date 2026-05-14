@@ -25,6 +25,7 @@ private[pulsar] object PulsarOptions {
   val PulsarAdminOptionKeyPrefix: String = "pulsar.admin."
   val PulsarProducerOptionKeyPrefix: String = "pulsar.producer."
   val PulsarReaderOptionKeyPrefix: String = "pulsar.reader."
+  val PulsarFailoverOptionKeyPrefix: String = "pulsar.failover."
 
   // options
 
@@ -38,6 +39,18 @@ private[pulsar] object PulsarOptions {
 
   val ServiceUrlOptionKey: String = "service.url"
   val AdminUrlOptionKey: String = "admin.url"
+
+  val PulsarFailoverPrimaryServiceUrlOptionKey: String =
+    s"${PulsarFailoverOptionKeyPrefix}primaryserviceurl"
+  val PulsarFailoverSecondaryPrefix: String = s"${PulsarFailoverOptionKeyPrefix}secondary."
+  val PulsarFailoverSecondaryDisplayPrefix: String = PulsarFailoverSecondaryPrefix
+  val PulsarFailoverDelayMsOptionKey: String = s"${PulsarFailoverOptionKeyPrefix}failoverdelayms"
+  val PulsarFailoverSwitchBackDelayMsOptionKey: String =
+    s"${PulsarFailoverOptionKeyPrefix}switchbackdelayms"
+  val PulsarFailoverCheckIntervalMsOptionKey: String =
+    s"${PulsarFailoverOptionKeyPrefix}checkintervalms"
+  val PulsarFailoverPolicyOptionKey: String = s"${PulsarFailoverOptionKeyPrefix}policy"
+
   val StartingOffsetsOptionKey: String = "startingOffsets".toLowerCase(Locale.ROOT)
   val StartingTime: String = "startingTime".toLowerCase(Locale.ROOT)
   val EndingTime: String = "endingTime".toLowerCase(Locale.ROOT)

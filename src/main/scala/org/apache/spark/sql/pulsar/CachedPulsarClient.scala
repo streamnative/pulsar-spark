@@ -40,16 +40,35 @@ private[pulsar] object CachedPulsarClient extends Logging {
 
   private val cacheLoader = new CacheLoader[ju.Map[String, Object], PulsarClientImpl]() {
     override def load(config: ju.Map[String, Object]): PulsarClientImpl = {
-      val pulsarServiceUrl = config.get(PulsarOptions.ServiceUrlOptionKey).toString
+      val failoverConfig = PulsarFailoverConfig.fromParams(config)
+      val pulsarServiceUrl = failoverConfig
+        .map(_.primaryServiceUrl)
+        .getOrElse(config.get(PulsarOptions.ServiceUrlOptionKey).toString)
+      val configWithoutFailover = config.asScala.toMap.filterNot { case (key, _) =>
+        key.toLowerCase(java.util.Locale.ROOT).startsWith(PulsarFailoverOptionKeyPrefix)
+      }
       val clientConf =
-        PulsarConfigUpdater("pulsarClientCache", config.asScala.toMap, PulsarOptions.FilteredKeys)
-          .rebuild()
+        PulsarConfigUpdater(
+          "pulsarClientCache",
+          configWithoutFailover,
+          PulsarOptions.FilteredKeys).rebuild()
 
       val builder = PulsarClient.builder()
       try {
-        builder
-          .loadConf(clientConf)
-          .serviceUrl(pulsarServiceUrl)
+        builder.loadConf(clientConf)
+        failoverConfig match {
+          case Some(failover) =>
+            val serviceUrlFromConfig = Option(config.get(PulsarOptions.ServiceUrlOptionKey))
+              .map(_.toString)
+            if (serviceUrlFromConfig.exists(_ != failover.primaryServiceUrl)) {
+              logWarning(
+                s"$ServiceUrlOptionKey differs from $PulsarFailoverPrimaryServiceUrlOptionKey; " +
+                  s"using ${failover.primaryServiceUrl} for Pulsar client failover")
+            }
+            builder.serviceUrlProvider(PulsarFailoverConfig.toServiceUrlProvider(failover))
+          case None =>
+            builder.serviceUrl(pulsarServiceUrl)
+        }
 
         // Set authentication parameters.
         if (clientConf.containsKey(AuthPluginClassName)) {

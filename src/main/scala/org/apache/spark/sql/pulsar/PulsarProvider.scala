@@ -267,6 +267,12 @@ private[pulsar] object PulsarProvider extends Logging {
     }
   }
 
+  private def getFailoverParams(parameters: Map[String, String]): Map[String, String] = {
+    parameters.filter { case (k, _) =>
+      k.toLowerCase(Locale.ROOT).startsWith(PulsarFailoverOptionKeyPrefix)
+    }
+  }
+
   private def getAdminParams(parameters: Map[String, String]): Map[String, String] = {
     getModuleParams(parameters, PulsarAdminOptionKeyPrefix, clientConfKeys)
   }
@@ -386,7 +392,8 @@ private[pulsar] object PulsarProvider extends Logging {
   }
 
   private def getServiceUrl(parameters: Map[String, String]): String = {
-    parameters(ServiceUrlOptionKey)
+    PulsarFailoverConfig.primaryServiceUrl(parameters)
+      .getOrElse(parameters(ServiceUrlOptionKey))
   }
 
   private def getAdminUrl(parameters: Map[String, String]): Option[String] = {
@@ -416,8 +423,19 @@ private[pulsar] object PulsarProvider extends Logging {
 
   private def validateGeneralOptions(
       caseInsensitiveParams: Map[String, String]): Map[String, String] = {
-    if (!caseInsensitiveParams.contains(ServiceUrlOptionKey)) {
-      throw new IllegalArgumentException(s"$ServiceUrlOptionKey must be specified")
+    val failoverConfig = PulsarFailoverConfig.fromParams(caseInsensitiveParams)
+    failoverConfig match {
+      case Some(config) =>
+        caseInsensitiveParams.get(ServiceUrlOptionKey).foreach { serviceUrl =>
+          require(
+            serviceUrl == config.primaryServiceUrl,
+            s"$ServiceUrlOptionKey must match $PulsarFailoverPrimaryServiceUrlOptionKey " +
+              "when Pulsar failover is enabled")
+        }
+      case None =>
+        require(
+          caseInsensitiveParams.contains(ServiceUrlOptionKey),
+          s"$ServiceUrlOptionKey must be specified")
     }
 
     // validate topic options
@@ -503,8 +521,19 @@ private[pulsar] object PulsarProvider extends Logging {
   private def validateSinkOptions(parameters: Map[String, String]): Map[String, String] = {
     val caseInsensitiveParams = parameters.map { case (k, v) => (k.toLowerCase(Locale.ROOT), v) }
 
-    if (!caseInsensitiveParams.contains(ServiceUrlOptionKey)) {
-      throw new IllegalArgumentException(s"$ServiceUrlOptionKey must be specified")
+    val failoverConfig = PulsarFailoverConfig.fromParams(caseInsensitiveParams)
+    failoverConfig match {
+      case Some(config) =>
+        caseInsensitiveParams.get(ServiceUrlOptionKey).foreach { serviceUrl =>
+          require(
+            serviceUrl == config.primaryServiceUrl,
+            s"$ServiceUrlOptionKey must match $PulsarFailoverPrimaryServiceUrlOptionKey " +
+              "when Pulsar failover is enabled")
+        }
+      case None =>
+        require(
+          caseInsensitiveParams.contains(ServiceUrlOptionKey),
+          s"$ServiceUrlOptionKey must be specified")
     }
 
     val topicOptions =
@@ -525,7 +554,7 @@ private[pulsar] object PulsarProvider extends Logging {
 
     val serviceUrl = getServiceUrl(parameters)
     val adminUrl = getAdminUrl(parameters)
-    var clientParams = getClientParams(parameters)
+    var clientParams = getClientParams(parameters) ++ getFailoverParams(parameters)
     clientParams += (ServiceUrlOptionKey -> serviceUrl)
     val readerParams = getReaderParams(parameters)
     val adminParams = getAdminParams(parameters)
@@ -542,7 +571,7 @@ private[pulsar] object PulsarProvider extends Logging {
 
     val serviceUrl = getServiceUrl(parameters)
 
-    var clientParams = getClientParams(parameters)
+    var clientParams = getClientParams(parameters) ++ getFailoverParams(parameters)
     clientParams += (ServiceUrlOptionKey -> serviceUrl)
     val producerParams = getProducerParams(parameters)
 
