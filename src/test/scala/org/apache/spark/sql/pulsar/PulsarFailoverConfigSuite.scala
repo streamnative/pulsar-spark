@@ -32,6 +32,13 @@ class PulsarFailoverConfigSuite extends SparkFunSuite {
     assert(PulsarFailoverConfig.fromParams(Map(ServiceUrlOptionKey -> primaryUrl)).isEmpty)
   }
 
+  test("primary service URL is trimmed") {
+    assert(
+      PulsarFailoverConfig
+        .primaryServiceUrl(Map(PulsarFailoverPrimaryServiceUrlOptionKey -> s" $primaryUrl "))
+        .contains(primaryUrl))
+  }
+
   test("missing secondary.0.serviceUrl fails with guidance to use service.url") {
     val error = intercept[IllegalArgumentException] {
       PulsarFailoverConfig.fromParams(Map(PulsarFailoverPrimaryServiceUrlOptionKey -> primaryUrl))
@@ -149,6 +156,18 @@ class PulsarFailoverConfigSuite extends SparkFunSuite {
         .fromParams(
           Map(ServiceUrlOptionKey -> primaryUrl, PulsarFailoverDelayMsOptionKey -> "5000"))
         .isEmpty)
+  }
+
+  test("unsupported policy fails") {
+    val error = intercept[IllegalArgumentException] {
+      PulsarFailoverConfig.fromParams(
+        Map(
+          PulsarFailoverPrimaryServiceUrlOptionKey -> primaryUrl,
+          s"${PulsarFailoverSecondaryPrefix}0.serviceUrl" -> secondary0Url,
+          PulsarFailoverPolicyOptionKey -> "round_robin"))
+    }
+
+    assert(error.getMessage.contains("Unsupported Pulsar failover policy"))
   }
 
   test("toServiceUrlProvider builds AutoClusterFailover provider") {

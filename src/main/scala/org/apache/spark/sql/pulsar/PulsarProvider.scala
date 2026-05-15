@@ -395,7 +395,34 @@ private[pulsar] object PulsarProvider extends Logging {
   private def getServiceUrl(parameters: Map[String, String]): String = {
     PulsarFailoverConfig
       .primaryServiceUrl(parameters)
-      .getOrElse(parameters(ServiceUrlOptionKey))
+      .orElse(parameters.get(ServiceUrlOptionKey).map(_.trim))
+      .get
+  }
+
+  private def validateServiceUrlOptions(caseInsensitiveParams: Map[String, String]): Unit = {
+    val failoverConfig = PulsarFailoverConfig.fromParams(caseInsensitiveParams)
+    failoverConfig match {
+      case Some(config) =>
+        caseInsensitiveParams.get(ServiceUrlOptionKey).foreach { serviceUrl =>
+          require(
+            serviceUrl.trim == config.primaryServiceUrl,
+            s"$ServiceUrlOptionKey must match $PulsarFailoverPrimaryServiceUrlDisplayKey " +
+              "when Pulsar failover is enabled")
+        }
+      case None =>
+        require(
+          caseInsensitiveParams.get(ServiceUrlOptionKey).exists(_.trim.nonEmpty),
+          s"$ServiceUrlOptionKey must be specified")
+    }
+  }
+
+  private def withUnloggedParams(
+      loggedParams: ju.Map[String, Object],
+      unloggedParams: Map[String, String]): ju.Map[String, Object] = {
+    unloggedParams.foreach { case (key, value) =>
+      loggedParams.put(key, value)
+    }
+    loggedParams
   }
 
   private def getAdminUrl(parameters: Map[String, String]): Option[String] = {
@@ -423,20 +450,7 @@ private[pulsar] object PulsarProvider extends Logging {
 
   private def validateGeneralOptions(
       caseInsensitiveParams: Map[String, String]): Map[String, String] = {
-    val failoverConfig = PulsarFailoverConfig.fromParams(caseInsensitiveParams)
-    failoverConfig match {
-      case Some(config) =>
-        caseInsensitiveParams.get(ServiceUrlOptionKey).foreach { serviceUrl =>
-          require(
-            serviceUrl == config.primaryServiceUrl,
-            s"$ServiceUrlOptionKey must match $PulsarFailoverPrimaryServiceUrlDisplayKey " +
-              "when Pulsar failover is enabled")
-        }
-      case None =>
-        require(
-          caseInsensitiveParams.contains(ServiceUrlOptionKey),
-          s"$ServiceUrlOptionKey must be specified")
-    }
+    validateServiceUrlOptions(caseInsensitiveParams)
 
     // validate topic options
     val topicOptions = caseInsensitiveParams.filter { case (k, _) =>
@@ -521,20 +535,7 @@ private[pulsar] object PulsarProvider extends Logging {
   private def validateSinkOptions(parameters: Map[String, String]): Map[String, String] = {
     val caseInsensitiveParams = parameters.map { case (k, v) => (k.toLowerCase(Locale.ROOT), v) }
 
-    val failoverConfig = PulsarFailoverConfig.fromParams(caseInsensitiveParams)
-    failoverConfig match {
-      case Some(config) =>
-        caseInsensitiveParams.get(ServiceUrlOptionKey).foreach { serviceUrl =>
-          require(
-            serviceUrl == config.primaryServiceUrl,
-            s"$ServiceUrlOptionKey must match $PulsarFailoverPrimaryServiceUrlDisplayKey " +
-              "when Pulsar failover is enabled")
-        }
-      case None =>
-        require(
-          caseInsensitiveParams.contains(ServiceUrlOptionKey),
-          s"$ServiceUrlOptionKey must be specified")
-    }
+    validateServiceUrlOptions(caseInsensitiveParams)
 
     val topicOptions =
       caseInsensitiveParams.filter { case (k, _) => TopicOptionKeys.contains(k) }.toSeq.toMap
@@ -557,13 +558,15 @@ private[pulsar] object PulsarProvider extends Logging {
 
     val serviceUrl = getServiceUrl(parameters)
     val adminUrl = getAdminUrl(parameters)
-    var clientParams = getClientParams(parameters) ++ getFailoverParams(parameters)
-    clientParams += (ServiceUrlOptionKey -> serviceUrl)
+    val clientParams = getClientParams(parameters) + (ServiceUrlOptionKey -> serviceUrl)
     val readerParams = getReaderParams(parameters)
     val adminParams = getAdminParams(parameters)
 
+    val clientConfig = paramsToPulsarConf("pulsar.client", clientParams)
+    withUnloggedParams(clientConfig, getFailoverParams(parameters))
+
     (
-      paramsToPulsarConf("pulsar.client", clientParams),
+      clientConfig,
       paramsToPulsarConf("pulsar.reader", readerParams),
       paramsToPulsarConf("pulsar.admin", adminParams),
       serviceUrl,
@@ -575,16 +578,15 @@ private[pulsar] object PulsarProvider extends Logging {
 
     val serviceUrl = getServiceUrl(parameters)
 
-    var clientParams = getClientParams(parameters) ++ getFailoverParams(parameters)
-    clientParams += (ServiceUrlOptionKey -> serviceUrl)
+    val clientParams = getClientParams(parameters) + (ServiceUrlOptionKey -> serviceUrl)
     val producerParams = getProducerParams(parameters)
 
     val topic = parameters.get(TopicSingle).map(_.trim).map(TopicName.get(_).toString)
 
-    (
-      paramsToPulsarConf("pulsar.client", clientParams),
-      paramsToPulsarConf("pulsar.producer", producerParams),
-      topic)
+    val clientConfig = paramsToPulsarConf("pulsar.client", clientParams)
+    withUnloggedParams(clientConfig, getFailoverParams(parameters))
+
+    (clientConfig, paramsToPulsarConf("pulsar.producer", producerParams), topic)
   }
 
   private def jsonOptions: JSONOptionsInRead = {

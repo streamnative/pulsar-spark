@@ -533,7 +533,7 @@ Primary cluster authentication and TLS use existing `pulsar.client.*` options. S
 .option("pulsar.failover.secondary.0.tlsTrustStorePassword", "<password>")
 ```
 
-Secondary indexes must start at `0` and be continuous. At least one secondary cluster is required; use plain `service.url` if no secondary cluster is needed. Only `ORDER` policy is supported now.
+Secondary indexes must start at `0` and be continuous. At least one secondary cluster is required; use plain `service.url` if no secondary cluster is needed. The connector accepts Pulsar client `AutoClusterFailover` policies through `pulsar.failover.policy`; with the current Pulsar client, `ORDER` is the available policy and default.
 
 Limitations:
 
