@@ -502,6 +502,44 @@ Please check [Pulsar Producer Configuration](https://pulsar.apache.org/docs/2.11
 
 </table>
 
+
+### AutoClusterFailover
+
+The connector can configure Pulsar client-side `AutoClusterFailover` through DataFrame options. Set `pulsar.failover.primary.serviceUrl` to enable failover. When failover is enabled, `service.url` is optional; if both are set, they must match.
+
+```scala
+val df = spark.readStream
+  .format("pulsar")
+  .option("pulsar.failover.primary.serviceUrl", "pulsar://primary:6650")
+  .option("pulsar.failover.secondary.0.serviceUrl", "pulsar://secondary-a:6650")
+  .option("pulsar.failover.secondary.1.serviceUrl", "pulsar://secondary-b:6650")
+  .option("pulsar.failover.failoverDelayMs", "30000")
+  .option("pulsar.failover.switchBackDelayMs", "60000")
+  .option("pulsar.failover.checkIntervalMs", "30000")
+  .option("topic", "persistent://public/default/input")
+  .load()
+```
+
+Primary cluster authentication and TLS use existing `pulsar.client.*` options. Secondary clusters can use independent authentication and TLS settings:
+
+```scala
+.option("pulsar.client.authPluginClassName", "org.apache.pulsar.client.impl.auth.AuthenticationToken")
+.option("pulsar.client.authParams", "token:<primary token>")
+.option("pulsar.client.tlsTrustCertsFilePath", "/path/to/primary-ca.pem")
+.option("pulsar.failover.secondary.0.authPluginClassName", "org.apache.pulsar.client.impl.auth.AuthenticationToken")
+.option("pulsar.failover.secondary.0.authParams", "token:<secondary token>")
+.option("pulsar.failover.secondary.0.tlsTrustCertsFilePath", "/path/to/secondary-ca.pem")
+.option("pulsar.failover.secondary.0.tlsTrustStorePath", "/path/to/secondary-truststore.jks")
+.option("pulsar.failover.secondary.0.tlsTrustStorePassword", "<password>")
+```
+
+Secondary indexes must start at `0` and be continuous. At least one secondary cluster is required; use plain `service.url` if no secondary cluster is needed. The connector accepts Pulsar client `AutoClusterFailover` policies through `pulsar.failover.policy`; with the current Pulsar client, `ORDER` is the available policy and default.
+
+Limitations:
+
+* `PulsarAdmin` does not participate in failover. If `maxBytesPerTrigger` requires `admin.url`, use DNS or a load balancer for admin high availability.
+* Pulsar `AutoClusterFailover` probes service endpoints at TCP level, so it may not detect partial broker-side degradation while proxies or ports remain reachable.
+
 ### Authentication
 Should the Pulsar cluster require authentication, credentials can be set in the following way.
 
