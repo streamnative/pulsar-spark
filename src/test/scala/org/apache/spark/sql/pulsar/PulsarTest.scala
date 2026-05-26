@@ -43,7 +43,7 @@ import org.apache.spark.util.Utils
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * A trait to clean cached Pulsar producers in `afterAll`
+ * A trait to clean cached Pulsar resources in `afterAll`
  */
 trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
   self: SparkFunSuite =>
@@ -80,12 +80,16 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
     s"subscription-${subscriptionId.getAndIncrement()}").toString
 
   override def afterAll(): Unit = {
-    super.afterAll()
+    CachedConsumer.clear()
     CachedPulsarClient.clear()
-    if (pulsarContainer != null) {
-      pulsarContainer.stop()
-      pulsarContainer.close()
-      brokerConfigs.clear()
+    try {
+      super.afterAll()
+    } finally {
+      if (pulsarContainer != null) {
+        pulsarContainer.stop()
+        pulsarContainer.close()
+        brokerConfigs.clear()
+      }
     }
   }
 
@@ -282,17 +286,22 @@ trait PulsarTest extends BeforeAndAfterAll with BeforeAndAfterEach {
       .serviceUrl(serviceUrl)
       .build()
 
-    val topicPartitions = topics.flatMap { tp =>
-      client.getPartitionsForTopic(tp).get().asScala
+    try {
+      val topicPartitions = topics.flatMap { tp =>
+        client.getPartitionsForTopic(tp).get().asScala
+      }
+      val subscription = newSubscription()
+      try {
+        topicPartitions.map { tp =>
+          val mid = CachedConsumer.getOrCreate(tp, subscription, client).getLastMessageId
+          tp -> mid
+        }.toMap
+      } finally {
+        topicPartitions.foreach(CachedConsumer.close(_, subscription))
+      }
+    } finally {
+      client.close()
     }
-    val subscription = newSubscription()
-    val offsets = topicPartitions.map { tp =>
-      val mid = CachedConsumer.getOrCreate(tp, subscription, client).getLastMessageId
-      tp -> mid
-    }.toMap
-    client.close()
-    topicPartitions.foreach(CachedConsumer.close(_, subscription))
-    offsets
   }
 
   def addPartitions(topic: String, partitions: Int): Unit = {
