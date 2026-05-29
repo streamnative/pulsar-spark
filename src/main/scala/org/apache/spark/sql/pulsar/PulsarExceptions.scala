@@ -104,6 +104,13 @@ private[pulsar] class PulsarIllegalStateException(
   override def getMessageParameters: java.util.Map[String, String] = messageParameters.asJava
 
   override def getCondition: String = errorClass
+
+  // Some Spark distributions (notably Databricks Runtime) leave the deprecated
+  // SparkThrowable.getErrorClass abstract instead of defaulting to getCondition.
+  // Implement it explicitly so a thrown exception can be surfaced by Spark's
+  // TaskResultGetter instead of raising AbstractMethodError (which silently hangs
+  // the job). Harmless on OSS Spark, where it overrides the deprecated default.
+  override def getErrorClass: String = errorClass
 }
 
 
@@ -125,4 +132,8 @@ private[pulsar] class PulsarIllegalArgumentException(
   override def getMessageParameters: java.util.Map[String, String] = messageParameters.asJava
 
   override def getCondition: String = errorClass
+
+  // See PulsarIllegalStateException above: explicit override guards against Spark
+  // builds (e.g. Databricks Runtime) that leave SparkThrowable.getErrorClass abstract.
+  override def getErrorClass: String = errorClass
 }
