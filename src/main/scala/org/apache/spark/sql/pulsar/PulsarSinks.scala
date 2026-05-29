@@ -129,7 +129,7 @@ private[pulsar] object PulsarSinks extends Logging {
       schema.filter(n => !PulsarOptions.MetaFieldNames.contains(n.name))
 
     if (valuesExpression.length == 0) {
-      PulsarExceptions.pulsarSinkInvalidSchema
+      throw PulsarExceptions.pulsarSinkInvalidSchema
     }
 
     checkForUnsupportedType(valuesExpression.map(_.dataType))

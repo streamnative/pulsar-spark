@@ -40,7 +40,7 @@ object PulsarExceptions {
 
   def pulsarSinkInvalidSchema: PulsarIllegalArgumentException = {
     new PulsarIllegalArgumentException(
-      errorClass = "PULSAR_SINK_INVALID_SCHEMA",
+      errorClass = "PULSAR_SINK_INVALID_SCHEMA_TYPE",
       messageParameters = Map()
     )
   }
