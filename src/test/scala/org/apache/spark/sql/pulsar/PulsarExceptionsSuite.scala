@@ -34,9 +34,9 @@ class PulsarExceptionsSuite extends SparkFunSuite {
   }
 
   test("PulsarIllegalArgumentException declares its own getErrorClass") {
-    val e = PulsarExceptions.pulsarSinkInvalidSchema
-    assert(e.getCondition === "PULSAR_SINK_INVALID_SCHEMA")
+    val e = PulsarExceptions.pulsarProviderInvalidSaveMode("Append")
+    assert(e.getCondition === "PULSAR_PROVIDER_INVALID_SAVE_MODE")
     val method = classOf[PulsarIllegalArgumentException].getDeclaredMethod("getErrorClass")
-    assert(method.invoke(e) === "PULSAR_SINK_INVALID_SCHEMA")
+    assert(method.invoke(e) === "PULSAR_PROVIDER_INVALID_SAVE_MODE")
   }
 }
