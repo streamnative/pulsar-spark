@@ -16,7 +16,7 @@ package org.apache.spark.sql.pulsar
 import java.{util => ju}
 import java.util.{Locale, UUID}
 
-import org.apache.pulsar.client.api.MessageId
+import org.apache.pulsar.client.api.{MessageId, SubscriptionType}
 import org.apache.pulsar.common.naming.TopicName
 
 import org.apache.spark.SparkEnv
@@ -71,6 +71,7 @@ private[pulsar] class PulsarProvider
         caseInsensitiveParams,
         getAllowDifferentTopicSchemas(parameters),
         getPredefinedSubscription(parameters),
+        getSubscriptionType(caseInsensitiveParams),
         sqlContext.sparkContext)) { pulsarHelper =>
       pulsarHelper.getAndCheckCompatible(schema)
     }
@@ -105,6 +106,7 @@ private[pulsar] class PulsarProvider
       caseInsensitiveParams,
       getAllowDifferentTopicSchemas(parameters),
       getPredefinedSubscription(parameters),
+      getSubscriptionType(caseInsensitiveParams),
       sqlContext.sparkContext)
 
     val pSchema = pulsarHelper.getAndCheckCompatible(schema)
@@ -155,6 +157,7 @@ private[pulsar] class PulsarProvider
         caseInsensitiveParams,
         getAllowDifferentTopicSchemas(parameters),
         getPredefinedSubscription(parameters),
+        getSubscriptionType(caseInsensitiveParams),
         sqlContext.sparkContext)) { pulsarHelper =>
       val perTopicStarts =
         pulsarHelper.offsetForEachTopic(caseInsensitiveParams, EarliestOffset, StartOptionKey)
@@ -382,6 +385,19 @@ private[pulsar] object PulsarProvider extends Logging {
     sub match {
       case "" => None
       case s => Option(s)
+    }
+  }
+
+  private def getSubscriptionType(parameters: Map[String, String]): SubscriptionType = {
+    parameters.get(SubscriptionTypeOptionKey).map(_.trim).filter(_.nonEmpty) match {
+      case None => SubscriptionType.Exclusive
+      case Some(value) =>
+        SubscriptionType
+          .values()
+          .find(_.name().equalsIgnoreCase(value))
+          .getOrElse(throw new IllegalArgumentException(
+            s"Unknown $SubscriptionTypeOptionKey: $value. Supported values: " +
+              SubscriptionType.values().mkString(", ")))
     }
   }
 

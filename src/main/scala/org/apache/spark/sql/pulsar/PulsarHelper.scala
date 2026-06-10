@@ -23,7 +23,7 @@ import scala.language.postfixOps
 import scala.util.control.NonFatal
 
 import org.apache.pulsar.client.admin.PulsarAdmin
-import org.apache.pulsar.client.api.{MessageId, PulsarClient}
+import org.apache.pulsar.client.api.{MessageId, PulsarClient, SubscriptionType}
 import org.apache.pulsar.client.impl.{MessageIdImpl, PulsarClientImpl}
 import org.apache.pulsar.client.impl.schema.BytesSchema
 import org.apache.pulsar.client.internal.DefaultImplementation
@@ -54,6 +54,7 @@ private[pulsar] case class PulsarHelper(
     caseInsensitiveParameters: Map[String, String],
     allowDifferentTopicSchemas: Boolean,
     predefinedSubscription: Option[String],
+    subscriptionType: SubscriptionType,
     sparkContext: SparkContext)
     extends Closeable
     with Logging {
@@ -95,7 +96,7 @@ private[pulsar] case class PulsarHelper(
       val (subscriptionName, _) = extractSubscription(subscription, tp)
 
       // establish connection and setup the subscription if needed
-      val consumer = CachedConsumer.getOrCreate(tp, subscriptionName, client)
+      val consumer = CachedConsumer.getOrCreate(tp, subscriptionName, client, subscriptionType)
 
       // reset cursor position
       log.info(s"Resetting cursor for $subscriptionName to given offset")
@@ -115,7 +116,7 @@ private[pulsar] case class PulsarHelper(
       val (subscriptionNames, _) = extractSubscription(subscription, tp)
 
       // establish connection and setup the subscription if needed
-      val consumer = CachedConsumer.getOrCreate(tp, subscriptionNames, client)
+      val consumer = CachedConsumer.getOrCreate(tp, subscriptionNames, client, subscriptionType)
 
       // reset cursor position
       log.info(s"Resetting cursor for $subscriptionNames to given timestamp")
@@ -141,7 +142,7 @@ private[pulsar] case class PulsarHelper(
     offset.foreach { case (tp, mid) =>
       try {
         val (subscription, _) = extractSubscription(predefinedSubscription, tp)
-        val consumer = CachedConsumer.getOrCreate(tp, subscription, client)
+        val consumer = CachedConsumer.getOrCreate(tp, subscription, client, subscriptionType)
         // We need to do this because the consumer does not attempt to
         // reconnect after calling .seek().
         // TODO: Remove this once we have upgraded to a version so that this is no longer needed
@@ -165,7 +166,7 @@ private[pulsar] case class PulsarHelper(
       // Only delete a subscription if it's not predefined and created by us
       if (!subscriptionPredefined) {
         try {
-          CachedConsumer.getOrCreate(tp, subscriptionName, client).unsubscribe()
+          CachedConsumer.getOrCreate(tp, subscriptionName, client, subscriptionType).unsubscribe()
         } catch {
           case e: Throwable =>
             throw new RuntimeException(
@@ -529,7 +530,7 @@ private[pulsar] case class PulsarHelper(
 
   private def getLastMessageId(topic: String): MessageId = {
     val (subscriptionName, _) = extractSubscription(predefinedSubscription, topic)
-    CachedConsumer.getOrCreate(topic, subscriptionName, client).getLastMessageId
+    CachedConsumer.getOrCreate(topic, subscriptionName, client, subscriptionType).getLastMessageId
   }
 }
 
